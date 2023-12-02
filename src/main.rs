@@ -1,9 +1,13 @@
 mod shader;
+mod material;
 mod geometry;
+mod texture;
 mod debug_geo;
 
-use glium::{Surface, VertexBuffer};
+use glium::{Surface, uniform, VertexBuffer};
 use crate::geometry::Vertex;
+
+
 
 fn main() {
     let event_loop = winit::event_loop::EventLoopBuilder::new().build();
@@ -11,8 +15,9 @@ fn main() {
         .with_title("Enigma - Render 3D")
         .build(&event_loop);
 
-    let shader = shader::Shader::default();//shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl");
-    let program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).unwrap();
+    let shader = shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl");
+    let program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+
 
     // TODO: collect the actual model data later
     let shapes = debug_geo::get_debug_shapes();
@@ -24,6 +29,13 @@ fn main() {
 
     //define shader uniforms
     let mut time: f32 = 0.0;
+    let matrix = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0 , 0.0, 0.0, 1.0f32],
+    ];
+
 
     event_loop.run(move |event, _, window_target| {
         match event {
@@ -40,6 +52,7 @@ fn main() {
                 time += 0.001;
                 let uniforms = glium::uniform! {
                     time: time,
+                    matrix: matrix,
                 };
                 let mut target = display.draw();
                 target.clear_color(0.0, 0.0, 0.0, 1.0);
