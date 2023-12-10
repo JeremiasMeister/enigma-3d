@@ -82,3 +82,12 @@ impl std::fmt::Debug for Shader {
         write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
     }
 }
+
+impl Clone for Shader {
+    fn clone(&self) -> Self {
+        Self {
+            fragment_shader: self.fragment_shader.clone(),
+            vertex_shader: self.vertex_shader.clone(),
+        }
+    }
+}

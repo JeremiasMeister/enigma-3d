@@ -4,9 +4,8 @@ mod geometry;
 mod texture;
 mod debug_geo;
 
-use glium::{Surface, uniform, VertexBuffer};
+use glium::{Surface, VertexBuffer};
 use crate::geometry::Vertex;
-
 
 
 fn main() {
@@ -16,25 +15,23 @@ fn main() {
         .build(&event_loop);
 
     let shader = shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl");
-    let program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
-
 
     // TODO: collect the actual model data later
     let shapes = debug_geo::get_debug_shapes();
+    let mut materials: Vec<material::Material> = Vec::new();
+    for _ in shapes.iter() {
+        let mut material = material::Material::default(shader.clone(), display.clone());
+        material.set_color([1.0, 1.0, 1.0]);
+        material.set_texture_from_file("res/textures/uv_checker.png", material::TextureType::Albedo);
+        materials.push(material);
+    }
 
-    let vertex_buffers: Vec<VertexBuffer<Vertex>> = shapes.iter().map(|shape| {
-        VertexBuffer::new(&display, shape).unwrap()
-    }).collect();
+    let mut vertex_buffers: Vec<VertexBuffer<Vertex>> = Vec::new();
+    for (shape, material) in shapes.iter().zip(materials.iter()) {
+        let buffer = VertexBuffer::new(&material.display, shape).unwrap();
+        vertex_buffers.push(buffer);
+    }
     let indices: glium::index::NoIndices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
-
-    //define shader uniforms
-    let mut time: f32 = 0.0;
-    let matrix = [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0 , 0.0, 0.0, 1.0f32],
-    ];
 
 
     event_loop.run(move |event, _, window_target| {
@@ -46,21 +43,16 @@ fn main() {
             },
             winit::event::Event::RedrawEventsCleared => {
                 _window.request_redraw();
-            },
+            }
             winit::event::Event::RedrawRequested(_) => {
-                // Update the time uniform
-                time += 0.001;
-                let uniforms = glium::uniform! {
-                    time: time,
-                    matrix: matrix,
-                };
                 let mut target = display.draw();
                 target.clear_color(0.0, 0.0, 0.0, 1.0);
-                for buffer in vertex_buffers.iter() {
-                    target.draw(buffer, &indices, &program, &uniforms, &Default::default()).unwrap();
+                for (buffer, mut material) in vertex_buffers.iter().zip((materials.iter_mut())) {
+                    material.update();
+                    target.draw(buffer, &indices, &material.program, &material.get_uniforms(), &Default::default()).unwrap();
                 }
                 target.finish().unwrap();
-            },
+            }
             _ => (),
         }
     });
