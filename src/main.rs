@@ -1,15 +1,14 @@
-use std::fmt::Display;
 use enigma::{shader, material, geometry, EventLoop, object};
 mod debug_geo;
 use enigma::object::Shape;
 
-fn default_object(event_loop: &EventLoop) -> enigma::object::Object {
-    let mut object = enigma::object::Object::default(event_loop.get_display_clone());
+fn default_object(event_loop: &EventLoop) -> object::Object {
+    let object = object::Object::default(event_loop.get_display_clone());
     object
 }
 
-fn debug_shapes(event_loop: &EventLoop) -> enigma::object::Object {
-    let mut object = enigma::object::Object::new();
+fn debug_shapes(event_loop: &EventLoop) -> object::Object {
+    let mut object = object::Object::new();
     let verts = debug_geo::get_debug_shapes();
     let shape1 = Shape::from_vertices(verts[0].to_vec());
     let shape2 = Shape::from_vertices(verts[1].to_vec());

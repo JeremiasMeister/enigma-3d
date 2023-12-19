@@ -1,10 +1,8 @@
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
-use glium::{Display, IndexBuffer, Surface, VertexBuffer};
-use itertools::Itertools;
+use glium::{Display, Surface};
 use winit::event::Event;
 use winit::event_loop::{ControlFlow};
-use crate::material::Material;
 
 pub mod shader;
 pub mod geometry;
@@ -69,7 +67,7 @@ impl EventLoop {
                     target.clear_color(0.0, 0.0, 0.0, 1.0);
                     for object in app_state.objects.iter_mut() {
                         object.update();
-                        for (buffer, (mut material, indices)) in object.get_vertex_buffers().iter().zip(object.materials.iter().zip(object.get_index_buffers().iter())) {
+                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.materials.iter().zip(object.get_index_buffers().iter())) {
                             target.draw(buffer, indices, &material.program, &material.get_uniforms(), &Default::default()).unwrap();
                         }
                     }

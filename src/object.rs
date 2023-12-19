@@ -1,11 +1,10 @@
-use glium::{Display, IndexBuffer};
+use glium::Display;
 use glium::glutin::surface::WindowSurface;
-use glium::vertex::VerticesSource::VertexBuffer;
 use crate::geometry::Vertex;
 use crate::material::Material;
 use crate::shader::Shader;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
-use crate::{debug_geo, geometry};
+use crate::{debug_geo};
 
 pub struct Object {
     pub transform: Transform,
