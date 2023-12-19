@@ -28,7 +28,7 @@ fn main() {
     // create a default object
     let mut object1 = default_object(&event_loop);
     let mut object2 = debug_shapes(&event_loop);
-    let mut object3 = debug_shapes(&event_loop);
+    let mut object3 = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone());
 
     object1.transform.set_position([0.5, 0.5, 0.0]);
     object1.transform.set_rotation([0.0, 0.0, 45.0]);

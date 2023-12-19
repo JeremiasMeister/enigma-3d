@@ -4,7 +4,11 @@ use crate::geometry::Vertex;
 use crate::material::Material;
 use crate::shader::Shader;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
-use crate::{debug_geo};
+use crate::{debug_geo, geometry};
+
+use std::fs::File;
+use std::io::BufReader;
+use obj::{load_obj, Obj};
 
 pub struct Object {
     pub transform: Transform,
@@ -117,6 +121,22 @@ impl Object {
             buffer.push(index);
         }
         buffer
+    }
+
+    pub fn load_from_obj(path: &str, display: Display<WindowSurface>) -> Self {
+        let input = BufReader::new(File::open(path).unwrap());
+        let obj: Obj = load_obj(input).unwrap();
+        let mut vertices = Vec::new();
+        for (vert, index) in obj.vertices.iter().zip(obj.indices.iter()) {
+            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0,0.0], normal: vert.normal, index: (*index).into() };
+            vertices.push(vertex);
+        }
+
+        let shape = Shape::from_vertices(vertices);
+
+        let mut object = Object::new();
+        object.add_shape(shape, Material::default(Shader::default(), display));
+        object
     }
 }
 
