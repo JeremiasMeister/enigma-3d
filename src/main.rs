@@ -23,12 +23,13 @@ fn debug_shapes(event_loop: &EventLoop) -> enigma::object::Object {
 
 fn main() {
     // create an enigma eventloop and appstate
-    let event_loop = enigma::EventLoop::new("Enigma Test Window");
+    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
     let mut app_state = enigma::AppState::new();
 
     // create a default object
     let mut object1 = default_object(&event_loop);
     let mut object2 = debug_shapes(&event_loop);
+    let mut object3 = debug_shapes(&event_loop);
 
     object1.transform.set_position([0.5, 0.5, 0.0]);
     object1.transform.set_rotation([0.0, 0.0, 45.0]);
@@ -37,16 +38,21 @@ fn main() {
     object1.materials[0].set_color([0.0, 1.0, 0.0]);
 
     object2.transform.set_position([-0.5, -0.5, 0.0]);
-    object2.transform.set_rotation([0.0, 0.0, 45.0]);
+    object2.transform.set_rotation([0.0, 0.0, -45.0]);
     object2.transform.set_scale([0.5, 0.5, 0.5]);
 
 
     object2.materials[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
     object2.materials[0].set_color([1.0, 0.0, 0.0]);
 
+    object3.transform.set_position([0.0, 0.0, 0.0]);
+    object3.transform.set_rotation([0.0, 0.0, 180.0]);
+    object3.transform.set_scale([0.5, 0.5, 0.5]);
+
     // adding all the objects
     app_state.add_object(object1);
     app_state.add_object(object2);
+    app_state.add_object(object3);
 
 
     // run the event loop

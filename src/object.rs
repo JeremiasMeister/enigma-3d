@@ -81,36 +81,43 @@ impl Object {
         self.materials.push(material);
     }
 
-    pub fn get_transformed_vertices(&self) -> Vec<Vertex> {
-        let mut vertices = Vec::new();
+    pub fn get_transformed_shapes(&self) -> Vec<Shape> {
+        let mut shapes = Vec::new();
         for shape in self.shapes.iter() {
+            let mut vertices = Vec::new();
             for vertex in shape.vertices.iter() {
                 let mut vertex = vertex.clone();
                 let position_point = Point3::from(Vector3::from(vertex.position));
                 vertex.position = self.transform.matrix.transform_point(&position_point).into();
                 vertices.push(vertex);
             }
+            shapes.push(Shape::from_vertices(vertices));
         }
-        vertices
+        shapes
     }
 
-    //TODO: properly map material displays to vertex buffers
     pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
-        let vertices = self.get_transformed_vertices();
-        let vertex = glium::VertexBuffer::new(&self.materials[0].display, &vertices).unwrap();
-        vec![vertex]
+        let shapes = self.get_transformed_shapes();
+        let mut buffer = Vec::new();
+        for (shape, material) in shapes.iter().zip(self.materials.iter()) {
+            let vertex = glium::VertexBuffer::new(&material.display, &shape.vertices).unwrap();
+            buffer.push(vertex);
+        }
+        buffer
     }
 
-    //TODO: properly map material displays to index buffers
     pub fn get_index_buffers(&self) -> Vec<glium::IndexBuffer<u32>> {
-        let mut indices = Vec::new();
-        for shape in self.shapes.iter() {
+        let shapes = self.get_transformed_shapes();
+        let mut buffer = Vec::new();
+        for (shape, material) in shapes.iter().zip(self.materials.iter()) {
+            let mut indices = Vec::new();
             for vertex in shape.vertices.iter() {
                 indices.push(vertex.index);
             }
+            let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap();
+            buffer.push(index);
         }
-        let index = glium::IndexBuffer::new(&self.materials[0].display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap();
-        vec![index]
+        buffer
     }
 }
 
