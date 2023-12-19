@@ -1,3 +1,4 @@
+use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
 use crate::{shader, texture};
@@ -156,6 +157,10 @@ impl Material {
             TextureType::Roughness => self.roughness = Some(texture::Texture::new(&self.display, path)),
             TextureType::Metallic => self.metallic = Some(texture::Texture::new(&self.display, path)),
         }
+    }
+
+    pub fn lit_pbr(display: Display<WindowSurface>) -> Self {
+        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), display)
     }
 
     pub fn get_uniforms(&self) -> impl glium::uniforms::Uniforms + '_ {

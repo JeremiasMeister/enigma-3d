@@ -123,7 +123,7 @@ impl Object {
         buffer
     }
 
-    pub fn load_from_obj(path: &str, display: Display<WindowSurface>) -> Self {
+    pub fn load_from_obj(path: &str, display: Display<WindowSurface>, material: Option<Material>) -> Self {
         let input = BufReader::new(File::open(path).unwrap());
         let obj: Obj = load_obj(input).unwrap();
         let mut vertices = Vec::new();
@@ -135,7 +135,10 @@ impl Object {
         let shape = Shape::from_vertices(vertices);
 
         let mut object = Object::new();
-        object.add_shape(shape, Material::default(Shader::default(), display));
+        match material {
+            Some(material) => object.add_shape(shape, material),
+            None => object.add_shape(shape, Material::default(Shader::default(), display)),
+        }
         object
     }
 }
