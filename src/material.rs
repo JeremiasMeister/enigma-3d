@@ -117,6 +117,10 @@ impl Material {
         self.color = color;
     }
 
+    pub fn set_shader(&mut self, shader: shader::Shader) {
+        self.shader = shader;
+    }
+
     pub fn set_albedo(&mut self, albedo: texture::Texture) {
         self.albedo = Some(albedo);
     }

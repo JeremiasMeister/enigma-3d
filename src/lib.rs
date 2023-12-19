@@ -1,8 +1,10 @@
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, IndexBuffer, Surface, VertexBuffer};
+use itertools::Itertools;
 use winit::event::Event;
 use winit::event_loop::{ControlFlow};
+use crate::material::Material;
 
 pub mod shader;
 pub mod geometry;
@@ -12,9 +14,7 @@ pub mod material;
 pub mod object;
 
 pub struct AppState {
-    pub _vertex_buffers: Vec<VertexBuffer<geometry::Vertex>>,
-    pub _index_buffers: Vec<IndexBuffer<u32>>,
-    pub _materials: Vec<material::Material>,
+    pub objects: Vec<object::Object>,
 }
 
 pub struct EventLoop {
@@ -27,34 +27,12 @@ pub struct EventLoop {
 impl AppState {
     pub fn new() -> Self {
         AppState {
-            _vertex_buffers: Vec::new(),
-            _index_buffers: Vec::new(),
-            _materials: Vec::new(),
+            objects: Vec::new(),
         }
     }
 
-    pub fn extend_vertex_buffers(&mut self, vertex_buffers: Vec<VertexBuffer<geometry::Vertex>>) {
-        self._vertex_buffers.extend(vertex_buffers);
-    }
-
-    pub fn extend_index_buffers(&mut self, index_buffers: Vec<IndexBuffer<u32>>) {
-        self._index_buffers.extend(index_buffers);
-    }
-
-    pub fn extend_materials(&mut self, materials: Vec<material::Material>) {
-        self._materials.extend(materials);
-    }
-
-    pub fn clear_vertex_buffers(&mut self) {
-        self._vertex_buffers.clear();
-    }
-
-    pub fn clear_index_buffers(&mut self) {
-        self._index_buffers.clear();
-    }
-
-    pub fn clear_materials(&mut self) {
-        self._materials.clear();
+    pub fn add_object(&mut self, object: object::Object) {
+        self.objects.push(object);
     }
 }
 
@@ -73,23 +51,27 @@ impl EventLoop {
     pub fn get_display_clone(&self) -> Display<WindowSurface> {
         self.display.clone()
     }
+
+    pub fn get_display_reference(&self) -> &Display<WindowSurface> {
+        &self.display
+    }
+
     pub fn run(self, mut app_state: AppState) {
         self.event_loop.run(move |event, _window_target, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
-                Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => {
-                    *control_flow = ControlFlow::Exit;
-                }
+                Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => {*control_flow = ControlFlow::Exit;}
                 Event::RedrawEventsCleared => {
                     // Request a redraw here if necessary
                 }
                 Event::RedrawRequested(_) => {
                     let mut target = self.display.draw();
                     target.clear_color(0.0, 0.0, 0.0, 1.0);
-
-                    for (buffer, (mut material, indices)) in app_state._vertex_buffers.iter().zip(app_state._materials.iter_mut().zip(app_state._index_buffers.iter())) {
-                        material.update();
-                        target.draw(buffer, indices, &material.program, &material.get_uniforms(), &Default::default()).unwrap();
+                    for object in app_state.objects.iter_mut() {
+                        object.update();
+                        for (buffer, (mut material, indices)) in object.get_vertex_buffers().iter().zip(object.materials.iter().zip(object.get_index_buffers().iter())) {
+                            target.draw(buffer, indices, &material.program, &material.get_uniforms(), &Default::default()).unwrap();
+                        }
                     }
 
                     target.finish().unwrap();
