@@ -7,6 +7,7 @@ pub struct Vertex{
     pub index: u32,
 
 }
+
 glium::implement_vertex!(Vertex, position, texcoord, color, normal, index);
 
 

@@ -15,11 +15,11 @@ pub struct Material {
     _tex_white: glium::texture::SrgbTexture2d,
     _tex_black: glium::texture::SrgbTexture2d,
     _tex_gray: glium::texture::SrgbTexture2d,
-    _tex_normal: glium::texture::SrgbTexture2d, //this shouldbe a raw image
-    pub(crate) display: glium::Display<WindowSurface>,
-    pub(crate) program: glium::Program,
-    pub(crate) time: f32,
-    pub(crate) matrix: [[f32; 4]; 4],
+    _tex_normal: glium::texture::SrgbTexture2d, //this should be a raw image
+    pub display: glium::Display<WindowSurface>,
+    pub program: glium::Program,
+    pub time: f32,
+    pub matrix: [[f32; 4]; 4],
 }
 
 pub enum TextureType {
