@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
@@ -10,8 +11,12 @@ pub mod debug_geo;
 pub mod texture;
 pub mod material;
 pub mod object;
+pub mod obj_loader;
+pub mod light;
+pub mod camera;
 
 pub struct AppState {
+    pub light: Option<light::Light>,
     pub objects: Vec<object::Object>,
 }
 
@@ -26,12 +31,31 @@ impl AppState {
     pub fn new() -> Self {
         AppState {
             objects: Vec::new(),
+            light: None,
         }
     }
 
     pub fn add_object(&mut self, object: object::Object) {
         self.objects.push(object);
     }
+
+    pub fn get_objects(&self) -> &Vec<object::Object> {
+        &self.objects
+    }
+
+
+    pub fn set_light(&mut self, light: light::Light) {
+        self.light = Some(light);
+    }
+
+    pub fn get_light(&self) -> &Option<light::Light> {
+        &self.light
+    }
+
+    pub fn get_objects_mut(&mut self) -> &mut Vec<object::Object> {
+        &mut self.objects
+    }
+
 }
 
 impl EventLoop {
@@ -55,24 +79,37 @@ impl EventLoop {
     }
 
     pub fn run(self, mut app_state: AppState) {
+        let mut next_frame_time = Instant::now();
+        let frame_duration = Duration::from_nanos(16_666_667); // 60 FPS (1,000,000,000 ns / 60)
         self.event_loop.run(move |event, _window_target, control_flow| {
-            *control_flow = ControlFlow::Wait;
+            *control_flow = ControlFlow::WaitUntil(next_frame_time);
+            next_frame_time = Instant::now() + frame_duration;
             match event {
-                Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => {*control_flow = ControlFlow::Exit;}
-                Event::RedrawEventsCleared => {
-                    // Request a redraw here if necessary
-                }
+                Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => { *control_flow = ControlFlow::Exit; }
+                Event::RedrawEventsCleared => {}
                 Event::RedrawRequested(_) => {
                     let mut target = self.display.draw();
-                    target.clear_color(0.0, 0.0, 0.0, 1.0);
+                    target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+                    let params = glium::DrawParameters {
+                        depth: glium::Depth {
+                            test: glium::draw_parameters::DepthTest::IfLess,
+                            write: true,
+                            .. Default::default()
+                        },
+                        .. Default::default()
+                    };
                     for object in app_state.objects.iter_mut() {
+                        //TODO: remove hardcoded rotation and allow attaching update functions to the app_state to be more flexible
+                        object.transform.set_rotation([0.0, object.transform.get_rotation()[1] + 0.01, 0.0]);
                         object.update();
-                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.materials.iter().zip(object.get_index_buffers().iter())) {
-                            target.draw(buffer, indices, &material.program, &material.get_uniforms(), &Default::default()).unwrap();
+                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
+                            target.draw(buffer, indices, &material.program, &material.get_uniforms(app_state.light), &params).unwrap();
                         }
                     }
-
                     target.finish().unwrap();
+                }
+                Event::MainEventsCleared => {
+                    self.window.request_redraw();
                 }
                 _ => (),
             }

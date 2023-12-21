@@ -3,6 +3,9 @@
 //uniforms
 uniform float time;
 uniform mat4 matrix;
+uniform vec3 light_position;
+uniform vec3 light_color;
+uniform float light_intensity;
 
 //attributes
 in vec3 position;
@@ -11,6 +14,8 @@ in vec3 normal;
 in vec3 color;
 in uint index;
 
+
+out vec3 vertex_position;
 out vec3 vertex_color;
 out vec3 vertex_normal;
 out vec2 vertex_texcoord;
@@ -31,6 +36,7 @@ void main() {
     //pos.x += sin(time + pos.y) * movement;
     //pos.y += cos(time + pos.x) * movement;
     gl_Position = matrix * vec4(pos, 1.0);
+    vertex_position = pos;
     vertex_normal = transpose(inverse(mat3(matrix))) * normal;
     vertex_color = color;
     vertex_texcoord = texcoord;

@@ -10,10 +10,17 @@ use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
 
+
+use crate::camera::Camera;
+use crate::light::Light;
+
 pub struct Object {
+    name: String,
     pub transform: Transform,
-    pub shapes: Vec<Shape>,
-    pub materials: Vec<Material>,
+    shapes: Vec<Shape>,
+    materials: Vec<Material>,
+    light: Option<Light>,
+    camera: Option<Camera>,
 }
 
 pub struct Shape {
@@ -22,7 +29,6 @@ pub struct Shape {
 }
 
 impl Shape {
-
     pub fn new() -> Self {
         Shape {
             vertices: Vec::new(),
@@ -59,21 +65,24 @@ impl Shape {
 }
 
 impl Object {
-    pub fn new() -> Self {
+    pub fn new(name: Option<String>) -> Self {
         Object {
+            name: name.unwrap_or_else(|| String::from("Object")),
             transform: Transform::new(),
             shapes: Vec::new(),
             materials: Vec::new(),
+            light: None,
+            camera: None,
         }
     }
 
     pub fn default(display: Display<WindowSurface>) -> Self {
-        let mut object = Object::new();
+        let mut object = Object::new(None);
         object.add_shape(Shape::default(), Material::default(Shader::default(), display));
         object
     }
 
-    pub fn update(&mut self){
+    pub fn update(&mut self) {
         self.transform.update();
         self.materials.iter_mut().for_each(|x| x.update());
     }
@@ -123,21 +132,61 @@ impl Object {
         buffer
     }
 
+    pub fn get_materials(&self) -> &Vec<Material> {
+        &self.materials
+    }
+
+    pub fn get_materials_mut(&mut self) -> &mut Vec<Material> {
+        &mut self.materials
+    }
+
+    pub fn get_shapes(&self) -> &Vec<Shape> {
+        &self.shapes
+    }
+
+    pub fn get_shapes_mut(&mut self) -> &mut Vec<Shape> {
+        &mut self.shapes
+    }
+
+    pub fn get_name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    pub fn get_light(&self) -> &Option<Light> {
+        &self.light
+    }
+
+    pub fn set_light(&mut self, light: Light) {
+        self.light = Some(light);
+    }
+
+    pub fn get_camera(&self) -> &Option<Camera> {
+        &self.camera
+    }
+
+    pub fn set_camera(&mut self, camera: Camera) {
+        self.camera = Some(camera);
+    }
+
     pub fn load_from_obj(path: &str, display: Display<WindowSurface>, material: Option<Material>) -> Self {
-        let input = BufReader::new(File::open(path).unwrap());
+        let input = BufReader::new(File::open(path).expect("Failed to open file"));
         let obj: Obj = load_obj(input).unwrap();
         let mut vertices = Vec::new();
         for (vert, index) in obj.vertices.iter().zip(obj.indices.iter()) {
-            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0,0.0], normal: vert.normal, index: (*index).into() };
+            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0, 0.0], normal: vert.normal, index: (*index).into() };
             vertices.push(vertex);
         }
 
         let shape = Shape::from_vertices(vertices);
 
-        let mut object = Object::new();
+        let mut object = Object::new(obj.name);
         match material {
             Some(material) => object.add_shape(shape, material),
-            None => object.add_shape(shape, Material::default(Shader::default(), display)),
+            None => object.add_shape(shape, Material::lit_pbr(display)),
         }
         object
     }
@@ -146,23 +195,23 @@ impl Object {
 
 pub struct Transform {
     pub position: Vector3<f32>,
-    pub rotation: Vector3<f32>, // Euler angles
+    pub rotation: Vector3<f32>, // radian angles
     pub scale: Vector3<f32>,
     pub matrix: Matrix4<f32>,
 }
 
-impl Transform{
-    pub fn new() -> Self{
-        Transform{
+impl Transform {
+    pub fn new() -> Self {
+        Transform {
             position: Vector3::new(0.0, 0.0, 0.0),
             rotation: Vector3::new(0.0, 0.0, 0.0),
             scale: Vector3::new(1.0, 1.0, 1.0),
             matrix: Matrix4::identity(),
         }
     }
-    pub fn update(&mut self){
+    pub fn update(&mut self) {
         let translation = Translation3::from(self.position);
-        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let rotation = UnitQuaternion::from_euler_angles(self.get_rotation().x, self.get_rotation().y, self.get_rotation().z);
         let scale = Matrix4::new_nonuniform_scaling(&self.scale);
         self.matrix = translation.to_homogeneous() * rotation.to_homogeneous() * scale;
     }
@@ -172,13 +221,29 @@ impl Transform{
         self.update();
     }
 
-    pub fn set_rotation(&mut self, rotation: [f32; 3]){
-        self.rotation = Vector3::from(rotation);
+    pub fn get_position(&self) -> Vector3<f32> {
+        self.position.clone()
+    }
+
+    pub fn set_rotation(&mut self, rotation: [f32; 3]) {
+        let radians = rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
+        self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
         self.update();
+    }
+
+    pub fn get_rotation(&self) -> Vector3<f32> {
+        let x = self.rotation.x.to_degrees();
+        let y = self.rotation.y.to_degrees();
+        let z = self.rotation.z.to_degrees();
+        Vector3::from([x, y, z])
     }
 
     pub fn set_scale(&mut self, scale: [f32; 3]){
         self.scale = Vector3::from(scale);
         self.update();
+    }
+
+    pub fn get_scale(&self) -> Vector3<f32> {
+        self.scale.clone()
     }
 }

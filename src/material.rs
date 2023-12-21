@@ -2,6 +2,7 @@ use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
 use crate::{shader, texture};
+use crate::light::Light;
 
 pub struct Material {
     pub color: [f32; 3],
@@ -163,7 +164,7 @@ impl Material {
         Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), display)
     }
 
-    pub fn get_uniforms(&self) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms(&self, light: Option<Light>) -> impl glium::uniforms::Uniforms + '_ {
         glium::uniform! {
             time: self.time,
             matrix: self.matrix,
@@ -187,6 +188,18 @@ impl Material {
                 None => &self._tex_black
             },
             mat_metallic_strength: self.metallic_strength,
+            light_position: match light {
+                Some(light) => light.position,
+                None => [0.0, 0.0, 0.0],
+            },
+            light_color: match light {
+                Some(light) => light.color,
+                None => [0.0, 0.0, 0.0],
+            },
+            light_intensity: match light {
+                Some(light) => light.intensity,
+                None => 0.0,
+            },
         }
     }
 
