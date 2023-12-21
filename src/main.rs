@@ -48,7 +48,11 @@ fn main() {
     object5.transform.set_scale([0.2, 0.2, 0.2]);
 
     object.get_materials_mut()[0].set_color([1.0, 1.0, 0.5]);
+    object.get_materials_mut()[0].set_roughness_strength(0.0);
+
     object2.get_materials_mut()[0].set_color([1.0, 0.5, 1.0]);
+    object2.get_materials_mut()[0].set_roughness_strength(2.0);
+
     object3.get_materials_mut()[0].set_color([0.5, 1.0, 1.0]);
     object4.get_materials_mut()[0].set_color([1.0, 1.0, 1.0]);
     object5.get_materials_mut()[0].set_color([0.5, 0.5, 0.5]);
@@ -64,7 +68,7 @@ fn main() {
     let light = enigma::light::Light {
         position: [2.0, 2.0, 0.0],
         color: [1.0, 1.0, 1.0],
-        intensity: 1.0,
+        intensity: 10.0,
     };
 
     let ambient_light = enigma::light::Light {
