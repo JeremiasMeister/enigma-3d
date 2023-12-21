@@ -29,6 +29,8 @@ fn main() {
     let mut object = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone(), Some(material::Material::lit_pbr(event_loop.get_display_clone())));
     let mut object2 = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone(), Some(material::Material::lit_pbr(event_loop.get_display_clone())));
     let mut object3 = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone(), Some(material::Material::lit_pbr(event_loop.get_display_clone())));
+    let mut object4 = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone(), Some(material::Material::lit_pbr(event_loop.get_display_clone())));
+    let mut object5 = object::Object::load_from_obj("res/models/suzanne.obj", event_loop.get_display_clone(), Some(material::Material::lit_pbr(event_loop.get_display_clone())));
 
     object.transform.set_position([0.5, -0.5, 0.0]);
     object.transform.set_scale([0.2, 0.2, 0.2]);
@@ -36,32 +38,43 @@ fn main() {
     object2.transform.set_position([-0.5, -0.5, 0.0]);
     object2.transform.set_scale([0.2, 0.2, 0.2]);
 
-    object3.transform.set_position([0.0, 0.5, 0.0]);
+    object3.transform.set_position([0.5, 0.5, 0.0]);
     object3.transform.set_scale([0.2, 0.2, 0.2]);
 
-    object.get_materials_mut()[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
-    object.get_materials_mut()[0].set_color([1.0, 1.0, 1.0]);
+    object4.transform.set_position([-0.5, 0.5, 0.0]);
+    object4.transform.set_scale([0.2, 0.2, 0.2]);
 
-    object2.get_materials_mut()[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
-    object2.get_materials_mut()[0].set_color([1.0, 1.0, 1.0]);
+    object5.transform.set_position([0.0, 0.0, 0.0]);
+    object5.transform.set_scale([0.2, 0.2, 0.2]);
 
-    object3.get_materials_mut()[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
-    object3.get_materials_mut()[0].set_color([1.0, 1.0, 1.0]);
-
+    object.get_materials_mut()[0].set_color([1.0, 1.0, 0.5]);
+    object2.get_materials_mut()[0].set_color([1.0, 0.5, 1.0]);
+    object3.get_materials_mut()[0].set_color([0.5, 1.0, 1.0]);
+    object4.get_materials_mut()[0].set_color([1.0, 1.0, 1.0]);
+    object5.get_materials_mut()[0].set_color([0.5, 0.5, 0.5]);
 
     // adding all the objects
     app_state.add_object(object);
     app_state.add_object(object2);
     app_state.add_object(object3);
+    app_state.add_object(object4);
+    app_state.add_object(object5);
 
     // add a light
     let light = enigma::light::Light {
         position: [2.0, 2.0, 0.0],
         color: [1.0, 1.0, 1.0],
-        intensity: 20.0,
+        intensity: 1.0,
     };
-    app_state.set_light(light);
 
+    let ambient_light = enigma::light::Light {
+        position: [0.0, 0.0, 0.0],
+        color: [0.35, 0.35, 1.0],
+        intensity: 0.20,
+    };
+
+    app_state.set_light(light, enigma::light::LightType::Point);
+    app_state.set_light(ambient_light, enigma::light::LightType::Ambient);
 
     // run the event loop
     event_loop.run(app_state);

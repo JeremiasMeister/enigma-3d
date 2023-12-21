@@ -164,7 +164,7 @@ impl Material {
         Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), display)
     }
 
-    pub fn get_uniforms(&self, light: Option<Light>) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms(&self, light: Option<Light>, ambient_light: Option<Light>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {
         glium::uniform! {
             time: self.time,
             matrix: self.matrix,
@@ -200,6 +200,15 @@ impl Material {
                 Some(light) => light.intensity,
                 None => 0.0,
             },
+            ambient_light_color: match ambient_light {
+                Some(ambient_light) => ambient_light.color,
+                None => [0.0, 0.0, 0.0],
+            },
+            ambient_light_intensity: match ambient_light {
+                Some(ambient_light) => ambient_light.intensity,
+                None => 0.0,
+            },
+            model_matrix: model_matrix.unwrap_or_else(|| self.matrix),
         }
     }
 
