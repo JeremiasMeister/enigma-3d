@@ -109,7 +109,7 @@ impl Object {
     }
 
     pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
-        let shapes = self.get_transformed_shapes();
+        let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for (shape, material) in shapes.iter().zip(self.materials.iter()) {
             let vertex = glium::VertexBuffer::new(&material.display, &shape.vertices).unwrap();
@@ -119,7 +119,7 @@ impl Object {
     }
 
     pub fn get_index_buffers(&self) -> Vec<glium::IndexBuffer<u32>> {
-        let shapes = self.get_transformed_shapes();
+        let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for (shape, material) in shapes.iter().zip(self.materials.iter()) {
             let mut indices = Vec::new();
@@ -193,6 +193,7 @@ impl Object {
 }
 
 
+#[derive(Copy, Clone)]
 pub struct Transform {
     pub position: Vector3<f32>,
     pub rotation: Vector3<f32>, // radian angles
@@ -210,15 +211,16 @@ impl Transform {
         }
     }
     pub fn update(&mut self) {
-        let translation = Translation3::from(self.position);
-        let rotation = UnitQuaternion::from_euler_angles(self.get_rotation().x, self.get_rotation().y, self.get_rotation().z);
-        let scale = Matrix4::new_nonuniform_scaling(&self.scale);
-        self.matrix = translation.to_homogeneous() * rotation.to_homogeneous() * scale;
+        let scale_matrix = Matrix4::new_nonuniform_scaling(&self.scale);
+        let rotation_matrix = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z).to_homogeneous();
+        let translation_matrix = Translation3::from(self.position).to_homogeneous();
+        // Scale, then rotate, then translate
+        self.matrix = translation_matrix * rotation_matrix * scale_matrix;
     }
+
 
     pub fn set_position(&mut self, position: [f32; 3]){
         self.position = Vector3::from(position);
-        self.update();
     }
 
     pub fn get_position(&self) -> Vector3<f32> {
@@ -228,7 +230,6 @@ impl Transform {
     pub fn set_rotation(&mut self, rotation: [f32; 3]) {
         let radians = rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
         self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
-        self.update();
     }
 
     pub fn get_rotation(&self) -> Vector3<f32> {
@@ -240,10 +241,14 @@ impl Transform {
 
     pub fn set_scale(&mut self, scale: [f32; 3]){
         self.scale = Vector3::from(scale);
-        self.update();
     }
 
     pub fn get_scale(&self) -> Vector3<f32> {
         self.scale.clone()
+    }
+
+    pub fn get_matrix(&mut self) -> [[f32; 4]; 4] {
+        self.update();
+        self.matrix.into()
     }
 }

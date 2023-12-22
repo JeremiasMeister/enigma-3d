@@ -4,6 +4,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
 use winit::event::Event;
 use winit::event_loop::{ControlFlow};
+use crate::camera::Camera;
 use crate::light::LightType;
 
 pub mod shader;
@@ -18,6 +19,7 @@ pub mod camera;
 
 pub struct AppState {
     pub fps: u64,
+    pub camera: Option<camera::Camera>,
     pub light: Option<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
@@ -34,6 +36,7 @@ impl AppState {
     pub fn new() -> Self {
         AppState {
             fps: 60,
+            camera: None,
             objects: Vec::new(),
             light: None,
             ambient_light: None,
@@ -72,6 +75,13 @@ impl AppState {
         &mut self.objects
     }
 
+    pub fn set_camera(&mut self, camera: camera::Camera) {
+        self.camera = Some(camera);
+    }
+
+    pub fn get_camera(&self) -> &Option<camera::Camera> {
+        &self.camera
+    }
 }
 
 impl EventLoop {
@@ -103,6 +113,10 @@ impl EventLoop {
             next_frame_time = Instant::now() + frame_duration;
             match event {
                 Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => { *control_flow = ControlFlow::Exit; }
+                Event::WindowEvent { event: winit::event::WindowEvent::KeyboardInput {input, ..}, .. } => {
+                    if let Some(keycode) = input.virtual_keycode {
+                    }
+                }
                 Event::RedrawEventsCleared => {}
                 Event::RedrawRequested(_) => {
                     let mut target = self.display.draw();
@@ -111,16 +125,18 @@ impl EventLoop {
                         depth: glium::Depth {
                             test: glium::draw_parameters::DepthTest::IfLess,
                             write: true,
-                            .. Default::default()
+                            ..Default::default()
                         },
-                        .. Default::default()
+                        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        ..Default::default()
                     };
                     for object in app_state.objects.iter_mut() {
                         //TODO: remove hardcoded rotation and allow attaching update functions to the app_state to be more flexible
-                        object.transform.set_rotation([0.0, object.transform.get_rotation()[1] + 0.05, 0.0]);
-                        object.update();
+                        object.transform.set_rotation([0.0, object.transform.get_rotation()[1] + 1.0, 0.0]);
+                        let model_matrix = object.transform.get_matrix();
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            target.draw(buffer, indices, &material.program, &material.get_uniforms(app_state.light, app_state.ambient_light, Some(<[[f32; 4]; 4]>::from(object.transform.matrix))), &params).unwrap();
+                            let uniforms = &material.get_uniforms(app_state.light, app_state.ambient_light, app_state.camera, Some(model_matrix));
+                            target.draw(buffer, indices, &material.program, uniforms, &params).unwrap();
                         }
                     }
                     target.finish().unwrap();

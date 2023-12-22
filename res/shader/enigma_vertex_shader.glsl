@@ -3,6 +3,8 @@
 //uniforms
 uniform float time;
 uniform mat4 matrix;
+uniform mat4 projection_matrix;
+uniform mat4 view_matrix;
 uniform mat4 model_matrix;
 uniform vec3 light_position;
 uniform vec3 light_color;
@@ -20,6 +22,7 @@ in uint index;
 
 
 out vec3 world_position;
+out vec3 view_direction;
 
 out vec3 vertex_color;
 out vec3 vertex_normal;
@@ -38,11 +41,15 @@ uniform float mat_metallic_strength;
 void main() {
     vec3 pos = position;
     float movement = 0.2;
-    //pos.x += sin(time + pos.y) * movement;
-    //pos.y += cos(time + pos.x) * movement;
-    gl_Position = matrix * vec4(pos, 1.0);
-    world_position = (model_matrix * vec4(pos, 1.0)).xyz;
-    vertex_normal = vertex_normal = transpose(inverse(mat3(model_matrix))) * normal;
+
+    mat4 modelview = view_matrix * model_matrix;
+
+    gl_Position = projection_matrix * modelview * vec4(position, 1.0);
+
+    world_position = (modelview * vec4(position, 1.0)).xyz;
+    vertex_normal = transpose(inverse(mat3(modelview))) * normal;
+    view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
+
     vertex_color = color;
     vertex_texcoord = texcoord;
 }

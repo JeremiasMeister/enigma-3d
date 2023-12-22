@@ -2,6 +2,7 @@ use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
 use crate::{shader, texture};
+use crate::camera::Camera;
 use crate::light::Light;
 
 pub struct Material {
@@ -17,7 +18,8 @@ pub struct Material {
     _tex_white: glium::texture::SrgbTexture2d,
     _tex_black: glium::texture::SrgbTexture2d,
     _tex_gray: glium::texture::SrgbTexture2d,
-    _tex_normal: glium::texture::SrgbTexture2d, //this should be a raw image
+    _tex_normal: glium::texture::SrgbTexture2d,
+    //this should be a raw image
     pub display: glium::Display<WindowSurface>,
     pub program: glium::Program,
     pub time: f32,
@@ -49,19 +51,19 @@ impl Material {
     ) -> Self {
         let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let _tex_white = {
-            let raw = Material::tex_raw_from_array([1.0,1.0,1.0,1.0]);
+            let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
         };
         let _tex_black = {
-            let raw = Material::tex_raw_from_array([0.0,0.0,0.0,1.0]);
+            let raw = Material::tex_raw_from_array([0.0, 0.0, 0.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
         };
         let _tex_gray = {
-            let raw = Material::tex_raw_from_array([0.5,0.5,0.5,1.0]);
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 0.5, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
         };
         let _tex_normal = {
-            let raw = Material::tex_raw_from_array([0.5,0.5,1.0,1.0]);
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 1.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
         };
 
@@ -164,10 +166,18 @@ impl Material {
         Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), display)
     }
 
-    pub fn get_uniforms(&self, light: Option<Light>, ambient_light: Option<Light>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms(&self, light: Option<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {
         glium::uniform! {
             time: self.time,
             matrix: self.matrix,
+            projection_matrix: match camera {
+                Some(camera) => camera.get_projection_matrix(),
+                None => Camera::new(None, None, None, None, None, None).get_projection_matrix(),
+            },
+            view_matrix: match camera {
+                Some(camera) => camera.get_view_matrix(),
+                None => Camera::new(None, None, None, None, None, None).get_view_matrix(),
+            },
             mat_color: self.color,
             mat_albedo: match &self.albedo {
                 Some(albedo) => &albedo.texture,
