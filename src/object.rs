@@ -6,6 +6,7 @@ use crate::shader::Shader;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 
+
 use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
@@ -190,13 +191,38 @@ impl Object {
         }
         object
     }
+
+    pub fn load_from_gltf(path: &str, display: Display<WindowSurface>) -> Self {
+        let (gltf, buffers, _) = gltf::import(path).expect("Failed to import gltf file");
+
+        let mut object = Object::new(Some(String::from(path)));
+
+        for mesh in gltf.meshes() {
+            let mut vertices = Vec::new();
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                let positions = reader.read_positions().unwrap();
+                let normals = reader.read_normals().unwrap();
+                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
+                let indices = reader.read_indices().unwrap().into_u32();
+                for (((position, normal), tex_coord), index) in positions.zip(normals).zip(tex_coords).zip(indices) {
+                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal, index };
+                    vertices.push(vertex);
+                }
+            }
+            let shape = Shape::from_vertices(vertices);
+            object.add_shape(shape, Material::lit_pbr(display.clone()));
+        }
+        object
+    }
 }
 
 
 #[derive(Copy, Clone)]
 pub struct Transform {
     pub position: Vector3<f32>,
-    pub rotation: Vector3<f32>, // radian angles
+    pub rotation: Vector3<f32>,
+    // radian angles
     pub scale: Vector3<f32>,
     pub matrix: Matrix4<f32>,
 }
@@ -219,7 +245,7 @@ impl Transform {
     }
 
 
-    pub fn set_position(&mut self, position: [f32; 3]){
+    pub fn set_position(&mut self, position: [f32; 3]) {
         self.position = Vector3::from(position);
     }
 
@@ -239,7 +265,7 @@ impl Transform {
         Vector3::from([x, y, z])
     }
 
-    pub fn set_scale(&mut self, scale: [f32; 3]){
+    pub fn set_scale(&mut self, scale: [f32; 3]) {
         self.scale = Vector3::from(scale);
     }
 

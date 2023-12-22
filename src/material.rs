@@ -6,6 +6,7 @@ use crate::camera::Camera;
 use crate::light::Light;
 
 pub struct Material {
+    pub name: Option<String>,
     pub color: [f32; 3],
     pub albedo: Option<texture::Texture>,
     pub normal: Option<texture::Texture>,
@@ -68,6 +69,7 @@ impl Material {
         };
 
         Self {
+            name: None,
             shader,
             display,
             color: match color {

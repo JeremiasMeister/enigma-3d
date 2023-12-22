@@ -13,7 +13,6 @@ pub mod debug_geo;
 pub mod texture;
 pub mod material;
 pub mod object;
-pub mod obj_loader;
 pub mod light;
 pub mod camera;
 
@@ -104,6 +103,7 @@ impl EventLoop {
         &self.display
     }
 
+    // This is just the render loop . an actual event loop still needs to be set up
     pub fn run(self, mut app_state: AppState) {
         let mut next_frame_time = Instant::now();
         let nanos = 1_000_000_000 / app_state.fps;
@@ -113,11 +113,6 @@ impl EventLoop {
             next_frame_time = Instant::now() + frame_duration;
             match event {
                 Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => { *control_flow = ControlFlow::Exit; }
-                Event::WindowEvent { event: winit::event::WindowEvent::KeyboardInput {input, ..}, .. } => {
-                    if let Some(keycode) = input.virtual_keycode {
-                    }
-                }
-                Event::RedrawEventsCleared => {}
                 Event::RedrawRequested(_) => {
                     let mut target = self.display.draw();
                     target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
@@ -127,12 +122,12 @@ impl EventLoop {
                             write: true,
                             ..Default::default()
                         },
-                        //backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+
                         ..Default::default()
                     };
                     for object in app_state.objects.iter_mut() {
-                        //TODO: remove hardcoded rotation and allow attaching update functions to the app_state to be more flexible
-                        object.transform.set_rotation([0.0, object.transform.get_rotation()[1] + 1.0, 0.0]);
+                        object.transform.set_rotation([object.transform.get_rotation()[0], object.transform.get_rotation()[1] + 1.0, object.transform.get_rotation()[2]]);
                         let model_matrix = object.transform.get_matrix();
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             let uniforms = &material.get_uniforms(app_state.light, app_state.ambient_light, app_state.camera, Some(model_matrix));
