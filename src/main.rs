@@ -1,5 +1,11 @@
+use winit::event::Event;
 use enigma::object::Object;
 use enigma::camera::Camera;
+use enigma::event;
+
+fn rotate_all_objects() {
+    println!("test");
+}
 
 fn main() {
     // create an enigma eventloop and appstate
@@ -34,6 +40,10 @@ fn main() {
     // add a camera
     let camera = Camera::new(Some([0.0, 1., 0.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16./9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
+
+    // add events
+    let space_key_press = event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space);
+    app_state.inject_event(space_key_press, Box::new(rotate_all_objects));
 
     // run the event loop
     event_loop.run(app_state);

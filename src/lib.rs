@@ -1,8 +1,9 @@
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
-use winit::event::Event;
+use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::camera::Camera;
 use crate::light::LightType;
@@ -15,6 +16,8 @@ pub mod material;
 pub mod object;
 pub mod light;
 pub mod camera;
+pub mod event;
+
 
 pub struct AppState {
     pub fps: u64,
@@ -22,6 +25,7 @@ pub struct AppState {
     pub light: Option<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
+    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>
 }
 
 pub struct EventLoop {
@@ -39,6 +43,7 @@ impl AppState {
             objects: Vec::new(),
             light: None,
             ambient_light: None,
+            event_injections: Vec::new()
         }
     }
 
@@ -81,6 +86,10 @@ impl AppState {
     pub fn get_camera(&self) -> &Option<camera::Camera> {
         &self.camera
     }
+
+    pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction) {
+        self.event_injections.push((characteristic, function));
+    }
 }
 
 impl EventLoop {
@@ -111,8 +120,24 @@ impl EventLoop {
         self.event_loop.run(move |event, _window_target, control_flow| {
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
+
             match event {
-                Event::WindowEvent { event: winit::event::WindowEvent::CloseRequested, .. } => { *control_flow = ControlFlow::Exit; }
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; },
+                    WindowEvent::CursorMoved { position, device_id, modifiers } => {
+                        //TODO: do something with it
+                    },
+                    WindowEvent::KeyboardInput{input, ..} => {
+                        for (characteristic, function) in &app_state.event_injections {
+                            if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
+                                if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(*key_code) {
+                                    function();
+                                }
+                            }
+                        }
+                    },
+                    _ => ()
+                }
                 Event::RedrawRequested(_) => {
                     let mut target = self.display.draw();
                     target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
@@ -127,7 +152,6 @@ impl EventLoop {
                         ..Default::default()
                     };
                     for object in app_state.objects.iter_mut() {
-                        object.transform.set_rotation([object.transform.get_rotation()[0], object.transform.get_rotation()[1] + 1.0, object.transform.get_rotation()[2]]);
                         let model_matrix = object.transform.get_matrix();
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             let uniforms = &material.get_uniforms(app_state.light, app_state.ambient_light, app_state.camera, Some(model_matrix));
