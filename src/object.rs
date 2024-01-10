@@ -16,7 +16,7 @@ use crate::camera::Camera;
 use crate::light::Light;
 
 pub struct Object {
-    name: String,
+    pub name: String,
     pub transform: Transform,
     shapes: Vec<Shape>,
     materials: Vec<Material>,

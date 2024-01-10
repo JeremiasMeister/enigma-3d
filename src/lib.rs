@@ -65,6 +65,23 @@ impl AppState {
         &self.objects
     }
 
+    pub fn get_object(&self, name: &str) -> Option<&object::Object> {
+        for object in self.objects.iter() {
+            if object.name == name {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_mut(&mut self, name: &str) -> Option<&mut object::Object> {
+        for object in self.objects.iter_mut() {
+            if object.name == name {
+                return Some(object);
+            }
+        }
+        None
+    }
 
     pub fn set_light(&mut self, light: light::Light, light_type: LightType) {
         match light_type {

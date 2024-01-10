@@ -7,31 +7,31 @@ use enigma::{AppState, event};
 use rand::Rng;
 
 fn rotate_left(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([0.0, -1.0, 0.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, -1.0, 0.0]);
 }
 
 fn rotate_right(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([0.0, 1.0, 0.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 1.0, 0.0]);
 }
 
 fn rotate_up(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([-1.0, 0.0, 0.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([-1.0, 0.0, 0.0]);
 }
 
 fn rotate_down(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([1.0, 0.0, 0.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([1.0, 0.0, 0.0]);
 }
 
 fn roll_left(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([0.0, 0.0, 1.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, 1.0]);
 }
 
 fn roll_right(app_state: &mut AppState) {
-    app_state.objects[0].transform.rotate([0.0, 0.0, -1.0]);
+    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, -1.0]);
 }
 
 fn update(app_state: &mut AppState) {
-    let rand_scale = rand::thread_rng().gen_range(0.0..0.03);
+    let rand_scale = rand::thread_rng().gen_range(0.0..0.01);
     app_state.objects[0].transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
 }
 
@@ -43,9 +43,8 @@ fn main() {
     // create a default object
     let mut object = Object::load_from_gltf("res/models/suzanne.gltf", event_loop.get_display_clone());
 
-
+    object.name = "Suzanne".to_string();
     object.transform.set_position([0.0, 0.0, -2.0]);
-
     object.get_materials_mut()[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
     // adding all the objects
