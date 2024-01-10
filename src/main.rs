@@ -30,8 +30,8 @@ fn roll_right(app_state: &mut AppState) {
     app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, -1.0]);
 }
 
-fn update(app_state: &mut AppState) {
-    let rand_scale = rand::thread_rng().gen_range(0.0..0.01);
+fn hop_first_object(app_state: &mut AppState) {
+    let rand_scale = rand::thread_rng().gen_range(0.0..0.005);
     app_state.objects[0].transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
 }
 
@@ -59,7 +59,7 @@ fn main() {
     let ambient_light = enigma::light::Light {
         position: [0.0, 0.0, 0.0],
         color: [0.35, 0.35, 1.0],
-        intensity: 0.20,
+        intensity: 0.50,
     };
     app_state.set_light(light, enigma::light::LightType::Point);
     app_state.set_light(ambient_light, enigma::light::LightType::Ambient);
@@ -95,7 +95,7 @@ fn main() {
     );
 
     // add update
-    app_state.inject_update_function(Arc::new(update));
+    app_state.inject_update_function(Arc::new(hop_first_object));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
