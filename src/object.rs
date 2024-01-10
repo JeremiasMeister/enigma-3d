@@ -265,6 +265,12 @@ impl Transform {
         self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
     }
 
+    pub fn move_dir(&mut self, position: [f32; 3]){
+        let cur_p = self.get_position();
+        let additive_position = [cur_p.x + position[0], cur_p.y + position[1], cur_p.z + position[2]];
+        self.position = Vector3::from(additive_position);
+    }
+
     pub fn get_rotation(&self) -> Vector3<f32> {
         let x = self.rotation.x.to_degrees();
         let y = self.rotation.y.to_degrees();

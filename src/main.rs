@@ -4,6 +4,8 @@ use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
 
+use rand::Rng;
+
 fn rotate_left(app_state: &mut AppState) {
     app_state.objects[0].transform.rotate([0.0, -1.0, 0.0]);
 }
@@ -29,7 +31,8 @@ fn roll_right(app_state: &mut AppState) {
 }
 
 fn update(app_state: &mut AppState) {
-    app_state.objects[0].transform.set_position([0.0, (app_state.time * 10.0).sin() * 0.3, -2.0]);
+    let rand_scale = rand::thread_rng().gen_range(0.0..0.03);
+    app_state.objects[0].transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
 }
 
 fn main() {
