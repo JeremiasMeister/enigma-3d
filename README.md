@@ -10,7 +10,6 @@ Please be aware, I'm not a professional graphics programmer, so the code is most
 - a simple Event system to inject functions and Keyboard presses into the event loop. Atm events get processed one by one in sequence
 - a simple Update system to inject functions into the update loop. Atm, the functions get processes one by one in sequence
 
-A known Issue is currently, that Index Buffers are stored on the Vertices. That results in missing faces and needs to be restructured.
 
 the API is quite straight forward and easy to use, see the example below
 
