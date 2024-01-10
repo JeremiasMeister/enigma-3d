@@ -27,7 +27,8 @@ pub struct AppState {
     pub light: Option<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
-    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>
+    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
+    pub time: f32,
 }
 
 pub struct EventLoop {
@@ -45,7 +46,8 @@ impl AppState {
             objects: Vec::new(),
             light: None,
             ambient_light: None,
-            event_injections: Vec::new()
+            event_injections: Vec::new(),
+            time: 0.0,
         }
     }
 
@@ -139,9 +141,6 @@ impl EventLoop {
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; },
-                    WindowEvent::CursorMoved { position, device_id, modifiers } => {
-                        //TODO: do something with it
-                    },
                     WindowEvent::KeyboardInput{input, ..} => {
                         for (characteristic, function) in event_injections {
                             if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
@@ -154,6 +153,7 @@ impl EventLoop {
                     _ => ()
                 }
                 Event::RedrawRequested(_) => {
+                    app_state.time += 0.001;
                     let mut target = self.display.draw();
                     target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let params = glium::DrawParameters {
