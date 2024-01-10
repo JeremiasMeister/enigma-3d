@@ -9,6 +9,8 @@ Please be aware, I'm not a professional graphics programmer, so the code is most
 - a Camera
 - a simple Event system to add functions to Keyboard presses. Atm events get processed one by one in sequence
 
+A known Issue is currently, that Index Buffers are stored on the Vertices. That results in missing faces and needs to be restructured.
+
 the API is quite straight forward and easy to use, see the example below
 
   ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/0580fc5e-2cbe-42b5-ae50-f65346235c39)
