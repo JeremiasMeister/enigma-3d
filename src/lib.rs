@@ -28,6 +28,7 @@ pub struct AppState {
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
+    pub update_injections: Vec<event::EventFunction>,
     pub time: f32,
 }
 
@@ -47,6 +48,7 @@ impl AppState {
             light: None,
             ambient_light: None,
             event_injections: Vec::new(),
+            update_injections: Vec::new(),
             time: 0.0,
         }
     }
@@ -98,6 +100,9 @@ impl AppState {
     pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction) {
         self.event_injections.push((characteristic, function));
     }
+    pub fn inject_update_function(&mut self, function: event::EventFunction) {
+        self.update_injections.push(function);
+    }
 }
 
 impl EventLoop {
@@ -135,6 +140,7 @@ impl EventLoop {
             let ambient_light = app_state.ambient_light.clone();
             let camera = app_state.camera.clone();
             let mut event_injections = app_state.event_injections.clone();
+            let mut update_injections = app_state.update_injections.clone();
 
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
@@ -176,6 +182,10 @@ impl EventLoop {
                     target.finish().unwrap();
                 }
                 Event::MainEventsCleared => {
+                    // executing update functions
+                    for function in update_injections {
+                        function(&mut app_state);
+                    }
                     self.window.request_redraw();
                 }
                 _ => (),

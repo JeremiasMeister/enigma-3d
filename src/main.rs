@@ -28,6 +28,10 @@ fn roll_right(app_state: &mut AppState) {
     app_state.objects[0].transform.rotate([0.0, 0.0, -1.0]);
 }
 
+fn update(app_state: &mut AppState) {
+    app_state.objects[0].transform.set_position([0.0, (app_state.time * 10.0).sin() * 0.3, -2.0]);
+}
+
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
@@ -87,6 +91,9 @@ fn main() {
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
         Arc::new(roll_left),
     );
+
+    // add update
+    app_state.inject_update_function(Arc::new(update));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
