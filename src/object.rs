@@ -1,3 +1,4 @@
+use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::Vertex;
@@ -37,21 +38,19 @@ impl Shape {
         }
     }
 
-    pub fn from_vertices(vertices: Vec<Vertex>) -> Self {
-        let mut shape = Shape::new();
-        shape.vertices = vertices;
-        for vertex in shape.vertices.iter() {
-            shape.indices.push(vertex.index);
+    pub fn from_vertices_indices(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+        Shape {
+            vertices,
+            indices,
         }
-        shape
     }
 
     pub fn default() -> Self {
         let triangle = debug_geo::TRIANGLE;
         let mut shape = Shape::new();
         shape.vertices = triangle.to_vec();
-        for vertex in triangle.iter() {
-            shape.indices.push(vertex.index);
+        for i in 0..triangle.iter().len() {
+            shape.indices.push(i as u32);
         }
         shape
     }
@@ -98,13 +97,14 @@ impl Object {
         let mut shapes = Vec::new();
         for shape in self.shapes.iter() {
             let mut vertices = Vec::new();
+            let indices = shape.indices.clone();
             for vertex in shape.vertices.iter() {
                 let mut vertex = vertex.clone();
                 let position_point = Point3::from(Vector3::from(vertex.position));
                 vertex.position = self.transform.matrix.transform_point(&position_point).into();
                 vertices.push(vertex);
             }
-            shapes.push(Shape::from_vertices(vertices));
+            shapes.push(Shape::from_vertices_indices(vertices, indices));
         }
         shapes
     }
@@ -123,11 +123,7 @@ impl Object {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for (shape, material) in shapes.iter().zip(self.materials.iter()) {
-            let mut indices = Vec::new();
-            for vertex in shape.vertices.iter() {
-                indices.push(vertex.index);
-            }
-            let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap();
+            let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &shape.indices).unwrap();
             buffer.push(index);
         }
         buffer
@@ -177,13 +173,16 @@ impl Object {
         let input = BufReader::new(File::open(path).expect("Failed to open file"));
         let obj: Obj = load_obj(input).unwrap();
         let mut vertices = Vec::new();
-        for (vert, index) in obj.vertices.iter().zip(obj.indices.iter()) {
-            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0, 0.0], normal: vert.normal, index: (*index).into() };
+        let mut indices = Vec::new();
+        for vert in obj.vertices.iter() {
+            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0, 0.0], normal: vert.normal };
             vertices.push(vertex);
         }
+        for index in obj.indices.iter() {
+            indices.push((*index).into());
+        }
 
-        let shape = Shape::from_vertices(vertices);
-
+        let shape = Shape::from_vertices_indices(vertices, indices);
         let mut object = Object::new(obj.name);
         match material {
             Some(material) => object.add_shape(shape, material),
@@ -199,18 +198,22 @@ impl Object {
 
         for mesh in gltf.meshes() {
             let mut vertices = Vec::new();
+            let mut indices = Vec::new();
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
                 let positions = reader.read_positions().unwrap();
                 let normals = reader.read_normals().unwrap();
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
-                let indices = reader.read_indices().unwrap().into_u32();
-                for (((position, normal), tex_coord), index) in positions.zip(normals).zip(tex_coords).zip(indices) {
-                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal, index };
+                let prim_indices = reader.read_indices().unwrap().into_u32();
+
+                for ((position, normal), tex_coord) in positions.zip(normals).zip(tex_coords) {
+                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
                     vertices.push(vertex);
                 }
+
+                prim_indices.for_each(|index| indices.push(index));
             }
-            let shape = Shape::from_vertices(vertices);
+            let shape = Shape::from_vertices_indices(vertices, indices);
             object.add_shape(shape, Material::lit_pbr(display.clone()));
         }
         object
@@ -258,14 +261,14 @@ impl Transform {
         self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
     }
 
-    pub fn rotate(&mut self, rotation: [f32; 3]){
+    pub fn rotate(&mut self, rotation: [f32; 3]) {
         let cur_r = self.get_rotation();
         let additive_rotation = [cur_r.x + rotation[0], cur_r.y + rotation[1], cur_r.z + rotation[2]];
         let radians = additive_rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
         self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
     }
 
-    pub fn move_dir(&mut self, position: [f32; 3]){
+    pub fn move_dir(&mut self, position: [f32; 3]) {
         let cur_p = self.get_position();
         let additive_position = [cur_p.x + position[0], cur_p.y + position[1], cur_p.z + position[2]];
         self.position = Vector3::from(additive_position);
