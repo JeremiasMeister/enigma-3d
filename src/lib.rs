@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
@@ -45,6 +47,10 @@ impl AppState {
             ambient_light: None,
             event_injections: Vec::new()
         }
+    }
+
+    pub fn convert_to_arc_mutex(self) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(self))
     }
 
     pub fn add_object(&mut self, object: object::Object) {
@@ -113,14 +119,23 @@ impl EventLoop {
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
-    pub fn run(self, mut app_state: AppState) {
+    pub fn run(self, mut app_state: Arc<Mutex<AppState>>) {
+        // managing fps
         let mut next_frame_time = Instant::now();
-        let nanos = 1_000_000_000 / app_state.fps;
+        let nanos = 1_000_000_000 / app_state.lock().unwrap().fps; //TODO: not ideal to already unpack here once
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
+
+        // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
+            // unpacking appstate
+            let mut app_state = app_state.lock().unwrap();
+            let light = app_state.light.clone();
+            let ambient_light = app_state.ambient_light.clone();
+            let camera = app_state.camera.clone();
+            let mut event_injections = app_state.event_injections.clone();
+
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
-
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; },
@@ -128,13 +143,13 @@ impl EventLoop {
                         //TODO: do something with it
                     },
                     WindowEvent::KeyboardInput{input, ..} => {
-                        for (characteristic, function) in &app_state.event_injections {
+                        for (characteristic, function) in event_injections {
                             if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
-                                if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(*key_code) {
-                                    function();
+                                if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
+                                    function(&mut app_state);
                                 }
                             }
-                        }
+                        };
                     },
                     _ => ()
                 }
@@ -154,7 +169,7 @@ impl EventLoop {
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            let uniforms = &material.get_uniforms(app_state.light, app_state.ambient_light, app_state.camera, Some(model_matrix));
+                            let uniforms = &material.get_uniforms(light, ambient_light, camera, Some(model_matrix));
                             target.draw(buffer, indices, &material.program, uniforms, &params).unwrap();
                         }
                     }

@@ -258,6 +258,13 @@ impl Transform {
         self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
     }
 
+    pub fn rotate(&mut self, rotation: [f32; 3]){
+        let cur_r = self.get_rotation();
+        let additive_rotation = [cur_r.x + rotation[0], cur_r.y + rotation[1], cur_r.z + rotation[2]];
+        let radians = additive_rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
+        self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
+    }
+
     pub fn get_rotation(&self) -> Vector3<f32> {
         let x = self.rotation.x.to_degrees();
         let y = self.rotation.y.to_degrees();

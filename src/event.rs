@@ -1,6 +1,12 @@
+use std::sync::Arc;
+use crate::AppState;
 
+#[derive(Copy, Clone)]
 pub enum EventCharacteristic {
     KeyPress(winit::event::VirtualKeyCode),
-    //TODO: impl more event characteristics
+    MousePress(winit::event::MouseButton),
+    MouseScroll(winit::event::MouseScrollDelta),
+    //TODO: impl more events
 }
-pub type EventFunction = Box<dyn Fn()>;
+
+pub type EventFunction = Arc<dyn Fn(&mut AppState)>;

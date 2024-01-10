@@ -1,10 +1,23 @@
+use std::sync::Arc;
 use winit::event::Event;
 use enigma::object::Object;
 use enigma::camera::Camera;
-use enigma::event;
+use enigma::{AppState, event};
 
-fn rotate_all_objects() {
-    println!("test");
+fn rotate_left(app_state: &mut AppState){
+    app_state.objects[0].transform.rotate([0.0,1.0,0.0]);
+}
+
+fn rotate_right(app_state: &mut AppState){
+    app_state.objects[0].transform.rotate([0.0,-1.0,0.0]);
+}
+
+fn rotate_up(app_state: &mut AppState){
+    app_state.objects[0].transform.rotate([1.0,0.0,0.0]);
+}
+
+fn rotate_down(app_state: &mut AppState){
+    app_state.objects[0].transform.rotate([-1.0,0.0,0.0]);
 }
 
 fn main() {
@@ -42,10 +55,24 @@ fn main() {
     app_state.set_camera(camera);
 
     // add events
-    let space_key_press = event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space);
-    app_state.inject_event(space_key_press, Box::new(rotate_all_objects));
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        Arc::new(rotate_left)
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        Arc::new(rotate_right)
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        Arc::new(rotate_up)
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(rotate_down)
+    );
 
     // run the event loop
-    event_loop.run(app_state);
+    event_loop.run(app_state.convert_to_arc_mutex());
 
 }
