@@ -74,8 +74,8 @@ fn main() {
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     object.name = "Suzanne".to_string();
-    object.transform.set_position([0.0, 0.0, -2.0]);
-    object.transform.set_scale([0.3, 0.3, 0.3]);
+    object.transform.set_position([0.0, 1.0, -2.0]);
+    object.transform.set_scale([0.5, 0.5, 0.5]);
 
 
     // adding all the objects

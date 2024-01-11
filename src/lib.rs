@@ -171,6 +171,9 @@ impl EventLoop {
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
+                    WindowEvent::Resized(new_size) => {
+                        app_state.camera.as_mut().unwrap().set_aspect(new_size.width as f32 / new_size.height as f32);
+                    }
                     WindowEvent::KeyboardInput { input, .. } => {
                         for (characteristic, function) in event_injections {
                             if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
