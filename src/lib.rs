@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
@@ -7,7 +6,6 @@ use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use crate::camera::Camera;
 use crate::light::LightType;
 
 pub mod shader;
@@ -145,16 +143,17 @@ impl EventLoop {
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
-    pub fn run(self, mut app_state: Arc<Mutex<AppState>>) {
+    pub fn run(self, app_state: Arc<Mutex<AppState>>) {
 
-        let display = self.display.clone();
         let mut temp_app_state = app_state.lock().unwrap();
-        temp_app_state.display = Some(display);
+        temp_app_state.display = Some(self.display.clone());
 
         // managing fps
         let mut next_frame_time = Instant::now();
-        let nanos = 1_000_000_000 / temp_app_state.fps; //TODO: not ideal to already unpack here once
+        let nanos = 1_000_000_000 / temp_app_state.fps;
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
+
+        //dropping modified appstate
         drop(temp_app_state);
 
         // run loop
@@ -164,8 +163,8 @@ impl EventLoop {
             let light = app_state.light.clone();
             let ambient_light = app_state.ambient_light.clone();
             let camera = app_state.camera.clone();
-            let mut event_injections = app_state.event_injections.clone();
-            let mut update_injections = app_state.update_injections.clone();
+            let event_injections = app_state.event_injections.clone();
+            let update_injections = app_state.update_injections.clone();
 
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;

@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use winit::event::Event;
 use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
@@ -40,13 +39,11 @@ fn hopping_objects(app_state: &mut AppState) {
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
-            println!("Spawning object");
             let mut material = enigma::material::Material::lit_pbr(d.clone());
             material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
             let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
-            let rand_name = rand::thread_rng().gen_range(0..1000);
-            object.name = format!("Suzanne_{}", rand_name);
+            object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
             object.add_material(material);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
             let random_z = rand::thread_rng().gen_range(-4.0..-1.0);
