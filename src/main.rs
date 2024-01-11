@@ -6,32 +6,44 @@ use enigma::{AppState, event};
 use rand::Rng;
 
 fn rotate_left(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, -1.0, 0.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([0.0, -1.0, 0.0]);
+    }
 }
 
 fn rotate_right(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 1.0, 0.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([0.0, 1.0, 0.0]);
+    }
 }
 
 fn rotate_up(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([-1.0, 0.0, 0.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([-1.0, 0.0, 0.0]);
+    }
 }
 
 fn rotate_down(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([1.0, 0.0, 0.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([1.0, 0.0, 0.0]);
+    }
 }
 
 fn roll_left(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, 1.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([0.0, 0.0, 1.0]);
+    }
 }
 
 fn roll_right(app_state: &mut AppState) {
-    app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, -1.0]);
+    for object in app_state.objects.iter_mut() {
+        object.transform.rotate([0.0, 0.0, -1.0]);
+    }
 }
 
 fn hopping_objects(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        let rand_scale = rand::thread_rng().gen_range(0.0..0.005);
+        let rand_scale = rand::thread_rng().gen_range(0.0..0.015);
         object.transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
     }
 }
