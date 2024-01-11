@@ -35,8 +35,8 @@ pub enum TextureType {
 }
 
 impl Material {
-    pub fn default(shader: shader::Shader, display: glium::Display<WindowSurface>) -> Self {
-        Material::new(shader, display, None, None, None, None, None, None, None, None)
+    pub fn default(shader: shader::Shader, display: &glium::Display<WindowSurface>) -> Self {
+        Material::new(shader, display.clone(), None, None, None, None, None, None, None, None)
     }
     pub fn new(
         shader: shader::Shader,
@@ -72,10 +72,7 @@ impl Material {
             name: None,
             shader,
             display,
-            color: match color {
-                Some(color) => color,
-                None => [1.0, 1.0, 1.0],
-            },
+            color: color.unwrap_or_else(|| [1.0, 1.0, 1.0]),
             albedo: match albedo {
                 Some(albedo) => Some(albedo),
                 None => None,
@@ -84,26 +81,17 @@ impl Material {
                 Some(normal) => Some(normal),
                 None => None,
             },
-            normal_strength: match normal_strength {
-                Some(normal_strength) => normal_strength,
-                None => 1.0,
-            },
+            normal_strength: normal_strength.unwrap_or_else(|| 1.0),
             roughness: match roughness {
                 Some(roughness) => Some(roughness),
                 None => None,
             },
-            roughness_strength: match roughness_strength {
-                Some(roughness_strength) => roughness_strength,
-                None => 1.0,
-            },
+            roughness_strength: roughness_strength.unwrap_or_else(|| 1.0),
             metallic: match metallic {
                 Some(metallic) => Some(metallic),
                 None => None,
             },
-            metallic_strength: match metallic_strength {
-                Some(metallic_strength) => metallic_strength,
-                None => 1.0,
-            },
+            metallic_strength: metallic_strength.unwrap_or_else(|| 1.0),
             _tex_white,
             _tex_black,
             _tex_gray,
@@ -165,7 +153,7 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>) -> Self {
-        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), display)
+        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display)
     }
 
     pub fn get_uniforms(&self, light: Option<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {

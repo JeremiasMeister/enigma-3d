@@ -30,9 +30,35 @@ fn roll_right(app_state: &mut AppState) {
     app_state.get_object_mut("Suzanne").unwrap().transform.rotate([0.0, 0.0, -1.0]);
 }
 
-fn hop_first_object(app_state: &mut AppState) {
-    let rand_scale = rand::thread_rng().gen_range(0.0..0.005);
-    app_state.objects[0].transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
+fn hopping_objects(app_state: &mut AppState) {
+    for object in app_state.objects.iter_mut() {
+        let rand_scale = rand::thread_rng().gen_range(0.0..0.005);
+        object.transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale , 0.0])
+    }
+}
+
+fn spawn_object(app_state: &mut AppState) {
+    match &app_state.display {
+        Some(d) => {
+            println!("Spawning object");
+            let mut material = enigma::material::Material::lit_pbr(d.clone());
+            material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+
+            let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
+            let rand_name = rand::thread_rng().gen_range(0..1000);
+            object.name = format!("Suzanne_{}", rand_name);
+            object.add_material(material);
+            let random_x = rand::thread_rng().gen_range(-4.0..4.0);
+            let random_z = rand::thread_rng().gen_range(-4.0..-1.0);
+
+            object.transform.set_position([random_x, 0.0, random_z]);
+            object.transform.set_scale([0.3, 0.3, 0.3]);
+            app_state.add_object(object);
+        },
+        None => {
+            println!("No display found, could not spawn object");
+        }
+    }
 }
 
 fn main() {
@@ -40,12 +66,20 @@ fn main() {
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
     let mut app_state = enigma::AppState::new();
 
+    let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());
+    material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+
     // create a default object
-    let mut object = Object::load_from_gltf("res/models/suzanne.gltf", event_loop.get_display_clone());
+    let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
+
+    // set the material
+    object.add_material(material);
+    object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     object.name = "Suzanne".to_string();
     object.transform.set_position([0.0, 0.0, -2.0]);
-    object.get_materials_mut()[0].set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+    object.transform.set_scale([0.3, 0.3, 0.3]);
+
 
     // adding all the objects
     app_state.add_object(object);
@@ -93,9 +127,13 @@ fn main() {
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
         Arc::new(roll_left),
     );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(spawn_object),
+    );
 
     // add update
-    app_state.inject_update_function(Arc::new(hop_first_object));
+    app_state.inject_update_function(Arc::new(hopping_objects));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());

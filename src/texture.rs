@@ -1,6 +1,7 @@
 use glium::glutin::surface::WindowSurface;
 
 pub struct Texture {
+    pub path: String,
     pub texture: glium::texture::SrgbTexture2d,
     pub width: u32,
     pub height: u32,
@@ -14,6 +15,7 @@ impl Texture {
         let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
         Self {
             texture,
+            path: String::from(path),
             width: image_dimensions.0,
             height: image_dimensions.1,
         }

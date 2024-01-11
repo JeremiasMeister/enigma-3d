@@ -28,6 +28,7 @@ pub struct Object {
 pub struct Shape {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub material_index: usize,
 }
 
 impl Shape {
@@ -35,6 +36,7 @@ impl Shape {
         Shape {
             vertices: Vec::new(),
             indices: Vec::new(),
+            material_index: 0,
         }
     }
 
@@ -42,6 +44,7 @@ impl Shape {
         Shape {
             vertices,
             indices,
+            material_index: 0,
         }
     }
 
@@ -62,6 +65,10 @@ impl Shape {
     pub fn get_index_buffer(&self, display: Display<WindowSurface>) -> glium::IndexBuffer<u32> {
         glium::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &self.indices).unwrap()
     }
+
+    pub fn set_material_from_object_list(&mut self, material_index: usize) {
+        self.material_index = material_index;
+    }
 }
 
 impl Object {
@@ -76,9 +83,9 @@ impl Object {
         }
     }
 
-    pub fn default(display: Display<WindowSurface>) -> Self {
+    pub fn default() -> Self {
         let mut object = Object::new(None);
-        object.add_shape(Shape::default(), Material::default(Shader::default(), display));
+        object.add_shape(Shape::default());
         object
     }
 
@@ -88,9 +95,8 @@ impl Object {
     }
 
     //TODO: Get rid of potential material duplication by mapping materials to multiple shapes
-    pub fn add_shape(&mut self, shape: Shape, material: Material) {
+    pub fn add_shape(&mut self, shape: Shape) {
         self.shapes.push(shape);
-        self.materials.push(material);
     }
 
     pub fn get_transformed_shapes(&self) -> Vec<Shape> {
@@ -112,7 +118,8 @@ impl Object {
     pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
-        for (shape, material) in shapes.iter().zip(self.materials.iter()) {
+        for shape in shapes.iter() {
+            let material = &self.materials[shape.material_index];
             let vertex = glium::VertexBuffer::new(&material.display, &shape.vertices).unwrap();
             buffer.push(vertex);
         }
@@ -122,7 +129,8 @@ impl Object {
     pub fn get_index_buffers(&self) -> Vec<glium::IndexBuffer<u32>> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
-        for (shape, material) in shapes.iter().zip(self.materials.iter()) {
+        for shape in shapes.iter() {
+            let material = &self.materials[shape.material_index];
             let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &shape.indices).unwrap();
             buffer.push(index);
         }
@@ -135,6 +143,10 @@ impl Object {
 
     pub fn get_materials_mut(&mut self) -> &mut Vec<Material> {
         &mut self.materials
+    }
+
+    pub fn add_material(&mut self, material: Material) {
+        self.materials.push(material);
     }
 
     pub fn get_shapes(&self) -> &Vec<Shape> {
@@ -169,7 +181,7 @@ impl Object {
         self.camera = Some(camera);
     }
 
-    pub fn load_from_obj(path: &str, display: Display<WindowSurface>, material: Option<Material>) -> Self {
+    pub fn load_from_obj(path: &str) -> Self {
         let input = BufReader::new(File::open(path).expect("Failed to open file"));
         let obj: Obj = load_obj(input).unwrap();
         let mut vertices = Vec::new();
@@ -184,14 +196,11 @@ impl Object {
 
         let shape = Shape::from_vertices_indices(vertices, indices);
         let mut object = Object::new(obj.name);
-        match material {
-            Some(material) => object.add_shape(shape, material),
-            None => object.add_shape(shape, Material::lit_pbr(display)),
-        }
+        object.add_shape(shape);
         object
     }
 
-    pub fn load_from_gltf(path: &str, display: Display<WindowSurface>) -> Self {
+    pub fn load_from_gltf(path: &str) -> Self {
         let (gltf, buffers, _) = gltf::import(path).expect("Failed to import gltf file");
 
         let mut object = Object::new(Some(String::from(path)));
@@ -214,7 +223,7 @@ impl Object {
                 prim_indices.for_each(|index| indices.push(index));
             }
             let shape = Shape::from_vertices_indices(vertices, indices);
-            object.add_shape(shape, Material::lit_pbr(display.clone()));
+            object.add_shape(shape);
         }
         object
     }

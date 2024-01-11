@@ -29,6 +29,7 @@ pub struct AppState {
     pub objects: Vec<object::Object>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
     pub update_injections: Vec<event::EventFunction>,
+    pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
 }
 
@@ -49,6 +50,7 @@ impl AppState {
             ambient_light: None,
             event_injections: Vec::new(),
             update_injections: Vec::new(),
+            display: None,
             time: 0.0,
         }
     }
@@ -144,10 +146,16 @@ impl EventLoop {
 
     // This is just the render loop . an actual event loop still needs to be set up
     pub fn run(self, mut app_state: Arc<Mutex<AppState>>) {
+
+        let display = self.display.clone();
+        let mut temp_app_state = app_state.lock().unwrap();
+        temp_app_state.display = Some(display);
+
         // managing fps
         let mut next_frame_time = Instant::now();
-        let nanos = 1_000_000_000 / app_state.lock().unwrap().fps; //TODO: not ideal to already unpack here once
+        let nanos = 1_000_000_000 / temp_app_state.fps; //TODO: not ideal to already unpack here once
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
+        drop(temp_app_state);
 
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
@@ -163,8 +171,8 @@ impl EventLoop {
             next_frame_time = Instant::now() + frame_duration;
             match event {
                 Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; },
-                    WindowEvent::KeyboardInput{input, ..} => {
+                    WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
+                    WindowEvent::KeyboardInput { input, .. } => {
                         for (characteristic, function) in event_injections {
                             if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
                                 if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
@@ -172,7 +180,7 @@ impl EventLoop {
                                 }
                             }
                         };
-                    },
+                    }
                     _ => ()
                 }
                 Event::RedrawRequested(_) => {
