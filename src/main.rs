@@ -7,37 +7,37 @@ use rand::Rng;
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([0.0, -1.0, 0.0]);
+        object.transform.rotate([0.0, -5.0, 0.0]);
     }
 }
 
 fn rotate_right(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([0.0, 1.0, 0.0]);
+        object.transform.rotate([0.0, 5.0, 0.0]);
     }
 }
 
 fn rotate_up(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([-1.0, 0.0, 0.0]);
+        object.transform.rotate([-5.0, 0.0, 0.0]);
     }
 }
 
 fn rotate_down(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([1.0, 0.0, 0.0]);
+        object.transform.rotate([5.0, 0.0, 0.0]);
     }
 }
 
 fn roll_left(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([0.0, 0.0, 1.0]);
+        object.transform.rotate([0.0, 0.0, 5.0]);
     }
 }
 
 fn roll_right(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
-        object.transform.rotate([0.0, 0.0, -1.0]);
+        object.transform.rotate([0.0, 0.0, -5.0]);
     }
 }
 

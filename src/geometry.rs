@@ -6,4 +6,10 @@ pub struct Vertex {
     pub normal: [f32; 3],
 }
 
+#[derive(Copy, Clone)]
+pub struct BoundingSphere{
+    pub center: [f32; 3], //relative to the objects position
+    pub radius: f32,
+}
+
 glium::implement_vertex!(Vertex, position, texcoord, color, normal);

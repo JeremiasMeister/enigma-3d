@@ -17,6 +17,7 @@ pub mod object;
 pub mod light;
 pub mod camera;
 pub mod event;
+pub mod collision_world;
 
 
 pub struct AppState {

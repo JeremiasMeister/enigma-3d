@@ -22,6 +22,7 @@ pub struct Object {
     materials: Vec<Material>,
     light: Option<Light>,
     camera: Option<Camera>,
+    bounding_sphere: Option<geometry::BoundingSphere>,
 }
 
 pub struct Shape {
@@ -72,13 +73,65 @@ impl Shape {
 
 impl Object {
     pub fn new(name: Option<String>) -> Self {
-        Object {
+        let mut object = Object {
             name: name.unwrap_or_else(|| String::from("Object")),
             transform: Transform::new(),
             shapes: Vec::new(),
             materials: Vec::new(),
             light: None,
             camera: None,
+            bounding_sphere: None,
+        };
+        object.calculate_bounding_sphere();
+        object
+    }
+
+    fn calculate_bounding_sphere(&mut self) -> geometry::BoundingSphere{
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut min_z = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        let mut max_z = f32::NEG_INFINITY;
+
+        for shape in self.get_shapes().iter(){
+            for vertex in shape.vertices.iter(){
+                if vertex.position[0] < min_x {
+                    min_x = vertex.position[0];
+                }
+                if vertex.position[1] < min_y {
+                    min_y = vertex.position[1];
+                }
+                if vertex.position[2] < min_z {
+                    min_z = vertex.position[2];
+                }
+                if vertex.position[0] > max_x {
+                    max_x = vertex.position[0];
+                }
+                if vertex.position[1] > max_y {
+                    max_y = vertex.position[1];
+                }
+                if vertex.position[2] > max_z {
+                    max_z = vertex.position[2];
+                }
+            }
+        }
+
+        let min_point = Point3::new(min_x, min_y, min_z);
+        let max_point = Point3::new(max_x, max_y, max_z);
+
+        let center = Point3::new(
+            (min_point.x + max_point.x) / 2.0,
+            (min_point.y + max_point.y) / 2.0,
+            (min_point.z + max_point.z) / 2.0,
+        );
+        let radius = (max_point - min_point).norm() / 2.0;
+
+        let transformed_center = self.transform.matrix.transform_point(&center);
+
+        return geometry::BoundingSphere{
+            center: transformed_center.into(),
+            radius
         }
     }
 
@@ -93,25 +146,8 @@ impl Object {
         self.materials.iter_mut().for_each(|x| x.update());
     }
 
-    //TODO: Get rid of potential material duplication by mapping materials to multiple shapes
     pub fn add_shape(&mut self, shape: Shape) {
         self.shapes.push(shape);
-    }
-
-    pub fn get_transformed_shapes(&self) -> Vec<Shape> {
-        let mut shapes = Vec::new();
-        for shape in self.shapes.iter() {
-            let mut vertices = Vec::new();
-            let indices = shape.indices.clone();
-            for vertex in shape.vertices.iter() {
-                let mut vertex = vertex.clone();
-                let position_point = Point3::from(Vector3::from(vertex.position));
-                vertex.position = self.transform.matrix.transform_point(&position_point).into();
-                vertices.push(vertex);
-            }
-            shapes.push(Shape::from_vertices_indices(vertices, indices));
-        }
-        shapes
     }
 
     pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
@@ -134,6 +170,10 @@ impl Object {
             buffer.push(index);
         }
         buffer
+    }
+
+    pub fn get_bounding_sphere(&mut self) -> geometry::BoundingSphere {
+        self.calculate_bounding_sphere()
     }
 
     pub fn get_materials(&self) -> &Vec<Material> {
