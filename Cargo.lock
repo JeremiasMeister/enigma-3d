@@ -445,6 +445,7 @@ dependencies = [
  "image",
  "itertools",
  "nalgebra",
+ "nalgebra-glm",
  "obj-rs",
  "rand",
  "uuid",
@@ -1036,6 +1037,18 @@ dependencies = [
  "num-traits",
  "simba",
  "typenum",
+]
+
+[[package]]
+name = "nalgebra-glm"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e68879ff227a94627e63bbd518b4f82b8f0cc56bb01a498251507de6d1c412d6"
+dependencies = [
+ "approx",
+ "nalgebra",
+ "num-traits",
+ "simba",
 ]
 
 [[package]]

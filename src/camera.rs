@@ -4,7 +4,8 @@ use crate::object::Transform;
 pub struct Camera {
     pub transform: Transform,
     pub fov: f32,
-    pub aspect: f32,
+    pub width: f32,
+    pub height: f32,
     pub near: f32,
     pub far: f32,
     pub view: [[f32; 4]; 4],
@@ -29,7 +30,8 @@ impl Camera {
                 t
             },
             fov: fov.unwrap_or_else(|| 90.0).to_radians(),
-            aspect: aspect.unwrap_or_else(|| 1.0),
+            width: aspect.unwrap_or_else(|| 1920.0),
+            height: aspect.unwrap_or_else(|| 1080.0),
             near: near.unwrap_or_else(|| 0.1),
             far: far.unwrap_or_else(|| 1024.0),
             view: [[0.0; 4]; 4],
@@ -48,13 +50,13 @@ impl Camera {
         );
         self.projection = Camera::projection_matrix(
             self.fov,
-            self.aspect,
+            self.width / self.height,
             self.near,
             self.far,
         );
     }
 
-    fn calculate_direction_vector(&self) -> [f32; 3] {
+    pub fn calculate_direction_vector(&self) -> [f32; 3] {
         let pitch = self.transform.rotation[0]; // Rotation around X-axis
         let yaw = self.transform.rotation[1];   // Rotation around Y-axis
 
@@ -123,7 +125,7 @@ impl Camera {
     pub fn get_projection_matrix(&self) -> [[f32; 4]; 4] {
         Camera::projection_matrix(
             self.fov,
-            self.aspect,
+            self.width / self.height,
             self.near,
             self.far,
         )
@@ -141,8 +143,8 @@ impl Camera {
         self.fov.clone()
     }
 
-    pub fn get_aspect(&self) -> f32 {
-        self.aspect.clone()
+    pub fn get_aspect(&self) -> (f32, f32) {
+        (self.width.clone(), self.height.clone())
     }
 
     pub fn get_near(&self) -> f32 {
@@ -176,8 +178,9 @@ impl Camera {
         self.update_matrices();
     }
 
-    pub fn set_aspect(&mut self, aspect: f32) {
-        self.aspect = aspect;
+    pub fn set_aspect(&mut self, width: f32, heigth: f32) {
+        self.width = width;
+        self.height = heigth;
         self.update_matrices();
     }
 

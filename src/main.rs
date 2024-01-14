@@ -1,9 +1,36 @@
 use std::sync::Arc;
+use nalgebra::Vector3;
 use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
+use enigma::collision_world::RayCast;
 
 use rand::Rng;
+
+fn select_object(app_state: &mut AppState) {
+    match app_state.camera {
+        Some(camera) => {
+            let world_space_mouse_position = app_state.get_mouse_position().get_world_position(&camera);
+            let mut raycast = RayCast::new(
+                world_space_mouse_position,
+                Vector3::from(camera.calculate_direction_vector()),
+                100.0,
+                true,
+            );
+            raycast.cast(app_state);
+            for (id, intersection_point) in raycast.get_intersection_map().iter() {
+                for object in app_state.objects.iter_mut() {
+                    if object.get_unique_id() == *id {
+                        println!("Selected object: {}", object.name)
+                    }
+                }
+            }
+        },
+        None => {
+            println!("No camera found to cast from, could not select object");
+        }
+    }
+}
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
@@ -139,6 +166,10 @@ fn main() {
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
+        Arc::new(select_object),
     );
 
     // add update

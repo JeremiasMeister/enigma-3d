@@ -1,4 +1,3 @@
-
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
@@ -6,6 +5,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
+use crate::collision_world::MousePosition;
 use crate::light::LightType;
 
 pub mod shader;
@@ -30,6 +30,7 @@ pub struct AppState {
     pub update_injections: Vec<event::EventFunction>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
+    mouse_position: MousePosition,
 }
 
 pub struct EventLoop {
@@ -51,7 +52,16 @@ impl AppState {
             update_injections: Vec::new(),
             display: None,
             time: 0.0,
+            mouse_position: MousePosition::new()
         }
+    }
+
+    pub fn get_mouse_position(&self) -> &MousePosition {
+        &self.mouse_position
+    }
+
+    pub fn get_mouse_position_mut(&mut self) -> &mut MousePosition {
+        &mut self.mouse_position
     }
 
     pub fn convert_to_arc_mutex(self) -> Arc<Mutex<Self>> {
@@ -145,7 +155,6 @@ impl EventLoop {
 
     // This is just the render loop . an actual event loop still needs to be set up
     pub fn run(self, app_state: Arc<Mutex<AppState>>) {
-
         let mut temp_app_state = app_state.lock().unwrap();
         temp_app_state.display = Some(self.display.clone());
 
@@ -173,7 +182,19 @@ impl EventLoop {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
-                        app_state.camera.as_mut().unwrap().set_aspect(new_size.width as f32 / new_size.height as f32);
+                        app_state.camera.as_mut().unwrap().set_aspect(new_size.width as f32, new_size.height as f32);
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                    }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        for (characteristic, function) in event_injections {
+                            if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                if state == winit::event::ElementState::Pressed && button == mouse_button {
+                                    function(&mut app_state);
+                                }
+                            }
+                        };
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
                         for (characteristic, function) in event_injections {
