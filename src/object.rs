@@ -1,7 +1,7 @@
 use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
-use crate::geometry::Vertex;
+use crate::geometry::{BoundingBox, Vertex};
 use crate::material::Material;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
@@ -24,7 +24,7 @@ pub struct Object {
     materials: Vec<Material>,
     light: Option<Light>,
     camera: Option<Camera>,
-    bounding_sphere: Option<geometry::BoundingSphere>,
+    bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
 }
 
@@ -83,10 +83,10 @@ impl Object {
             materials: Vec::new(),
             light: None,
             camera: None,
-            bounding_sphere: None,
+            bounding_box: None,
             unique_id: Uuid::new_v4(), //generating unique id for object
         };
-        object.calculate_bounding_sphere();
+        object.calculate_bounding_box();
         object
     }
 
@@ -94,7 +94,7 @@ impl Object {
         self.unique_id
     }
 
-    fn calculate_bounding_sphere(&mut self) -> geometry::BoundingSphere{
+    fn calculate_bounding_box(&mut self) -> BoundingBox {
         let mut min_x = f32::INFINITY;
         let mut min_y = f32::INFINITY;
         let mut min_z = f32::INFINITY;
@@ -102,26 +102,14 @@ impl Object {
         let mut max_y = f32::NEG_INFINITY;
         let mut max_z = f32::NEG_INFINITY;
 
-        for shape in self.get_shapes().iter(){
-            for vertex in shape.vertices.iter(){
-                if vertex.position[0] < min_x {
-                    min_x = vertex.position[0];
-                }
-                if vertex.position[1] < min_y {
-                    min_y = vertex.position[1];
-                }
-                if vertex.position[2] < min_z {
-                    min_z = vertex.position[2];
-                }
-                if vertex.position[0] > max_x {
-                    max_x = vertex.position[0];
-                }
-                if vertex.position[1] > max_y {
-                    max_y = vertex.position[1];
-                }
-                if vertex.position[2] > max_z {
-                    max_z = vertex.position[2];
-                }
+        for shape in self.get_shapes().iter() {
+            for vertex in shape.vertices.iter() {
+                min_x = min_x.min(vertex.position[0]);
+                min_y = min_y.min(vertex.position[1]);
+                min_z = min_z.min(vertex.position[2]);
+                max_x = max_x.max(vertex.position[0]);
+                max_y = max_y.max(vertex.position[1]);
+                max_z = max_z.max(vertex.position[2]);
             }
         }
 
@@ -133,14 +121,20 @@ impl Object {
             (min_point.y + max_point.y) / 2.0,
             (min_point.z + max_point.z) / 2.0,
         );
-        let radius = (max_point - min_point).norm() / 2.0;
-
+        self.transform.update();
         let transformed_center = self.transform.matrix.transform_point(&center);
+        let transformed_width = (max_x - min_x) * self.transform.get_scale().x;
+        let transformed_height = (max_y - min_y) * self.transform.get_scale().y;
+        let transformed_depth = (max_z - min_z) * self.transform.get_scale().z;
 
-        return geometry::BoundingSphere{
+        let aabb = BoundingBox {
             center: Vector3::from([transformed_center.x, transformed_center.y, transformed_center.z]),
-            radius
-        }
+            width: transformed_width,
+            height: transformed_height,
+            depth: transformed_depth,
+        };
+        self.bounding_box = Some(aabb);
+        aabb
     }
 
     pub fn default() -> Self {
@@ -179,9 +173,8 @@ impl Object {
         }
         buffer
     }
-
-    pub fn get_bounding_sphere(&mut self) -> geometry::BoundingSphere {
-        self.calculate_bounding_sphere()
+    pub fn get_bounding_box(&mut self) -> BoundingBox {
+        self.calculate_bounding_box()
     }
 
     pub fn get_materials(&self) -> &Vec<Material> {

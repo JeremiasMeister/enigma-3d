@@ -18,7 +18,15 @@ pub mod light;
 pub mod camera;
 pub mod event;
 pub mod collision_world;
+pub mod default_events;
 
+
+pub fn init_default(app_state: &mut AppState){
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
+        Arc::new(default_events::select_object),
+    );
+}
 
 pub struct AppState {
     pub fps: u64,

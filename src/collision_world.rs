@@ -4,7 +4,7 @@ use crate::{AppState};
 use nalgebra::Vector3;
 use uuid::Uuid;
 use crate::camera::Camera;
-use crate::geometry::BoundingSphere;
+use crate::geometry::{BoundingBox};
 
 pub struct MousePosition {
     pub screen_space: (f64, f64),
@@ -36,20 +36,29 @@ impl MousePosition {
         }
     }
 
-    pub fn get_world_position(&self, camera: &Camera) -> Vector3<f32> {
+    pub fn get_world_position(&self, camera: &Camera, depth: f32) -> Vector3<f32> {
+        // Convert screen coordinates to normalized device coordinates (NDC)
         let x = (2.0 * self.screen_space.0 as f32) / camera.width - 1.0;
         let y = 1.0 - (2.0 * self.screen_space.1 as f32) / camera.height;
-        let ndc: nalgebra::Vector4<f32> = nalgebra::Vector4::new(x, y, 1.0, 1.0); // Assuming Z as 1.0 for the far plane
+        let ndc = nalgebra::Vector4::new(x, y, -1.0, 1.0); // Using -1.0 for Z to get a point on the near plane
 
-        let projection_matrix: nalgebra::Matrix4<f32> = nalgebra::Matrix4::from(camera.get_projection_matrix());
-        let view_matrix: nalgebra::Matrix4<f32> = nalgebra::Matrix4::from(camera.get_view_matrix());
+        // Convert NDC to camera/eye space
+        let projection_matrix = nalgebra::Matrix4::from(camera.get_projection_matrix());
+        let inverse_projection_matrix = projection_matrix.try_inverse().unwrap();
+        let eye_space = inverse_projection_matrix * ndc;
 
-        let view_space = projection_matrix.try_inverse().unwrap() * ndc;
+        // Adjust the point to the specified depth along the camera's forward vector
+        let normalized_device_coordinates = nalgebra::Vector3::new(eye_space.x, eye_space.y, eye_space.z) / eye_space.w;
+        let camera_space_point = normalized_device_coordinates * depth;
 
-        let world_space = view_matrix.try_inverse().unwrap() * view_space;
+        // Convert from camera/eye space to world space
+        let view_matrix = nalgebra::Matrix4::from(camera.get_view_matrix());
+        let inverse_view_matrix = view_matrix.try_inverse().unwrap();
+        let world_space_point = inverse_view_matrix.transform_point(&nalgebra::Point3::from(camera_space_point));
 
-        Vector3::new(world_space.x, world_space.y, world_space.z)
+        Vector3::new(world_space_point.x, world_space_point.y, world_space_point.z)
     }
+
 
     pub fn get_screen_position(&self) -> (f64, f64) {
         self.screen_space
@@ -92,9 +101,9 @@ impl RayCast {
     }
 
     pub fn cast(&mut self, app_state: &mut AppState) {
-        for mut object in app_state.objects.iter_mut() {
-            let collision_sphere = object.get_bounding_sphere();
-            match self.intersects(&collision_sphere) {
+        for object in app_state.objects.iter_mut() {
+            let aabb = object.get_bounding_box();
+            match self.intersects_bounding_box(&aabb) {
                 Some(intersection_point) => {
                     self.intersection_objects.insert(object.get_unique_id(), intersection_point);
                 },
@@ -103,30 +112,49 @@ impl RayCast {
         }
     }
 
-    fn intersects(&self, sphere: &BoundingSphere) -> Option<Vector3<f32>> {
-        let ray_to_sphere = sphere.center - self.origin; // Convert origin to array for subtraction
-        let ray_direction = self.direction; // Convert direction to array
+    fn intersects_bounding_box(&self, bounding_box: &BoundingBox) -> Option<Vector3<f32>> {
+        let inv_direction = Vector3::new(1.0 / self.direction.x, 1.0 / self.direction.y, 1.0 / self.direction.z);
+        let sign = [
+            (inv_direction.x < 0.0) as usize,
+            (inv_direction.y < 0.0) as usize,
+            (inv_direction.z < 0.0) as usize,
+        ];
 
-        let a = ray_direction.dot(&ray_direction);
-        let b = 2.0 * ray_to_sphere.dot(&ray_direction);
-        let c = ray_to_sphere.dot(&ray_to_sphere) - sphere.radius * sphere.radius;
+        let bbox = [bounding_box.min_point(), bounding_box.max_point()];
+        let mut tmin = (bbox[sign[0]].x - self.origin.x) * inv_direction.x;
+        let mut tmax = (bbox[1 - sign[0]].x - self.origin.x) * inv_direction.x;
+        let tymin = (bbox[sign[1]].y - self.origin.y) * inv_direction.y;
+        let tymax = (bbox[1 - sign[1]].y - self.origin.y) * inv_direction.y;
 
-        let discriminant = b * b - 4.0 * a * c;
+        if (tmin > tymax) || (tymin > tmax) {
+            return None;
+        }
 
-        if discriminant >= 0.0 {
-            let sqrt_discriminant = discriminant.sqrt();
-            let t1 = (-b - sqrt_discriminant) / (2.0 * a);
-            let t2 = (-b + sqrt_discriminant) / (2.0 * a);
+        if tymin > tmin {
+            tmin = tymin;
+        }
 
-            if t1 >= 0.0 && (t1 <= self.length || !self.block_first_hit) {
-                let intersection_point = self.origin + t1 * self.direction;
-                return Some(Vector3::from(intersection_point));
-            }
+        if tymax < tmax {
+            tmax = tymax;
+        }
 
-            if t2 >= 0.0 && (t2 <= self.length || !self.block_first_hit) {
-                let intersection_point = self.origin + t2 * self.direction;
-                return Some(Vector3::from(intersection_point));
-            }
+        let tzmin = (bbox[sign[2]].z - self.origin.z) * inv_direction.z;
+        let tzmax = (bbox[1 - sign[2]].z - self.origin.z) * inv_direction.z;
+
+        if (tmin > tzmax) || (tzmin > tmax) {
+            return None;
+        }
+
+        if tzmin > tmin {
+            tmin = tzmin;
+        }
+
+        if tzmax < tmax {
+            tmax = tzmax;
+        }
+
+        if (tmin < self.length) && (tmax > 0.0) {
+            return Some(self.origin + tmin * self.direction);
         }
 
         None
