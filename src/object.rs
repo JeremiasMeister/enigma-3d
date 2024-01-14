@@ -5,11 +5,13 @@ use crate::geometry::Vertex;
 use crate::material::Material;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
+use uuid::Uuid;
 
 
 use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
+use obj::raw::object::Point;
 
 
 use crate::camera::Camera;
@@ -23,6 +25,7 @@ pub struct Object {
     light: Option<Light>,
     camera: Option<Camera>,
     bounding_sphere: Option<geometry::BoundingSphere>,
+    unique_id: Uuid,
 }
 
 pub struct Shape {
@@ -81,9 +84,14 @@ impl Object {
             light: None,
             camera: None,
             bounding_sphere: None,
+            unique_id: Uuid::new_v4(), //generating unique id for object
         };
         object.calculate_bounding_sphere();
         object
+    }
+
+    pub fn get_unique_id(&self) -> Uuid {
+        self.unique_id
     }
 
     fn calculate_bounding_sphere(&mut self) -> geometry::BoundingSphere{
@@ -130,7 +138,7 @@ impl Object {
         let transformed_center = self.transform.matrix.transform_point(&center);
 
         return geometry::BoundingSphere{
-            center: transformed_center.into(),
+            center: Vector3::from([transformed_center.x, transformed_center.y, transformed_center.z]),
             radius
         }
     }

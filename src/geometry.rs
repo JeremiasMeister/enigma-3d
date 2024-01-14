@@ -1,3 +1,5 @@
+use nalgebra::Vector3;
+
 #[derive(Copy, Clone)]
 pub struct Vertex {
     pub position: [f32; 3],
@@ -8,7 +10,7 @@ pub struct Vertex {
 
 #[derive(Copy, Clone)]
 pub struct BoundingSphere{
-    pub center: [f32; 3], //relative to the objects position
+    pub center: Vector3<f32>, //relative to the objects position
     pub radius: f32,
 }
 
