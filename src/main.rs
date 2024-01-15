@@ -49,26 +49,6 @@ fn hopping_objects(app_state: &mut AppState) {
     }
 }
 
-fn spawn_mouse_pos(app_state: &mut AppState) {
-    let display = app_state.display.clone().unwrap();
-    let camera = app_state.camera.clone().unwrap();
-
-    let world_space_mouse_position = app_state.get_mouse_position().get_world_position(&camera, camera.far);
-
-    let mut material = enigma::material::Material::lit_pbr(display.clone());
-    material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
-
-    let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
-    object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
-    object.add_material(material);
-
-    object.transform.set_position([world_space_mouse_position.x, world_space_mouse_position.y, world_space_mouse_position.z]);
-    object.transform.set_scale([0.3, 0.3, 0.3]);
-
-    app_state.add_object(object);
-    println!("Spawned object at {:?}", world_space_mouse_position);
-}
-
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
@@ -164,12 +144,6 @@ fn main() {
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
     );
-    /*
-    app_state.inject_event(
-        event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
-        Arc::new(spawn_mouse_pos),
-    );
-     */
 
     // add update
     //app_state.inject_update_function(Arc::new(hopping_objects));

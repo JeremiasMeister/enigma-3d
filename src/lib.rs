@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface};
+use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::collision_world::MousePosition;
@@ -34,6 +35,7 @@ pub struct AppState {
     pub light: Option<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
+    pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
     pub update_injections: Vec<event::EventFunction>,
     pub display: Option<glium::Display<WindowSurface>>,
@@ -54,6 +56,7 @@ impl AppState {
             fps: 60,
             camera: None,
             objects: Vec::new(),
+            object_selection: Vec::new(),
             light: None,
             ambient_light: None,
             event_injections: Vec::new(),
@@ -96,6 +99,24 @@ impl AppState {
     pub fn get_object_mut(&mut self, name: &str) -> Option<&mut object::Object> {
         for object in self.objects.iter_mut() {
             if object.name == name {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_by_uuid(&self, uuid: Uuid) -> Option<&object::Object> {
+        for object in self.objects.iter() {
+            if object.get_unique_id() == uuid {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_by_uuid_mut(&mut self, uuid: Uuid) -> Option<&mut object::Object> {
+        for object in self.objects.iter_mut() {
+            if object.get_unique_id() == uuid {
                 return Some(object);
             }
         }

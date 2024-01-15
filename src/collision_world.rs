@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use crate::{AppState};
-use nalgebra::Vector3;
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use uuid::Uuid;
 use crate::camera::Camera;
 use crate::geometry::{BoundingBox};
@@ -36,29 +36,18 @@ impl MousePosition {
         }
     }
 
-    pub fn get_world_position(&self, camera: &Camera, depth: f32) -> Vector3<f32> {
-        // Convert screen coordinates to normalized device coordinates (NDC)
-        let x = (2.0 * self.screen_space.0 as f32) / camera.width - 1.0;
-        let y = 1.0 - (2.0 * self.screen_space.1 as f32) / camera.height;
-        let ndc = nalgebra::Vector4::new(x, y, -1.0, 1.0); // Using -1.0 for Z to get a point on the near plane
+    pub fn get_world_position(&self, camera: &Camera) -> (Vector3<f32>, Vector3<f32>) {
+        let clip_space_x = (self.screen_space.0 as f32 / camera.width) * 2.0 - 1.0;
+        let clip_space_y = 1.0-(self.screen_space.1 as f32 / camera.height) * 2.0;
+        let clip_space_z = -1.0;
+        let clip_space_coord: Vector4<f32> = Vector4::new(clip_space_x, clip_space_y, clip_space_z, 1.0);
+        let view_space_coord = Matrix4::from(camera.get_projection_matrix()).try_inverse().unwrap().transform_point(&Point3::from_homogeneous(clip_space_coord).unwrap());
+        let world_space_coord = Matrix4::from(camera.get_view_matrix()).try_inverse().unwrap().transform_point(&view_space_coord);
+        let world_space_point: Point3<f32> = world_space_coord.xyz().into();
+        let ray_direction: Vector3<f32> = (world_space_point - camera.transform.get_position()).coords.normalize();
 
-        // Convert NDC to camera/eye space
-        let projection_matrix = nalgebra::Matrix4::from(camera.get_projection_matrix());
-        let inverse_projection_matrix = projection_matrix.try_inverse().unwrap();
-        let eye_space = inverse_projection_matrix * ndc;
-
-        // Adjust the point to the specified depth along the camera's forward vector
-        let normalized_device_coordinates = nalgebra::Vector3::new(eye_space.x, eye_space.y, eye_space.z) / eye_space.w;
-        let camera_space_point = normalized_device_coordinates * depth;
-
-        // Convert from camera/eye space to world space
-        let view_matrix = nalgebra::Matrix4::from(camera.get_view_matrix());
-        let inverse_view_matrix = view_matrix.try_inverse().unwrap();
-        let world_space_point = inverse_view_matrix.transform_point(&nalgebra::Point3::from(camera_space_point));
-
-        Vector3::new(world_space_point.x, world_space_point.y, world_space_point.z)
+        (world_space_point.coords, ray_direction)
     }
-
 
     pub fn get_screen_position(&self) -> (f64, f64) {
         self.screen_space
