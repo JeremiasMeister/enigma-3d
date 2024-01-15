@@ -11,7 +11,6 @@ use uuid::Uuid;
 use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
-use obj::raw::object::Point;
 
 
 use crate::camera::Camera;

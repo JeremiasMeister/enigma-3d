@@ -1,4 +1,3 @@
-use nalgebra::Vector3;
 use uuid::Uuid;
 use crate::AppState;
 use crate::collision_world::RayCast;
@@ -20,7 +19,6 @@ fn select_object_single(app_state: &mut AppState) {
                 world_space_mouse_position.0,
                 world_space_mouse_position.1,
                 100.0,
-                true,
             );
             raycast.cast(app_state);
             for (id, _) in raycast.get_intersection_map().iter() {

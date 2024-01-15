@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use crate::{AppState};
+use crate::AppState;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use uuid::Uuid;
 use crate::camera::Camera;
-use crate::geometry::{BoundingBox};
+use crate::geometry::BoundingBox;
 
 pub struct MousePosition {
     pub screen_space: (f64, f64),
@@ -15,8 +15,7 @@ pub struct RayCast {
     origin: Vector3<f32>,
     direction: Vector3<f32>,
     length: f32,
-    intersection_objects: HashMap<Uuid, Vector3<f32>>,
-    block_first_hit: bool,
+    intersection_objects: HashMap<Uuid, Vector3<f32>>
 }
 
 impl Debug for MousePosition {
@@ -59,13 +58,12 @@ impl MousePosition {
 }
 
 impl RayCast {
-    pub fn new(origin: Vector3<f32>, direction: Vector3<f32>, length: f32, block_first_hit: bool) -> Self {
+    pub fn new(origin: Vector3<f32>, direction: Vector3<f32>, length: f32) -> Self {
         Self {
             origin,
             direction,
             length,
             intersection_objects: HashMap::new(),
-            block_first_hit
         }
     }
 

@@ -1,9 +1,7 @@
 use std::sync::Arc;
-use nalgebra::Vector3;
-use enigma::object::{Object, Shape};
+use enigma::object::Object;
 use enigma::camera::Camera;
-use enigma::{AppState, event, geometry};
-use enigma::collision_world::RayCast;
+use enigma::{AppState, event};
 use rand::Rng;
 
 fn rotate_left(app_state: &mut AppState) {
