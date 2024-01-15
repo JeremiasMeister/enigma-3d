@@ -27,6 +27,10 @@ pub fn init_default(app_state: &mut AppState){
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
     );
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
+        Arc::new(default_events::select_object_add),
+    );
 }
 
 pub struct AppState {

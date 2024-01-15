@@ -146,7 +146,7 @@ fn main() {
     );
 
     // add update
-    //app_state.inject_update_function(Arc::new(hopping_objects));
+    app_state.inject_update_function(Arc::new(hopping_objects));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
