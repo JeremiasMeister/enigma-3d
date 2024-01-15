@@ -127,6 +127,16 @@ impl AppState {
         None
     }
 
+    pub fn get_selected_objects_mut(&mut self) -> Vec<&mut object::Object> {
+        let mut selected = Vec::new();
+        for object in self.objects.iter_mut() {
+            if self.object_selection.contains(&object.get_unique_id()) {
+                selected.push(object);
+            }
+        }
+        selected
+    }
+
     pub fn set_light(&mut self, light: light::Light, light_type: LightType) {
         match light_type {
             LightType::Point => self.light = Some(light),

@@ -7,37 +7,37 @@ use enigma::collision_world::RayCast;
 use rand::Rng;
 
 fn rotate_left(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([0.0, -5.0, 0.0]);
     }
 }
 
 fn rotate_right(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([0.0, 5.0, 0.0]);
     }
 }
 
 fn rotate_up(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([-5.0, 0.0, 0.0]);
     }
 }
 
 fn rotate_down(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([5.0, 0.0, 0.0]);
     }
 }
 
 fn roll_left(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([0.0, 0.0, 5.0]);
     }
 }
 
 fn roll_right(app_state: &mut AppState) {
-    for object in app_state.objects.iter_mut() {
+    for object in app_state.get_selected_objects_mut() {
         object.transform.rotate([0.0, 0.0, -5.0]);
     }
 }
@@ -112,7 +112,7 @@ fn main() {
     app_state.set_light(ambient_light, enigma::light::LightType::Ambient);
 
     // add a camera
-    let camera = Camera::new(Some([0.0, 0., 0.0]), Some([0.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
+    let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
     // add events
