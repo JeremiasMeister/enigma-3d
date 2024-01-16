@@ -18,6 +18,27 @@ pub struct RayCast {
     intersection_objects: HashMap<Uuid, Vector3<f32>>
 }
 
+pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
+    let aabb1_min = aabb1.min_point();
+    let aabb1_max = aabb1.max_point();
+    let aabb2_min = aabb2.min_point();
+    let aabb2_max = aabb2.max_point();
+
+    if aabb1_min.x > aabb2_max.x || aabb1_max.x < aabb2_min.x {
+        return false;
+    }
+
+    if aabb1_min.y > aabb2_max.y || aabb1_max.y < aabb2_min.y {
+        return false;
+    }
+
+    if aabb1_min.z > aabb2_max.z || aabb1_max.z < aabb2_min.z {
+        return false;
+    }
+
+    true
+}
+
 impl Debug for MousePosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MousePosition")
