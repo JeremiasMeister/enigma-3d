@@ -1,7 +1,9 @@
 [package]
 name = "enigma"
 version = "0.1.0"
+authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
+description = "A 3D Rendering Engine with a focus on simplicity and ease of use."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,4 +20,8 @@ obj-rs = "0.7.1"
 winit = "0.28.7"
 rand = "0.8.5"
 uuid = { version = "1.0", features = ["v4"] }
+
+[package.metadata.bundle]
+name = "Enigma 3D"
+identifier = "io.github.JeremiasMeister.enigma"
 

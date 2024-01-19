@@ -2,12 +2,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
-use glium::{Display, Surface};
+use glium::{Display, Surface, uniform};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::collision_world::MousePosition;
 use crate::light::LightType;
+use crate::postprocessing::PostProcessingEffect;
 
 pub mod shader;
 pub mod geometry;
@@ -20,9 +21,10 @@ pub mod camera;
 pub mod event;
 pub mod collision_world;
 pub mod default_events;
+pub mod postprocessing;
 
 
-pub fn init_default(app_state: &mut AppState){
+pub fn init_default(app_state: &mut AppState) {
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
@@ -42,8 +44,10 @@ pub struct AppState {
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
     pub update_injections: Vec<event::EventFunction>,
+    pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
+    pub renderscale: u32,
     mouse_position: MousePosition,
 }
 
@@ -65,10 +69,24 @@ impl AppState {
             ambient_light: None,
             event_injections: Vec::new(),
             update_injections: Vec::new(),
+            post_processes: Vec::new(),
             display: None,
             time: 0.0,
-            mouse_position: MousePosition::new()
+            renderscale: 1,
+            mouse_position: MousePosition::new(),
         }
+    }
+
+    pub fn add_post_process(&mut self, post_process: Box<dyn PostProcessingEffect>) {
+        self.post_processes.push(post_process);
+    }
+
+    pub fn get_post_processes(&self) -> &Vec<Box<dyn PostProcessingEffect>> {
+        &self.post_processes
+    }
+
+    pub fn get_post_processes_mut(&mut self) -> &mut Vec<Box<dyn PostProcessingEffect>> {
+        &mut self.post_processes
     }
 
     pub fn get_mouse_position(&self) -> &MousePosition {
@@ -168,6 +186,10 @@ impl AppState {
         &self.camera
     }
 
+    pub fn set_renderscale(&mut self, scale: u32){
+        self.renderscale = scale;
+    }
+
     pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction) {
         self.event_injections.push((characteristic, function));
     }
@@ -206,8 +228,19 @@ impl EventLoop {
         let nanos = 1_000_000_000 / temp_app_state.fps;
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
 
+        let mut texture = glium::texture::Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture");
+        let depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create depth texture");
+
+
         //dropping modified appstate
         drop(temp_app_state);
+
+        // prepare post processing
+        let screen_vert_rect = postprocessing::get_screen_vert_rect(&self.display);
+        let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
+        let screen_program = postprocessing::get_screen_program(&self.display);
+
+
 
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
@@ -219,8 +252,15 @@ impl EventLoop {
             let event_injections = app_state.event_injections.clone();
             let update_injections = app_state.update_injections.clone();
 
+
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
+
+            // passing framebuffer
+            let texture = &mut texture;
+            let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &depth_texture).expect("Failed to create framebuffer");
+
+
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
@@ -252,8 +292,8 @@ impl EventLoop {
                 }
                 Event::RedrawRequested(_) => {
                     app_state.time += 0.001;
-                    let mut target = self.display.draw();
-                    target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+                    let render_target = &mut framebuffer; //self.display.draw();
+                    render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let params = glium::DrawParameters {
                         depth: glium::Depth {
                             test: glium::draw_parameters::DepthTest::IfLess,
@@ -268,10 +308,25 @@ impl EventLoop {
                         let model_matrix = object.transform.get_matrix();
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             let uniforms = &material.get_uniforms(light, ambient_light, camera, Some(model_matrix));
-                            target.draw(buffer, indices, &material.program, uniforms, &params).unwrap();
+                            render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
                         }
                     }
-                    target.finish().unwrap();
+                    // execute post processing#
+                    for process in app_state.get_post_processes() {
+                        process.render(&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture);
+                    }
+                    let mut screen_target = self.display.draw();
+                    let screen_uniforms = uniform! {
+                        scene: &*texture,
+                    };
+                    screen_target.draw(
+                        &screen_vert_rect,
+                        &screen_indices_rect,
+                        &screen_program,
+                        &screen_uniforms,
+                        &Default::default(),
+                    ).expect("Failed to draw screen");
+                    screen_target.finish().expect("Failed to swap buffers");
                 }
                 Event::MainEventsCleared => {
                     // executing update functions
