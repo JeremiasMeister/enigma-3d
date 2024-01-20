@@ -21,7 +21,7 @@ pub struct LightBlock {
     pub ambient_intensity: f32,
 }
 
-impl Debug for LightBlock {
+impl std::fmt::Debug for LightBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LightBlock")
             .field("position", &self.position)
