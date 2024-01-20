@@ -39,7 +39,7 @@ pub fn init_default(app_state: &mut AppState) {
 pub struct AppState {
     pub fps: u64,
     pub camera: Option<camera::Camera>,
-    pub light: Option<light::Light>,
+    pub light: Vec<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub objects: Vec<object::Object>,
     pub object_selection: Vec<Uuid>,
@@ -66,7 +66,7 @@ impl AppState {
             camera: None,
             objects: Vec::new(),
             object_selection: Vec::new(),
-            light: None,
+            light: Vec::new(),
             ambient_light: None,
             event_injections: Vec::new(),
             update_injections: Vec::new(),
@@ -156,14 +156,28 @@ impl AppState {
         selected
     }
 
-    pub fn set_light(&mut self, light: light::Light, light_type: LightType) {
+    pub fn add_light(&mut self, light: light::Light, light_type: LightType) {
         match light_type {
-            LightType::Point => self.light = Some(light),
+            LightType::Point => self.light.push(light),
             LightType::Ambient => self.ambient_light = Some(light),
         }
     }
 
-    pub fn get_light(&self) -> &Option<light::Light> {
+    pub fn remove_light(&mut self, index: usize, light_type: LightType) {
+        match light_type {
+            LightType::Point => {
+                if index >= self.light.len() {
+                    panic!("Index out of bounds");
+                }
+                self.light.remove(index);
+            }
+            LightType::Ambient => {
+                self.ambient_light = None;
+            }
+        };
+    }
+
+    pub fn get_lights(&self) -> &Vec<light::Light> {
         &self.light
     }
 
@@ -307,8 +321,9 @@ impl EventLoop {
                     };
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
+                        let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            let uniforms = &material.get_uniforms(light, ambient_light, camera, Some(model_matrix));
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix));
                             render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
                         }
                     }

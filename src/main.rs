@@ -97,18 +97,25 @@ fn main() {
     app_state.add_object(object);
 
     // add lighting
-    let light = enigma::light::Light {
+    let light1 = enigma::light::Light {
         position: [1.0, 1.0, 5.0],
-        color: [1.0, 1.0, 1.0],
+        color: [0.0, 1.0, 0.0],
         intensity: 100.0,
+    };
+    let light2 = enigma::light::Light {
+        position: [5.0, 1.0, 1.0],
+        color: [1.0, 0.0, 0.0],
+        intensity: 500.0,
     };
     let ambient_light = enigma::light::Light {
         position: [0.0, 0.0, 0.0],
         color: [0.35, 0.35, 1.0],
-        intensity: 0.50,
+        intensity: 0.30,
     };
-    app_state.set_light(light, enigma::light::LightType::Point);
-    app_state.set_light(ambient_light, enigma::light::LightType::Ambient);
+    app_state.add_light(light1, enigma::light::LightType::Point);
+    app_state.add_light(light2, enigma::light::LightType::Point);
+
+    app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
 
     // add a camera
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));

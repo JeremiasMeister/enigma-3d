@@ -3,7 +3,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
 use crate::{shader, texture};
 use crate::camera::Camera;
-use crate::light::Light;
+use crate::light::{Light, LightBlock};
 
 pub struct Material {
     pub name: Option<String>,
@@ -156,7 +156,44 @@ impl Material {
         Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display)
     }
 
-    pub fn get_uniforms(&self, light: Option<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {
+    fn light_block_from_vec(lights: Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
+        let mut light_amount = lights.len() as i32;
+        if light_amount > 4 {
+            light_amount = 4;
+        }
+
+        let mut light_position: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut light_color: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut light_intensity: [f32;4] = [0.0, 0.0, 0.0, 0.0];
+
+        for i in 0..5 {
+            if i < light_amount as usize {
+                light_position[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
+                light_color[i] = [lights[i].color[0], lights[i].color[1], lights[i].color[2], 0.0];
+                light_intensity[i] = lights[i].intensity;
+            }
+        }
+
+        LightBlock {
+            position: light_position,
+            color: light_color,
+            intensity: light_intensity,
+            amount: light_amount,
+            ambient_color: match ambient_light {
+                Some(ambient_light) => ambient_light.color,
+                None => [0.0, 0.0, 0.0],
+            },
+            ambient_intensity: match ambient_light {
+                Some(ambient_light) => ambient_light.intensity,
+                None => 0.0,
+            },
+        }
+    }
+
+    pub fn get_uniforms(&self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>) -> impl glium::uniforms::Uniforms + '_ {
+
+        let light_block = Material::light_block_from_vec(lights, ambient_light);
+
         glium::uniform! {
             time: self.time,
             matrix: self.matrix,
@@ -188,26 +225,12 @@ impl Material {
                 None => &self._tex_black
             },
             mat_metallic_strength: self.metallic_strength,
-            light_position: match light {
-                Some(light) => light.position,
-                None => [0.0, 0.0, 0.0],
-            },
-            light_color: match light {
-                Some(light) => light.color,
-                None => [0.0, 0.0, 0.0],
-            },
-            light_intensity: match light {
-                Some(light) => light.intensity,
-                None => 0.0,
-            },
-            ambient_light_color: match ambient_light {
-                Some(ambient_light) => ambient_light.color,
-                None => [0.0, 0.0, 0.0],
-            },
-            ambient_light_intensity: match ambient_light {
-                Some(ambient_light) => ambient_light.intensity,
-                None => 0.0,
-            },
+            light_position: light_block.position,
+            light_color: light_block.color,
+            light_intensity: light_block.intensity,
+            light_amount: light_block.amount,
+            ambient_light_color: light_block.ambient_color,
+            ambient_light_intensity: light_block.ambient_intensity,
             model_matrix: model_matrix.unwrap_or_else(|| self.matrix),
         }
     }

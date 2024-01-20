@@ -12,17 +12,11 @@ use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
 
-
-use crate::camera::Camera;
-use crate::light::Light;
-
 pub struct Object {
     pub name: String,
     pub transform: Transform,
     shapes: Vec<Shape>,
     materials: Vec<Material>,
-    light: Option<Light>,
-    camera: Option<Camera>,
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
 }
@@ -80,8 +74,6 @@ impl Object {
             transform: Transform::new(),
             shapes: Vec::new(),
             materials: Vec::new(),
-            light: None,
-            camera: None,
             bounding_box: None,
             unique_id: Uuid::new_v4(), //generating unique id for object
         };
@@ -147,6 +139,33 @@ impl Object {
         self.materials.iter_mut().for_each(|x| x.update());
     }
 
+    pub fn get_closest_lights(&self, lights: &Vec<crate::light::Light>) -> Vec<crate::light::Light> {
+        let mut closest_lights = Vec::new();
+
+        //collect the four closest lights to the object
+        for light in lights.iter() {
+            let light_pos = light.position;
+            let object_pos = self.transform.get_position();
+            let distance = (Vector3::from(light_pos) - object_pos).magnitude();
+            if closest_lights.len() < 4 {
+                closest_lights.push((light.clone(), distance));
+            } else {
+                let mut max_distance = 0.0;
+                let mut max_index = 0;
+                for (index, (light, distance)) in closest_lights.iter().enumerate() {
+                    if *distance > max_distance {
+                        max_distance = *distance;
+                        max_index = index;
+                    }
+                }
+                if distance < max_distance {
+                    closest_lights[max_index] = (light.clone(), distance.clone());
+                }
+            }
+        }
+        closest_lights.iter().map(|(light, _)| light.clone()).collect()
+    }
+
     pub fn add_shape(&mut self, shape: Shape) {
         self.shapes.push(shape);
     }
@@ -202,22 +221,6 @@ impl Object {
 
     pub fn set_name(&mut self, name: String) {
         self.name = name;
-    }
-
-    pub fn get_light(&self) -> &Option<Light> {
-        &self.light
-    }
-
-    pub fn set_light(&mut self, light: Light) {
-        self.light = Some(light);
-    }
-
-    pub fn get_camera(&self) -> &Option<Camera> {
-        &self.camera
-    }
-
-    pub fn set_camera(&mut self, camera: Camera) {
-        self.camera = Some(camera);
     }
 
     pub fn load_from_obj(path: &str) -> Self {

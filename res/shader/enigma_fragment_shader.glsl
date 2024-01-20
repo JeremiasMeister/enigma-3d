@@ -2,9 +2,10 @@
 
 //uniforms
 uniform float time;
-uniform vec3 light_position;
-uniform vec3 light_color;
-uniform float light_intensity;
+uniform mat4 light_position;
+uniform mat4 light_color;
+uniform vec4 light_intensity;
+uniform int light_amount;
 uniform vec3 ambient_light_color;
 uniform float ambient_light_intensity;
 
@@ -81,35 +82,41 @@ vec3 calculatePBRColor(vec3 viewDir) {
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 
-    // Light calculations
-    vec3 lightDir = normalize(light_position - world_position);
-    vec3 halfDir = normalize(lightDir + viewDir);
-    float distance = length(light_position - world_position);
-    float attenuation = 1.0 / (distance * distance);
-    vec3 radiance = light_color * light_intensity * attenuation;
+    vec3 result = vec3(0.0);
+    for(int i = 0; i < light_amount; i++) {
+        // Light calculations for each active light
+        vec3 lightDir = normalize(light_position[i].xyz - world_position);
+        vec3 halfDir = normalize(lightDir + viewDir);
+        float distance = length(light_position[i].xyz - world_position);
+        float attenuation = 1.0 / (distance * distance);
+        vec3 radiance = light_color[i].xyz * light_intensity[i] * attenuation;
 
-    // Cook-Torrance BRDF
-    float NDF = DistributionGGX(normal, halfDir, roughness);
-    float G = GeometrySmith(normal, viewDir, lightDir, roughness);
-    vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(normal, halfDir, roughness);
+        float G = GeometrySmith(normal, viewDir, lightDir, roughness);
+        vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
 
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metallic;
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
 
-    float NdotL = max(dot(normal, lightDir), 0.0);
+        float NdotL = max(dot(normal, lightDir), 0.0);
 
-    // Combine terms
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * NdotL + 0.0001;
-    vec3 specular = numerator / denominator;
+        // Combine terms
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * NdotL + 0.0001;
+        vec3 specular = numerator / denominator;
 
-    // Ambient and diffuse lighting
-    vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
-    vec3 diffuse = kD * albedo / PI;
-    vec3 reflection = (diffuse + specular) * radiance * NdotL;
+        // Ambient and diffuse lighting
+        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
+        vec3 diffuse = kD * albedo / PI;
+        vec3 reflection = (diffuse + specular) * radiance * NdotL;
 
-    return ambient + reflection;
+        // Accumulate result from this light
+        result += ambient + reflection;
+    }
+
+    return result;
 }
 
 void main() {

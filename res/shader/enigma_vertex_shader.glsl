@@ -6,12 +6,6 @@ uniform mat4 matrix;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
 uniform mat4 model_matrix;
-uniform vec3 light_position;
-uniform vec3 light_color;
-uniform float light_intensity;
-uniform vec3 ambient_light_position;
-uniform vec3 ambient_light_color;
-uniform float ambient_light_intensity;
 
 //attributes
 in vec3 position;
