@@ -25,6 +25,7 @@ pub mod postprocessing;
 
 
 pub fn init_default(app_state: &mut AppState) {
+    app_state.set_renderscale(2);
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),

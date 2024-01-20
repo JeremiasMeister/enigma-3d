@@ -77,7 +77,6 @@ fn main() {
     let mut app_state = enigma::AppState::new();
 
     // some default event setups like selection
-    app_state.set_renderscale(2);
     enigma::init_default(&mut app_state);
 
     let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());

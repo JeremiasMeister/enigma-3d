@@ -254,7 +254,14 @@ impl Object {
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
                 let prim_indices = reader.read_indices().unwrap().into_u32();
 
-                for ((position, normal), tex_coord) in positions.zip(normals).zip(tex_coords) {
+                let mut flipped_tex_coords: Vec<[f32;2]> = Vec::new();
+                // flip tex_coords
+                for mut tex_coord in tex_coords.into_iter() {
+                    tex_coord[1] = 1.0 - tex_coord[1];
+                    flipped_tex_coords.push(tex_coord);
+                }
+
+                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
                     let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
                     vertices.push(vertex);
                 }
