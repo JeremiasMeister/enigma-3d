@@ -100,11 +100,16 @@ fn main() {
     let light1 = enigma::light::Light {
         position: [1.0, 1.0, 5.0],
         color: [0.0, 1.0, 0.0],
-        intensity: 100.0,
+        intensity: 500.0,
     };
     let light2 = enigma::light::Light {
         position: [5.0, 1.0, 1.0],
         color: [1.0, 0.0, 0.0],
+        intensity: 500.0,
+    };
+    let light3 = enigma::light::Light {
+        position: [0.0, 1.0, 5.0],
+        color: [0.0, 0.0, 1.0],
         intensity: 500.0,
     };
     let ambient_light = enigma::light::Light {
@@ -114,6 +119,7 @@ fn main() {
     };
     app_state.add_light(light1, enigma::light::LightType::Point);
     app_state.add_light(light2, enigma::light::LightType::Point);
+    app_state.add_light(light3, enigma::light::LightType::Point);
 
     app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
 
@@ -156,7 +162,7 @@ fn main() {
 
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
-    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 10.5, 160)));
+    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 512, 6)));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
