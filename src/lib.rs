@@ -329,6 +329,8 @@ impl EventLoop {
                     for process in app_state.get_post_processes() {
                         process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture);
                     }
+
+                    // drawing to screen
                     let mut screen_target = self.display.draw();
                     let screen_uniforms = uniform! {
                         scene: &*texture,

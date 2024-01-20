@@ -36,7 +36,7 @@ impl Bloom {
             threshold,
             texture_1,
             texture_2,
-            iterations
+            iterations,
         }
     }
 }
@@ -51,21 +51,21 @@ impl PostProcessingEffect for Bloom {
 
         // creating copies of the incomming scene
         let uniforms = uniform! {
-            scene: source
+            scene: source.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
         };
         work_framebuffer_1.draw(vertex_buffer, index_buffer, &self.program_copy, &uniforms, &Default::default()).unwrap();
         work_framebuffer_2.draw(vertex_buffer, index_buffer, &self.program_copy, &uniforms, &Default::default()).unwrap();
 
         // extract the bright parts of the scene
         let uniforms = uniform! {
-            scene: source,
+            scene: source.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
             threshold: self.threshold,
         };
         work_framebuffer_1.draw(vertex_buffer, index_buffer, &self.program_extract, &uniforms, &Default::default()).unwrap();
 
         // blur the bright parts of the scene
         let uniforms = uniform! {
-            scene: &self.texture_1,
+            scene: self.texture_1.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
             horizontal: true,
             iterations: self.iterations,
         };
@@ -73,7 +73,7 @@ impl PostProcessingEffect for Bloom {
         work_framebuffer_1.clear_color(0.0, 0.0, 0.0, 0.0);
 
         let uniforms = uniform! {
-            scene: &self.texture_2,
+            scene: self.texture_2.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
             horizontal: false,
             iterations: self.iterations,
         };
@@ -81,11 +81,9 @@ impl PostProcessingEffect for Bloom {
 
         // render to original framebuffer
         let uniforms = uniform! {
-            scene: source,
-            bloomBlur: &self.texture_1,
+            scene: source.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
+            bloomBlur: self.texture_1.sampled().wrap_function(glium::uniforms::SamplerWrapFunction::Clamp),
         };
         target.draw(vertex_buffer, index_buffer, &self.program_combine, &uniforms, &Default::default()).unwrap();
-
-
     }
 }
