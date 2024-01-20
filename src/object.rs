@@ -152,7 +152,7 @@ impl Object {
             } else {
                 let mut max_distance = 0.0;
                 let mut max_index = 0;
-                for (index, (light, distance)) in closest_lights.iter().enumerate() {
+                for (index, (_, distance)) in closest_lights.iter().enumerate() {
                     if *distance > max_distance {
                         max_distance = *distance;
                         max_index = index;

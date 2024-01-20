@@ -1,12 +1,14 @@
 use glium::{Display, IndexBuffer, Texture2d, VertexBuffer};
 use glium::framebuffer::SimpleFrameBuffer;
 use glium::glutin::surface::WindowSurface;
+use crate::AppState;
 use crate::geometry::Vertex;
 
 pub mod grayscale;
+pub mod bloom;
 
 pub trait PostProcessingEffect {
-    fn render(&self, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d) {
+    fn render(&self, _app_state: &AppState, _vertex_buffer: &VertexBuffer<Vertex>, _index_buffer: &IndexBuffer<u32>, _target: &mut SimpleFrameBuffer, _source: &Texture2d) {
         println!("PostProcessingEffect::render() not implemented. Please implement this method in your postprocessing struct.");
     }
 }

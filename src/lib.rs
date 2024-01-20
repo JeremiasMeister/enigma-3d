@@ -255,8 +255,6 @@ impl EventLoop {
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
         let screen_program = postprocessing::get_screen_program(&self.display);
 
-
-
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
             // unpacking appstate
@@ -329,7 +327,7 @@ impl EventLoop {
                     }
                     // execute post processing#
                     for process in app_state.get_post_processes() {
-                        process.render(&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture);
+                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture);
                     }
                     let mut screen_target = self.display.draw();
                     let screen_uniforms = uniform! {
