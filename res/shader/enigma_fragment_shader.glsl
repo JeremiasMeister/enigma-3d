@@ -26,6 +26,8 @@ uniform sampler2D mat_roughness;
 uniform float mat_roughness_strength;
 uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
+uniform sampler2D mat_emissive;
+uniform float mat_emissive_strength;
 
 // fragment outputs
 out vec4 color;
@@ -77,6 +79,7 @@ vec3 calculatePBRColor(vec3 viewDir) {
     vec3 normal = normalize(vertex_normal + (texture(mat_normal, vertex_texcoord).rgb - 0.5) * mat_normal_strength);
     float roughness = texture(mat_roughness, vertex_texcoord).r * mat_roughness_strength;
     float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
+    vec3 emissive = texture(mat_emissive, vertex_texcoord).rgb * mat_emissive_strength;
 
     // Calculate reflectance at normal incidence; if not using an environment map
     vec3 F0 = vec3(0.04);
@@ -108,7 +111,7 @@ vec3 calculatePBRColor(vec3 viewDir) {
         vec3 specular = numerator / denominator;
 
         // Ambient and diffuse lighting
-        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
+        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo + emissive;
         vec3 diffuse = kD * albedo / PI;
         vec3 reflection = (diffuse + specular) * radiance * NdotL;
 

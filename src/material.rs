@@ -15,6 +15,8 @@ pub struct Material {
     pub roughness_strength: f32,
     pub metallic: Option<texture::Texture>,
     pub metallic_strength: f32,
+    pub emissive: Option<texture::Texture>,
+    pub emissive_strength: f32,
     pub shader: shader::Shader,
     _tex_white: glium::texture::SrgbTexture2d,
     _tex_black: glium::texture::SrgbTexture2d,
@@ -32,11 +34,12 @@ pub enum TextureType {
     Normal,
     Roughness,
     Metallic,
+    Emissive,
 }
 
 impl Material {
     pub fn default(shader: shader::Shader, display: &glium::Display<WindowSurface>) -> Self {
-        Material::new(shader, display.clone(), None, None, None, None, None, None, None, None)
+        Material::new(shader, display.clone(), None, None, None, None, None, None, None, None, None, None)
     }
     pub fn new(
         shader: shader::Shader,
@@ -49,6 +52,8 @@ impl Material {
         roughness_strength: Option<f32>,
         metallic: Option<texture::Texture>,
         metallic_strength: Option<f32>,
+        emissive: Option<texture::Texture>,
+        emissive_strength: Option<f32>,
     ) -> Self {
         let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let _tex_white = {
@@ -92,6 +97,11 @@ impl Material {
                 None => None,
             },
             metallic_strength: metallic_strength.unwrap_or_else(|| 1.0),
+            emissive: match emissive {
+                Some(emissive) => Some(emissive),
+                None => None,
+            },
+            emissive_strength: emissive_strength.unwrap_or_else(|| 1.0),
             _tex_white,
             _tex_black,
             _tex_gray,
@@ -149,6 +159,7 @@ impl Material {
             TextureType::Normal => self.normal = Some(texture::Texture::new(&self.display, path)),
             TextureType::Roughness => self.roughness = Some(texture::Texture::new(&self.display, path)),
             TextureType::Metallic => self.metallic = Some(texture::Texture::new(&self.display, path)),
+            TextureType::Emissive => self.emissive = Some(texture::Texture::new(&self.display, path)),
         }
     }
 
@@ -225,6 +236,11 @@ impl Material {
                 None => &self._tex_black
             },
             mat_metallic_strength: self.metallic_strength,
+            mat_emissive: match &self.emissive {
+                Some(emissive) => &emissive.texture,
+                None => &self._tex_black
+            },
+            mat_emissive_strength: self.emissive_strength,
             light_position: light_block.position,
             light_color: light_block.color,
             light_intensity: light_block.intensity,

@@ -3,6 +3,7 @@ use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
 use rand::Rng;
+use enigma::postprocessing::bloom::Bloom;
 use enigma::postprocessing::grayscale::GrayScale;
 
 fn rotate_left(app_state: &mut AppState) {
@@ -90,8 +91,7 @@ fn main() {
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     object.name = "Suzanne".to_string();
-    object.transform.set_position([0.0, 1.0, -2.0]);
-    object.transform.set_scale([0.5, 0.5, 0.5]);
+    object.transform.set_position([0.0, 0.0, -2.0]);
 
     // adding all the objects
     app_state.add_object(object);
@@ -100,22 +100,22 @@ fn main() {
     let light1 = enigma::light::Light {
         position: [1.0, 1.0, 5.0],
         color: [0.0, 1.0, 0.0],
-        intensity: 500.0,
+        intensity: 100.0,
     };
     let light2 = enigma::light::Light {
         position: [5.0, 1.0, 1.0],
         color: [1.0, 0.0, 0.0],
-        intensity: 500.0,
+        intensity: 100.0,
     };
     let light3 = enigma::light::Light {
         position: [0.0, 1.0, 5.0],
         color: [0.0, 0.0, 1.0],
-        intensity: 500.0,
+        intensity: 100.0,
     };
     let ambient_light = enigma::light::Light {
         position: [0.0, 0.0, 0.0],
-        color: [0.35, 0.35, 1.0],
-        intensity: 0.30,
+        color: [1.0, 1.0, 1.0],
+        intensity: 0.10,
     };
     app_state.add_light(light1, enigma::light::LightType::Point);
     app_state.add_light(light2, enigma::light::LightType::Point);
@@ -162,7 +162,7 @@ fn main() {
 
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
-    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 512, 6)));
+    app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.7, 512, 10)));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
