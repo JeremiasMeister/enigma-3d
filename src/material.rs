@@ -117,6 +117,14 @@ impl Material {
         }
     }
 
+    pub fn set_emissive(&mut self, emissive: texture::Texture) {
+        self.emissive = Some(emissive);
+    }
+
+    pub fn set_emissive_strength(&mut self, emissive_strength: f32) {
+        self.emissive_strength = emissive_strength;
+    }
+
     pub fn set_color(&mut self, color: [f32; 3]) {
         self.color = color;
     }
