@@ -5,12 +5,14 @@ Please be aware, I'm not a professional graphics programmer, so the code is most
 - Material, Shader, Shape, Object Abstractions
 - PBR Shading
 - Texturing, Normals and Vertex Colors
-- one Point Light and one Ambient Light
+- up to 4 point lights per object
+- one ambient light
 - a Camera
 - a simple Event system to inject functions and Keyboard presses into the event loop. Atm events get processed one by one in sequence
 - a simple Update system to inject functions into the update loop. Atm, the functions get processes one by one in sequence
 - Screen to World positions including a selection system
 - Postprocessing
+- Skybox and Sky reflections
 
 
 the API is quite straight forward and easy to use, see the example below
