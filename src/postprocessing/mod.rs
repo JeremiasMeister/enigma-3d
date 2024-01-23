@@ -9,7 +9,7 @@ pub mod grayscale;
 pub mod bloom;
 
 pub trait PostProcessingEffect {
-    fn render(&self, _app_state: &AppState, _vertex_buffer: &VertexBuffer<Vertex>, _index_buffer: &IndexBuffer<u32>, _target: &mut SimpleFrameBuffer, _source: &Texture2d, _depth_source: &DepthTexture2d) {
+    fn render(&self, _app_state: &AppState, _vertex_buffer: &VertexBuffer<Vertex>, _index_buffer: &IndexBuffer<u32>, _target: &mut SimpleFrameBuffer, _source: &Texture2d, _depth_source: &DepthTexture2d, _buffer_textures: &Vec<Texture2d>) {
         println!("PostProcessingEffect::render() not implemented. Please implement this method in your postprocessing struct.");
     }
 }

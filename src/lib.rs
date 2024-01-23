@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
-use glium::{Display, Surface, uniform};
+use glium::{Display, Surface, Texture2d, uniform};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
@@ -26,6 +26,8 @@ pub mod postprocessing;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(2);
+    app_state.set_fps(60);
+    app_state.set_max_buffers(3);
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
@@ -49,6 +51,7 @@ pub struct AppState {
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
     pub renderscale: u32,
+    pub max_buffers: usize,
     mouse_position: MousePosition,
 }
 
@@ -74,6 +77,7 @@ impl AppState {
             display: None,
             time: 0.0,
             renderscale: 1,
+            max_buffers: 3,
             mouse_position: MousePosition::new(),
         }
     }
@@ -205,6 +209,18 @@ impl AppState {
         self.renderscale = scale;
     }
 
+    pub fn get_renderscale(&self) -> u32{
+        self.renderscale
+    }
+
+    pub fn set_max_buffers(&mut self, max_buffers: usize){
+        self.max_buffers = max_buffers;
+    }
+
+    pub fn get_max_buffers(&self) -> usize{
+        self.max_buffers
+    }
+
     pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction) {
         self.event_injections.push((characteristic, function));
     }
@@ -243,9 +259,13 @@ impl EventLoop {
         let nanos = 1_000_000_000 / temp_app_state.fps;
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
 
-        let mut texture = glium::texture::Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture");
+        let mut texture = Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture");
         let mut depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create depth texture");
 
+        let mut buffer_textures: Vec<Texture2d> = Vec::new();
+        for _ in 0..temp_app_state.max_buffers {
+            buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture"));
+        }
 
         //dropping modified appstate
         drop(temp_app_state);
@@ -272,7 +292,10 @@ impl EventLoop {
             // passing framebuffer
             let texture = &mut texture;
             let depth_texture = &mut depth_texture;
+            let buffer_textures = &mut buffer_textures;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
+
+
 
 
             match event {
@@ -328,7 +351,7 @@ impl EventLoop {
                     }
                     // execute post processing#
                     for process in app_state.get_post_processes() {
-                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture);
+                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
                     }
 
                     // drawing to screen
