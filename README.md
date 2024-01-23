@@ -17,7 +17,8 @@ Please be aware, I'm not a professional graphics programmer, so the code is most
 
 the API is quite straight forward and easy to use, see the example below
 
-![image](https://github.com/JeremiasMeister/enigma/assets/85162425/f6c09279-63f4-4e7f-81aa-277a62e42a66)
+![image](https://github.com/JeremiasMeister/enigma/assets/19373094/311300f4-5528-4909-8c03-25cdf2e20c5c)
+
 
 ***
     // create an enigma eventloop and appstate
@@ -25,7 +26,6 @@ the API is quite straight forward and easy to use, see the example below
     let mut app_state = enigma::AppState::new();
 
     // some default event setups like selection
-    app_state.set_renderscale(2);
     enigma::init_default(&mut app_state);
 
     let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());
@@ -39,25 +39,37 @@ the API is quite straight forward and easy to use, see the example below
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     object.name = "Suzanne".to_string();
-    object.transform.set_position([0.0, 1.0, -2.0]);
-    object.transform.set_scale([0.5, 0.5, 0.5]);
+    object.transform.set_position([0.0, 0.0, -2.0]);
 
     // adding all the objects
     app_state.add_object(object);
 
     // add lighting
-    let light = enigma::light::Light {
+    let light1 = enigma::light::Light {
         position: [1.0, 1.0, 5.0],
-        color: [1.0, 1.0, 1.0],
+        color: [0.0, 1.0, 0.0],
+        intensity: 100.0,
+    };
+    let light2 = enigma::light::Light {
+        position: [5.0, 1.0, 1.0],
+        color: [1.0, 0.0, 0.0],
+        intensity: 100.0,
+    };
+    let light3 = enigma::light::Light {
+        position: [0.0, 1.0, 5.0],
+        color: [0.0, 0.0, 1.0],
         intensity: 100.0,
     };
     let ambient_light = enigma::light::Light {
         position: [0.0, 0.0, 0.0],
-        color: [0.35, 0.35, 1.0],
-        intensity: 0.50,
+        color: [1.0, 1.0, 1.0],
+        intensity: 0.10,
     };
-    app_state.set_light(light, enigma::light::LightType::Point);
-    app_state.set_light(ambient_light, enigma::light::LightType::Ambient);
+    app_state.add_light(light1, enigma::light::LightType::Point);
+    app_state.add_light(light2, enigma::light::LightType::Point);
+    app_state.add_light(light3, enigma::light::LightType::Point);
+
+    app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
 
     // add a camera
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
@@ -97,7 +109,8 @@ the API is quite straight forward and easy to use, see the example below
     app_state.inject_update_function(Arc::new(hopping_objects));
 
     // add post processing
-    app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
+    //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
+    app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
