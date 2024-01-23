@@ -28,6 +28,7 @@ uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 uniform sampler2D mat_emissive;
 uniform float mat_emissive_strength;
+uniform sampler2D skybox;
 
 // fragment outputs
 out vec4 color;
@@ -36,6 +37,12 @@ out vec4 color;
 const float PI = 3.14159265359;
 
 // Helper Functions for PBR
+vec2 getSphereMapUV(vec3 dir) {
+    float u = atan(dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
+    float v = asin(dir.y) / 3.14159265 + 0.5;
+    return vec2(u, v);
+}
+
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness * roughness;
     float a2 = a * a;
@@ -73,6 +80,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 }
 
 // Main PBR calculation function
+// PBR calculations including skybox lighting
 vec3 calculatePBRColor(vec3 viewDir) {
     // Fetch material properties
     vec3 albedo = texture(mat_albedo, vertex_texcoord).rgb * mat_color;
@@ -81,7 +89,7 @@ vec3 calculatePBRColor(vec3 viewDir) {
     float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
     vec3 emissive = texture(mat_emissive, vertex_texcoord).rgb * mat_emissive_strength;
 
-    // Calculate reflectance at normal incidence; if not using an environment map
+    // Calculate reflectance at normal incidence
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 
@@ -119,7 +127,19 @@ vec3 calculatePBRColor(vec3 viewDir) {
         result += ambient + reflection;
     }
 
-    return result + emissive;
+    // Calculate reflection vector for environmental lighting
+    vec3 reflectionVector = reflect(-viewDir, normal);
+    vec2 uv = getSphereMapUV(reflectionVector);
+    vec3 envReflection = texture(skybox, uv).rgb;
+
+    // Apply fresnel effect to the environmental reflection
+    vec3 fresnelEffect = fresnelSchlick(max(dot(viewDir, normal), 0.0), F0);
+    vec3 envReflectionWithFresnel = envReflection * fresnelEffect * (1.0 - metallic);
+
+    // Combine PBR lighting with environmental reflection
+    vec3 finalColor = result + emissive + envReflectionWithFresnel;
+
+    return finalColor;
 }
 
 void main() {

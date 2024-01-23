@@ -47,6 +47,7 @@ pub struct AppState {
     pub light: Vec<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub skybox: Option<object::Object>,
+    pub skybox_texture: Option<texture::Texture>,
     pub objects: Vec<object::Object>,
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
@@ -72,6 +73,7 @@ impl AppState {
             fps: 60,
             camera: None,
             skybox: None,
+            skybox_texture: None,
             objects: Vec::new(),
             object_selection: Vec::new(),
             light: Vec::new(),
@@ -266,7 +268,7 @@ impl EventLoop {
         &self.display
     }
 
-    pub fn spawn_skybox(&self) -> crate::object::Object {
+    pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
         let mut material = crate::material::Material::skybox(self.display.clone());
         material.set_texture_from_file("res/textures/skybox.png", crate::material::TextureType::Albedo);
 
@@ -280,7 +282,11 @@ impl EventLoop {
         object.name = "Skybox".to_string();
 
         object.transform.set_scale([1.0, 1.0, 1.0]);
-        object
+
+        // skybox texture
+        let skybox_texture = texture::Texture::new(&self.display, "res/textures/skybox.png");
+
+        (object, skybox_texture)
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
@@ -289,7 +295,7 @@ impl EventLoop {
         temp_app_state.display = Some(self.display.clone());
 
         //spawning skybox
-        let skybox = self.spawn_skybox();
+        let (skybox, skybox_texture) = self.spawn_skybox();
         temp_app_state.set_skybox(skybox);
 
 
@@ -333,6 +339,9 @@ impl EventLoop {
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
+
+            // passing skybox
+            let skybox_texture = &skybox_texture;
 
 
             match event {
@@ -383,7 +392,7 @@ impl EventLoop {
                         let model_matrix = object.transform.get_matrix();
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix));
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
                             render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
                         }
                     }
@@ -394,7 +403,7 @@ impl EventLoop {
                             let model_matrix = skybox.transform.get_matrix();
                             let closest_lights = skybox.get_closest_lights(&light);
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
-                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix));
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
                                 render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
                             }
                         },
