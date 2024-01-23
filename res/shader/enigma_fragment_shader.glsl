@@ -111,7 +111,7 @@ vec3 calculatePBRColor(vec3 viewDir) {
         vec3 specular = numerator / denominator;
 
         // Ambient and diffuse lighting
-        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo + emissive;
+        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
         vec3 diffuse = kD * albedo / PI;
         vec3 reflection = (diffuse + specular) * radiance * NdotL;
 
@@ -119,7 +119,7 @@ vec3 calculatePBRColor(vec3 viewDir) {
         result += ambient + reflection;
     }
 
-    return result;
+    return result + emissive;
 }
 
 void main() {

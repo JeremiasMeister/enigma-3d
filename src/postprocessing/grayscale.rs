@@ -1,6 +1,7 @@
 use glium::framebuffer::SimpleFrameBuffer;
 use glium::glutin::surface::WindowSurface;
 use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
+use glium::texture::DepthTexture2d;
 use crate::geometry::Vertex;
 use crate::{AppState, shader};
 use crate::postprocessing::PostProcessingEffect;
@@ -10,7 +11,7 @@ pub struct GrayScale {
 }
 
 impl PostProcessingEffect for GrayScale {
-    fn render(&self, _app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d) {
+    fn render(&self, _app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d, _depth_source: &DepthTexture2d) {
         let uniforms = uniform! {
             scene: source,
         };

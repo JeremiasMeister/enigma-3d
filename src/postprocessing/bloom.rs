@@ -1,6 +1,7 @@
 use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
 use glium::framebuffer::SimpleFrameBuffer;
 use glium::glutin::surface::WindowSurface;
+use glium::texture::DepthTexture2d;
 use crate::geometry::Vertex;
 use crate::postprocessing::PostProcessingEffect;
 use crate::{AppState, postprocessing, shader};
@@ -42,7 +43,7 @@ impl Bloom {
 }
 
 impl PostProcessingEffect for Bloom {
-    fn render(&self, app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d) {
+    fn render(&self, app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d, _depth_texture: &DepthTexture2d) {
         // first create a temporary framebuffer to render the scene to and then use it as a texture
         let mut work_framebuffer_1 = SimpleFrameBuffer::new(app_state.display.as_ref().unwrap(), &self.texture_1).unwrap();
         let mut work_framebuffer_2 = SimpleFrameBuffer::new(app_state.display.as_ref().unwrap(), &self.texture_2).unwrap();

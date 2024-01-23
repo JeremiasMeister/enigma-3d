@@ -4,7 +4,6 @@ use enigma::camera::Camera;
 use enigma::{AppState, event};
 use rand::Rng;
 use enigma::postprocessing::bloom::Bloom;
-use enigma::postprocessing::grayscale::GrayScale;
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.get_selected_objects_mut() {

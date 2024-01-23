@@ -244,7 +244,7 @@ impl EventLoop {
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
 
         let mut texture = glium::texture::Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture");
-        let depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create depth texture");
+        let mut depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create depth texture");
 
 
         //dropping modified appstate
@@ -271,7 +271,8 @@ impl EventLoop {
 
             // passing framebuffer
             let texture = &mut texture;
-            let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &depth_texture).expect("Failed to create framebuffer");
+            let depth_texture = &mut depth_texture;
+            let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
 
 
             match event {
@@ -327,7 +328,7 @@ impl EventLoop {
                     }
                     // execute post processing#
                     for process in app_state.get_post_processes() {
-                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture);
+                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture);
                     }
 
                     // drawing to screen
