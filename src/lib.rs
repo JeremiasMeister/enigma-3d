@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::thread::spawn;
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
@@ -8,6 +9,7 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::collision_world::MousePosition;
 use crate::light::LightType;
+use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
 
 pub mod shader;
@@ -28,6 +30,7 @@ pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(2);
     app_state.set_fps(60);
     app_state.set_max_buffers(3);
+
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
@@ -43,6 +46,7 @@ pub struct AppState {
     pub camera: Option<camera::Camera>,
     pub light: Vec<light::Light>,
     pub ambient_light: Option<light::Light>,
+    pub skybox: Option<object::Object>,
     pub objects: Vec<object::Object>,
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
@@ -67,6 +71,7 @@ impl AppState {
         AppState {
             fps: 60,
             camera: None,
+            skybox: None,
             objects: Vec::new(),
             object_selection: Vec::new(),
             light: Vec::new(),
@@ -205,19 +210,19 @@ impl AppState {
         &self.camera
     }
 
-    pub fn set_renderscale(&mut self, scale: u32){
+    pub fn set_renderscale(&mut self, scale: u32) {
         self.renderscale = scale;
     }
 
-    pub fn get_renderscale(&self) -> u32{
+    pub fn get_renderscale(&self) -> u32 {
         self.renderscale
     }
 
-    pub fn set_max_buffers(&mut self, max_buffers: usize){
+    pub fn set_max_buffers(&mut self, max_buffers: usize) {
         self.max_buffers = max_buffers;
     }
 
-    pub fn get_max_buffers(&self) -> usize{
+    pub fn get_max_buffers(&self) -> usize {
         self.max_buffers
     }
 
@@ -226,6 +231,18 @@ impl AppState {
     }
     pub fn inject_update_function(&mut self, function: event::EventFunction) {
         self.update_injections.push(function);
+    }
+
+    pub fn set_skybox(&mut self, skybox: object::Object) {
+        self.skybox = Some(skybox);
+    }
+
+    pub fn get_skybox(&self) -> &Option<object::Object> {
+        &self.skybox
+    }
+
+    pub fn get_skybox_mut(&mut self) -> &mut Option<object::Object> {
+        &mut self.skybox
     }
 }
 
@@ -249,10 +266,32 @@ impl EventLoop {
         &self.display
     }
 
+    pub fn spawn_skybox(&self) -> crate::object::Object {
+        let mut material = crate::material::Material::skybox(self.display.clone());
+        material.set_texture_from_file("res/textures/skybox.png", crate::material::TextureType::Albedo);
+
+        // create a default object
+        let mut object = Object::load_from_gltf("res/models/skybox.gltf");
+
+        // set the material
+        object.add_material(material);
+        object.get_shapes_mut()[0].set_material_from_object_list(0);
+
+        object.name = "Skybox".to_string();
+
+        object.transform.set_scale([1.0, 1.0, 1.0]);
+        object
+    }
+
     // This is just the render loop . an actual event loop still needs to be set up
     pub fn run(self, app_state: Arc<Mutex<AppState>>) {
         let mut temp_app_state = app_state.lock().unwrap();
         temp_app_state.display = Some(self.display.clone());
+
+        //spawning skybox
+        let skybox = self.spawn_skybox();
+        temp_app_state.set_skybox(skybox);
+
 
         // managing fps
         let mut next_frame_time = Instant::now();
@@ -294,8 +333,6 @@ impl EventLoop {
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
-
-
 
 
             match event {
@@ -341,6 +378,7 @@ impl EventLoop {
 
                         ..Default::default()
                     };
+                    // render objects
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
                         let closest_lights = object.get_closest_lights(&light);
@@ -349,9 +387,22 @@ impl EventLoop {
                             render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
                         }
                     }
+
+                    // render skybox
+                    match app_state.get_skybox_mut(){
+                        Some(skybox) => {
+                            let model_matrix = skybox.transform.get_matrix();
+                            let closest_lights = skybox.get_closest_lights(&light);
+                            for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix));
+                                render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
+                            }
+                        },
+                        None => {}
+                    }
                     // execute post processing#
                     for process in app_state.get_post_processes() {
-                        process.render(&app_state ,&screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
+                        process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
                     }
 
                     // drawing to screen

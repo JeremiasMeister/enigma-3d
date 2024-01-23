@@ -175,6 +175,10 @@ impl Material {
         Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display)
     }
 
+    pub fn skybox(display: Display<WindowSurface>) -> Self {
+        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_unlit.glsl"), &display)
+    }
+
     fn light_block_from_vec(lights: Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
         let mut light_amount = lights.len() as i32;
         if light_amount > 4 {

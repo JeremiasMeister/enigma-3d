@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use nalgebra::Vector3;
 
 #[derive(Copy, Clone)]
@@ -24,6 +25,16 @@ pub struct BoundingBoxMesh {
 
 glium::implement_vertex!(Vertex, position, texcoord, color, normal);
 
+impl Debug for Vertex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Vertex")
+            .field("position", &self.position)
+            .field("texcoord", &self.texcoord)
+            .field("color", &self.color)
+            .field("normal", &self.normal)
+            .finish()
+    }
+}
 
 impl BoundingBoxMesh {
     pub fn new(bounding_box: &BoundingBox) -> Self {
