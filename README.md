@@ -1,7 +1,8 @@
 Enigma is my first attempt to do a little graphics API for Rust.
-Please be aware, I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. that said I have the following features working
+Please be aware that I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. That said, I have the following features working.
 
 - Model loading from GLTF and OBJ
+- Opaque and Transparent rendering
 - Material, Shader, Shape, Object Abstractions
 - PBR Shading
 - Texturing, Normals and Vertex Colors
@@ -10,28 +11,27 @@ Please be aware, I'm not a professional graphics programmer, so the code is most
 - a Camera
 - a simple Event system to inject functions and Keyboard presses into the event loop. Atm events get processed one by one in sequence
 - a simple Update system to inject functions into the update loop. Atm, the functions get processes one by one in sequence
-- Screen to World positions including a selection system
+- Screen to World positions, including a selection system
 - Postprocessing
 - Skybox and Sky reflections
 
 
-the API is quite straight forward and easy to use, see the example below
+The API is quite straightforward and easy to use; see the example below.
 
-![image](https://github.com/JeremiasMeister/enigma/assets/19373094/311300f4-5528-4909-8c03-25cdf2e20c5c)
-
+![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
 
 ***
-    // create an enigma eventloop and appstate
+    // create an enigma event loop and app state
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
     let mut app_state = enigma::AppState::new();
 
-    // some default event setups like selection
+    //Some default event setups like selection
     enigma::init_default(&mut app_state);
 
     let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());
     material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
-    // create a default object
+    //Create a default object
     let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
 
     // set the material
@@ -108,7 +108,7 @@ the API is quite straight forward and easy to use, see the example below
     // add update
     app_state.inject_update_function(Arc::new(hopping_objects));
 
-    // add post processing
+    // add post-processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
 
