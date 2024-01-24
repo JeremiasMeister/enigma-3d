@@ -2,6 +2,7 @@
 
 //uniforms
 uniform float time;
+uniform float mat_transparency_strength;
 
 //attributes
 in vec3 world_position;
@@ -20,7 +21,7 @@ out vec4 color;
 
 void main() {
     vec4 tex = texture(mat_albedo, vertex_texcoord);
-    color = vec4(tex.rgb * mat_color * vertex_color, 1.0);
+    color = vec4(tex.rgb * mat_color * vertex_color, tex.a * mat_transparency_strength);
 }
 
 

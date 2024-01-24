@@ -9,6 +9,7 @@ pub struct Material {
     pub name: Option<String>,
     pub color: [f32; 3],
     pub albedo: Option<texture::Texture>,
+    pub transparency: f32,
     pub normal: Option<texture::Texture>,
     pub normal_strength: f32,
     pub roughness: Option<texture::Texture>,
@@ -27,6 +28,7 @@ pub struct Material {
     pub program: glium::Program,
     pub time: f32,
     pub matrix: [[f32; 4]; 4],
+    pub render_transparent: bool,
 }
 
 pub enum TextureType {
@@ -82,6 +84,7 @@ impl Material {
                 Some(albedo) => Some(albedo),
                 None => None,
             },
+            transparency: 1.0,
             normal: match normal {
                 Some(normal) => Some(normal),
                 None => None,
@@ -114,7 +117,12 @@ impl Material {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0f32],
             ],
+            render_transparent: false,
         }
+    }
+
+    pub fn set_transparency(&mut self, transparent: bool) {
+        self.render_transparent = transparent;
     }
 
     pub fn set_emissive(&mut self, emissive: texture::Texture) {
@@ -139,6 +147,10 @@ impl Material {
 
     pub fn set_normal(&mut self, normal: texture::Texture) {
         self.normal = Some(normal);
+    }
+
+    pub fn set_transparency_strength(&mut self, transparency: f32) {
+        self.transparency = transparency;
     }
 
     pub fn set_normal_strength(&mut self, normal_strength: f32) {
@@ -171,12 +183,16 @@ impl Material {
         }
     }
 
-    pub fn lit_pbr(display: Display<WindowSurface>) -> Self {
-        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display)
+    pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
+        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display);
+        mat.set_transparency(transparency);
+        mat
     }
 
-    pub fn skybox(display: Display<WindowSurface>) -> Self {
-        Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_unlit.glsl"), &display)
+    pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
+        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_unlit.glsl"), &display);
+        mat.set_transparency(transparency);
+        mat
     }
 
     fn light_block_from_vec(lights: Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
@@ -253,6 +269,7 @@ impl Material {
                 None => &self._tex_black
             },
             mat_emissive_strength: self.emissive_strength,
+            mat_transparency_strength: self.transparency,
             light_position: light_block.position,
             light_color: light_block.color,
             light_intensity: light_block.intensity,

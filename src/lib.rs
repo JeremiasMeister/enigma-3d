@@ -55,7 +55,7 @@ pub struct AppState {
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
-    pub renderscale: u32,
+    pub render_scale: u32,
     pub max_buffers: usize,
     mouse_position: MousePosition,
 }
@@ -83,7 +83,7 @@ impl AppState {
             post_processes: Vec::new(),
             display: None,
             time: 0.0,
-            renderscale: 1,
+            render_scale: 1,
             max_buffers: 3,
             mouse_position: MousePosition::new(),
         }
@@ -213,11 +213,11 @@ impl AppState {
     }
 
     pub fn set_renderscale(&mut self, scale: u32) {
-        self.renderscale = scale;
+        self.render_scale = scale;
     }
 
     pub fn get_renderscale(&self) -> u32 {
-        self.renderscale
+        self.render_scale
     }
 
     pub fn set_max_buffers(&mut self, max_buffers: usize) {
@@ -269,7 +269,7 @@ impl EventLoop {
     }
 
     pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
-        let mut material = crate::material::Material::skybox(self.display.clone());
+        let mut material = crate::material::Material::unlit(self.display.clone(), false);
         material.set_texture_from_file("res/textures/skybox.png", crate::material::TextureType::Albedo);
 
         // create a default object
@@ -304,12 +304,12 @@ impl EventLoop {
         let nanos = 1_000_000_000 / temp_app_state.fps;
         let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
 
-        let mut texture = Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture");
-        let mut depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create depth texture");
+        let mut texture = Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture");
+        let mut depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create depth texture");
 
         let mut buffer_textures: Vec<Texture2d> = Vec::new();
         for _ in 0..temp_app_state.max_buffers {
-            buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.renderscale, self.window.inner_size().height * temp_app_state.renderscale).expect("Failed to create texture"));
+            buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
         //dropping modified appstate
@@ -348,7 +348,7 @@ impl EventLoop {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
-                        app_state.camera.as_mut().unwrap().set_aspect(new_size.width as f32, new_size.height as f32);
+                        app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
@@ -375,25 +375,28 @@ impl EventLoop {
                 }
                 Event::RedrawRequested(_) => {
                     app_state.time += 0.001;
-                    let render_target = &mut framebuffer; //self.display.draw();
+                    let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
-                    let params = glium::DrawParameters {
+
+                    // render objects opaque
+                    let opaque_rendering_parameter = glium::DrawParameters {
                         depth: glium::Depth {
                             test: glium::draw_parameters::DepthTest::IfLess,
                             write: true,
                             ..Default::default()
                         },
                         backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
-
                         ..Default::default()
                     };
-                    // render objects
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
+                            if material.render_transparent {
+                                continue;
+                            }
                             let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
-                            render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
+                            render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                         }
                     }
 
@@ -404,11 +407,36 @@ impl EventLoop {
                             let closest_lights = skybox.get_closest_lights(&light);
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
                                 let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
-                                render_target.draw(buffer, indices, &material.program, uniforms, &params).expect("Failed to draw object");
+                                render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                             }
                         },
                         None => {}
                     }
+
+                    // render objects transparent
+                    app_state.objects.sort_by(|a, b| {
+                        let distance_a = (camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
+                        let distance_b = (camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
+                        distance_b.partial_cmp(&distance_a).unwrap()
+                    });
+                    let transparent_rendering_parameter = glium::DrawParameters {
+                        blend: glium::Blend::alpha_blending(),
+                        ..opaque_rendering_parameter
+                    };
+                    for object in app_state.objects.iter_mut() {
+                        let model_matrix = object.transform.get_matrix();
+                        let closest_lights = object.get_closest_lights(&light);
+                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
+                            if !material.render_transparent {
+                                continue;
+                            }
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                            render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
+                        }
+                    }
+
+
+
                     // execute post processing#
                     for process in app_state.get_post_processes() {
                         process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);

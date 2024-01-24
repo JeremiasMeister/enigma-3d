@@ -51,7 +51,8 @@ fn hopping_objects(app_state: &mut AppState) {
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
-            let mut material = enigma::material::Material::lit_pbr(d.clone());
+            let mut material = enigma::material::Material::lit_pbr(d.clone(), true);
+            material.set_transparency_strength(0.5);
             material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
             let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
@@ -79,7 +80,7 @@ fn main() {
     // some default event setups like selection
     enigma::init_default(&mut app_state);
 
-    let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());
+    let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
     material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
     // create a default object

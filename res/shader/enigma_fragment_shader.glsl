@@ -28,6 +28,7 @@ uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 uniform sampler2D mat_emissive;
 uniform float mat_emissive_strength;
+uniform float mat_transparency_strength;
 uniform sampler2D skybox;
 
 // fragment outputs
@@ -81,9 +82,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 
 // Main PBR calculation function
 // PBR calculations including skybox lighting
-vec3 calculatePBRColor(vec3 viewDir) {
+vec4 calculatePBRColor(vec3 viewDir) {
     // Fetch material properties
-    vec3 albedo = texture(mat_albedo, vertex_texcoord).rgb * mat_color;
+    vec4 albedo_texel = texture(mat_albedo, vertex_texcoord);
+    float albedo_alpha = albedo_texel.a;
+    vec3 albedo = albedo_texel.rgb * mat_color;
     vec3 normal = normalize(vertex_normal + (texture(mat_normal, vertex_texcoord).rgb - 0.5) * mat_normal_strength);
     float roughness = texture(mat_roughness, vertex_texcoord).r * mat_roughness_strength;
     float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
@@ -139,11 +142,9 @@ vec3 calculatePBRColor(vec3 viewDir) {
     // Combine PBR lighting with environmental reflection
     vec3 finalColor = result + emissive + envReflectionWithFresnel;
 
-    return finalColor;
+    return vec4(finalColor, albedo_alpha * mat_transparency_strength);
 }
 
 void main() {
-    color = vec4(calculatePBRColor(normalize(view_direction)),1.0);
+    color = calculatePBRColor(normalize(view_direction));
 }
-
-
