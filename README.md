@@ -18,8 +18,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 
 The API is quite straightforward and easy to use; see the example below.
 
-![image](https://github.com/JeremiasMeister/enigma/assets/19373094/311300f4-5528-4909-8c03-25cdf2e20c5c)
-
+![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
 
 ***
     // create an enigma event loop and app state
