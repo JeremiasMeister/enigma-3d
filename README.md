@@ -2,6 +2,7 @@ Enigma is my first attempt to do a little graphics API for Rust.
 Please be aware, I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. that said I have the following features working
 
 - Model loading from GLTF and OBJ
+- Opauqe and Transparent rendering
 - Material, Shader, Shape, Object Abstractions
 - PBR Shading
 - Texturing, Normals and Vertex Colors
