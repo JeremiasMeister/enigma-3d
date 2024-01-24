@@ -1,5 +1,4 @@
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread::spawn;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
