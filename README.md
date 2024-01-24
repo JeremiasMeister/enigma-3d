@@ -20,7 +20,7 @@ The API is quite straightforward and easy to use; see the example below.
 
 **PBR Bloom postprocess and transparent objects**
 ![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
-**Also added an outline postprocess**
+**Also added an outline postprocess as an example how to handle the depth buffer in postprocessing**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/75aac3e0-50d9-42cf-b896-b727289189e9)
 
 
