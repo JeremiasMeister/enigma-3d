@@ -52,7 +52,7 @@ fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
             let mut material = enigma::material::Material::lit_pbr(d.clone(), true);
-            material.set_transparency_strength(0.5);
+            material.set_transparency_strength(0.2);
             material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
             let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
@@ -163,6 +163,7 @@ fn main() {
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());

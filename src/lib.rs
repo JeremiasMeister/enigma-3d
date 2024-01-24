@@ -348,6 +348,7 @@ impl EventLoop {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
                         app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
+                        self.display.resize(new_size.into());
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
@@ -400,17 +401,27 @@ impl EventLoop {
                     }
 
                     // render skybox
+                    let skybox_rendering_parameter = glium::DrawParameters {
+                        depth: glium::Depth {
+                            test: glium::draw_parameters::DepthTest::IfLess,
+                            write: false,
+                            ..Default::default()
+                        },
+                        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        ..Default::default()
+                    };
                     match app_state.get_skybox_mut(){
                         Some(skybox) => {
                             let model_matrix = skybox.transform.get_matrix();
                             let closest_lights = skybox.get_closest_lights(&light);
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
                                 let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
-                                render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
+                                render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                             }
                         },
                         None => {}
                     }
+
 
                     // render objects transparent
                     app_state.objects.sort_by(|a, b| {
