@@ -27,7 +27,7 @@ pub mod postprocessing;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(2);
-    app_state.set_fps(60);
+    app_state.set_fps(120);
     app_state.set_max_buffers(3);
 
     app_state.inject_event(
@@ -269,10 +269,10 @@ impl EventLoop {
 
     pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
         let mut material = crate::material::Material::unlit(self.display.clone(), false);
-        material.set_texture_from_file("res/textures/skybox.png", crate::material::TextureType::Albedo);
+        material.set_texture_from_file("src/res/textures/skybox.png", crate::material::TextureType::Albedo);
 
         // create a default object
-        let mut object = Object::load_from_gltf("res/models/skybox.gltf");
+        let mut object = Object::load_from_gltf("src/res/models/skybox.gltf");
 
         // set the material
         object.add_material(material);
@@ -283,7 +283,7 @@ impl EventLoop {
         object.transform.set_scale([1.0, 1.0, 1.0]);
 
         // skybox texture
-        let skybox_texture = texture::Texture::new(&self.display, "res/textures/skybox.png");
+        let skybox_texture = texture::Texture::new(&self.display, "src/res/textures/skybox.png");
 
         (object, skybox_texture)
     }

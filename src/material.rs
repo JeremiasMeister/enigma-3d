@@ -184,13 +184,13 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display);
+        let mut mat = Material::default(shader::Shader::from_files("src/res/shader/enigma_vertex_shader.glsl", "src/res/shader/enigma_fragment_shader.glsl"), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_unlit.glsl"), &display);
+        let mut mat = Material::default(shader::Shader::from_files("src/res/shader/enigma_vertex_shader.glsl", "src/res/shader/enigma_fragment_unlit.glsl"), &display);
         mat.set_transparency(transparency);
         mat
     }

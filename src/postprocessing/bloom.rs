@@ -17,9 +17,9 @@ pub struct Bloom {
 
 impl Bloom {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, iterations: i32) -> Self {
-        let extract_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_extract.glsl");
-        let blur_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_blur.glsl");
-        let combine_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_combine.glsl");
+        let extract_shader = shader::Shader::from_files("src/res/shader/post_processing/post_processing_vert.glsl", "src/res/shader/post_processing/bloom/enigma_bloom_extract.glsl");
+        let blur_shader = shader::Shader::from_files("src/res/shader/post_processing/post_processing_vert.glsl", "src/res/shader/post_processing/bloom/enigma_bloom_blur.glsl");
+        let combine_shader = shader::Shader::from_files("src/res/shader/post_processing/post_processing_vert.glsl", "src/res/shader/post_processing/bloom/enigma_bloom_combine.glsl");
         let program_extract = glium::Program::from_source(display, &extract_shader.get_vertex_shader(), &extract_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_blur = glium::Program::from_source(display, &blur_shader.get_vertex_shader(), &blur_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_combine = glium::Program::from_source(display, &combine_shader.get_vertex_shader(), &combine_shader.get_fragment_shader(), None).expect("Failed to compile shader program");

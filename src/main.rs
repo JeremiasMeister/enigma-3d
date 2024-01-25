@@ -53,9 +53,9 @@ fn spawn_object(app_state: &mut AppState) {
         Some(d) => {
             let mut material = enigma::material::Material::lit_pbr(d.clone(), true);
             material.set_transparency_strength(0.2);
-            material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+            material.set_texture_from_file("src/res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
-            let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
+            let mut object = Object::load_from_gltf("src/res/models/suzanne.gltf");
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
             object.add_material(material);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
@@ -81,10 +81,10 @@ fn main() {
     enigma::init_default(&mut app_state);
 
     let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
-    material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+    material.set_texture_from_file("src/res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
 
     // create a default object
-    let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
+    let mut object = Object::load_from_gltf("src/res/models/suzanne.gltf");
 
     // set the material
     object.add_material(material);
