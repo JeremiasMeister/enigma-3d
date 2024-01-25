@@ -14,7 +14,7 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, color: [f32; 3]) -> Self {
-        let edge_shader = shader::Shader::from_files("src/res/shader/post_processing/post_processing_vert.glsl", "src/res/shader/post_processing/edge/enigma_edge_detection.glsl");
+        let edge_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/edge/enigma_edge_detection.glsl");
 
         let program = glium::Program::from_source(display, &edge_shader.get_vertex_shader(), &edge_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
 
