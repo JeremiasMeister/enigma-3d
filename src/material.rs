@@ -1,6 +1,6 @@
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
-use glium::texture::RawImage2d;
+use glium::texture::{DepthCubemap, RawImage2d};
 use crate::{shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
@@ -23,6 +23,7 @@ pub struct Material {
     _tex_black: glium::texture::SrgbTexture2d,
     _tex_gray: glium::texture::SrgbTexture2d,
     _tex_normal: glium::texture::SrgbTexture2d,
+    _tex_depth: DepthCubemap,
     pub display: Display<WindowSurface>,
     pub program: glium::Program,
     pub time: f32,
@@ -74,6 +75,8 @@ impl Material {
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
         };
 
+        let _tex_depth = DepthCubemap::empty(&display, 32).unwrap();
+
         Self {
             name: None,
             shader,
@@ -108,6 +111,7 @@ impl Material {
             _tex_black,
             _tex_gray,
             _tex_normal,
+            _tex_depth,
             program: _program,
             time: 0.0,
             matrix: [
@@ -229,7 +233,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture, shadow_maps: &Vec<&DepthCubemap>) -> impl glium::uniforms::Uniforms + '_ {
 
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 

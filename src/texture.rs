@@ -1,4 +1,5 @@
 use glium::glutin::surface::WindowSurface;
+use glium::texture::CubeLayer;
 
 pub struct Texture {
     pub path: String,
@@ -19,5 +20,17 @@ impl Texture {
             width: image_dimensions.0,
             height: image_dimensions.1,
         }
+    }
+}
+
+pub fn cube_layer_from_index(index: usize) -> CubeLayer {
+    match index {
+        0 => CubeLayer::PositiveX,
+        1 => CubeLayer::NegativeX,
+        2 => CubeLayer::PositiveY,
+        3 => CubeLayer::NegativeY,
+        4 => CubeLayer::PositiveZ,
+        5 => CubeLayer::NegativeZ,
+        _ => panic!("Invalid cubemap face index"),
     }
 }

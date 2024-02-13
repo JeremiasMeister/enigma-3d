@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use std::fs::File;
 use std::io::BufReader;
+use itertools::enumerate;
 use obj::{load_obj, Obj};
 
 pub struct Object {
@@ -135,7 +136,7 @@ impl Object {
         }
 
         // Each face is two triangles, so 6 indices per face
-        for (face_index, &face) in face_indices.iter().enumerate() {
+        for (face_index, _) in face_indices.iter().enumerate() {
             let base_index = (face_index * 4) as u32;
             indices.extend_from_slice(&[
                 base_index,
@@ -237,16 +238,18 @@ impl Object {
         self.materials.iter_mut().for_each(|x| x.update());
     }
 
-    pub fn get_closest_lights(&self, lights: &Vec<crate::light::Light>) -> Vec<crate::light::Light> {
+    pub fn get_closest_lights(&self, lights: &Vec<crate::light::Light>) -> (Vec<usize>, Vec<crate::light::Light>) {
         let mut closest_lights = Vec::new();
+        let mut closest_light_indices = Vec::new();
 
         //collect the four closest lights to the object
-        for light in lights.iter() {
+        for (light_index, light) in enumerate(lights.iter()) {
             let light_pos = light.position;
             let object_pos = self.transform.get_position();
             let distance = (Vector3::from(light_pos) - object_pos).magnitude();
             if closest_lights.len() < 4 {
                 closest_lights.push((light.clone(), distance));
+                closest_light_indices.push(light_index);
             } else {
                 let mut max_distance = 0.0;
                 let mut max_index = 0;
@@ -258,10 +261,11 @@ impl Object {
                 }
                 if distance < max_distance {
                     closest_lights[max_index] = (light.clone(), distance.clone());
+                    closest_light_indices[max_index] = light_index;
                 }
             }
         }
-        closest_lights.iter().map(|(light, _)| light.clone()).collect()
+        (closest_light_indices, closest_lights.iter().map(|(light, _)| light.clone()).collect())
     }
 
     pub fn add_shape(&mut self, shape: Shape) {

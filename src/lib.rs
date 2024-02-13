@@ -4,7 +4,7 @@ use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
 use glium::texture::{DepthCubemap, DepthTexture2d};
-use nalgebra::Vector3;
+use itertools::enumerate;
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
@@ -45,7 +45,7 @@ pub fn init_default(app_state: &mut AppState) {
 pub struct AppState {
     pub fps: u64,
     pub camera: Option<camera::Camera>,
-    pub light: Vec<light::Light>,
+    pub lights: Vec<light::Light>,
     pub ambient_light: Option<light::Light>,
     pub skybox: Option<object::Object>,
     pub skybox_texture: Option<texture::Texture>,
@@ -77,7 +77,7 @@ impl AppState {
             skybox_texture: None,
             objects: Vec::new(),
             object_selection: Vec::new(),
-            light: Vec::new(),
+            lights: Vec::new(),
             ambient_light: None,
             event_injections: Vec::new(),
             update_injections: Vec::new(),
@@ -127,6 +127,16 @@ impl AppState {
             index += 1;
         }
         self.objects.remove(index);
+    }
+
+    pub fn get_shadow_casting_light_count(&self) -> usize {
+        let mut count = 0;
+        for light in self.lights.iter() {
+            if light.cast_shadow {
+                count += 1;
+            }
+        }
+        count
     }
 
     pub fn remove_object_by_name(&mut self, name: &str) {
@@ -192,7 +202,7 @@ impl AppState {
 
     pub fn add_light(&mut self, light: light::Light, light_type: LightType) {
         match light_type {
-            LightType::Point => self.light.push(light),
+            LightType::Point => self.lights.push(light),
             LightType::Ambient => self.ambient_light = Some(light),
         }
     }
@@ -200,10 +210,10 @@ impl AppState {
     pub fn remove_light(&mut self, index: usize, light_type: LightType) {
         match light_type {
             LightType::Point => {
-                if index >= self.light.len() {
+                if index >= self.lights.len() {
                     panic!("Index out of bounds");
                 }
-                self.light.remove(index);
+                self.lights.remove(index);
             }
             LightType::Ambient => {
                 self.ambient_light = None;
@@ -212,7 +222,7 @@ impl AppState {
     }
 
     pub fn get_lights(&self) -> &Vec<light::Light> {
-        &self.light
+        &self.lights
     }
 
     pub fn set_fps(&mut self, fps: u64) {
@@ -339,7 +349,14 @@ impl EventLoop {
         }
 
         // shadow map creation
-        // TODO: make depth cubemaps for each point light, which has .cast_shadow = true
+        let mut shadow_maps: Vec<DepthCubemap> = Vec::new();
+        for l in temp_app_state.lights.iter() {
+            if l.cast_shadow {
+                let shadow_map = DepthCubemap::empty(&self.display, 1024).expect("Failed to create shadow map"); //TODO: expose shadow map resolution in app_state
+                shadow_maps.push(shadow_map);
+            }
+        }
+        let shadow_map_program = light::get_shadow_map_program(&self.display);
 
         //dropping modified appstate
         drop(temp_app_state);
@@ -353,7 +370,7 @@ impl EventLoop {
         self.event_loop.run(move |event, _window_target, control_flow| {
             // unpacking appstate
             let mut app_state = app_state.lock().unwrap();
-            let light = app_state.light.clone();
+            let mut lights = app_state.lights.clone();
             let ambient_light = app_state.ambient_light.clone();
             let camera = app_state.camera.clone();
             let event_injections = app_state.event_injections.clone();
@@ -373,7 +390,10 @@ impl EventLoop {
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
 
             // passing shadow map
-            //TODO: ensure, the shadow_maps are passed properly in the loop
+            let shadow_maps = &mut shadow_maps;
+            while shadow_maps.len() < app_state.get_shadow_casting_light_count() {
+                shadow_maps.push(DepthCubemap::empty(&self.display, 1024).expect("Failed to create shadow map")); //TODO: expose shadow map resolution in app_state
+            }
 
 
             // prepare rendering parameters
@@ -450,17 +470,48 @@ impl EventLoop {
                     });
 
                     //render shadow maps
-                    // TODO: render shadow maps for each point light, which has .cast_shadow = true
+                    for (index, light) in enumerate(lights.iter_mut()){
+                        if !light.cast_shadow {
+                            continue;
+                        }
+                        let map = &mut shadow_maps[index];
+                        let light_projection_matrix = light.calculate_projection_matrix_for_point_light(0.1, 100.0); //TODO: expose shadow clip planes in app_state
+                        for i in 0..6{
+                            let face = texture::cube_layer_from_index(i);
+                            let mut shadow_fbo = glium::framebuffer::SimpleFrameBuffer::depth_only(&self.display, map.main_level().image(face)).expect("Failed to create shadow framebuffer");
+                            shadow_fbo.clear_depth(1.0);
+
+                            let view_matrix = light.calculate_view_matrix_for_cubemap_face(i);
+                            let light_view_projection_matrix = light_projection_matrix * view_matrix;
+                            for object in app_state.objects.iter_mut(){
+                                let model_matrix = object.transform.get_matrix();
+                                let mvp: [[f32; 4]; 4] = (light_view_projection_matrix * model_matrix).into();
+                                let uniforms = uniform! {
+                                    depth_mvp: mvp,
+                                };
+                                for (buffer, indices) in object.get_vertex_buffers().iter().zip(object.get_index_buffers().iter()){
+                                    shadow_fbo.draw(buffer, indices, &shadow_map_program, &uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
+                                }
+                            }
+                        }
+                    }
 
                     // render objects opaque
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
-                        let closest_lights = object.get_closest_lights(&light);
+                        let closest_lights = object.get_closest_lights(&lights);
+                        let mut closest_shadowmaps: Vec<&DepthCubemap> = Vec::new();
+                        for index in closest_lights.0.iter(){
+                            if closest_lights.1[*index].cast_shadow {
+                                closest_shadowmaps.push(&shadow_maps[*index]);
+                            }
+                        }
+                        let closest_lights = closest_lights.1;
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             if material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
                             render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                         }
                     }
@@ -469,9 +520,16 @@ impl EventLoop {
                     match app_state.get_skybox_mut() {
                         Some(skybox) => {
                             let model_matrix = skybox.transform.get_matrix();
-                            let closest_lights = skybox.get_closest_lights(&light);
+                            let closest_lights = skybox.get_closest_lights(&lights);
+                            let mut closest_shadowmaps: Vec<&DepthCubemap> = Vec::new();
+                            for index in closest_lights.0.iter(){
+                                if closest_lights.1[*index].cast_shadow {
+                                    closest_shadowmaps.push(&shadow_maps[*index]);
+                                }
+                            }
+                            let closest_lights = closest_lights.1;
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
-                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture);
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
                                 render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                             }
                         }
@@ -481,12 +539,19 @@ impl EventLoop {
                     // render objects transparent
                     for object in app_state.objects.iter_mut() {
                         let model_matrix = object.transform.get_matrix();
-                        let closest_lights = object.get_closest_lights(&light);
+                        let closest_lights = object.get_closest_lights(&lights);
+                        let mut closest_shadowmaps: Vec<&DepthCubemap> = Vec::new();
+                        for index in closest_lights.0.iter(){
+                            if closest_lights.1[*index].cast_shadow {
+                                closest_shadowmaps.push(&shadow_maps[*index]);
+                            }
+                        }
+                        let closest_lights = closest_lights.1;
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             if !material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
                             render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                         }
                     }
