@@ -10,6 +10,12 @@ uniform vec3 ambient_light_color;
 uniform float ambient_light_intensity;
 uniform float near; // Camera's near plane
 uniform float far;  // Camera's far plane
+uniform float shadow_near; // Shadow's near plane
+uniform float shadow_far;  // Shadow's far plane
+uniform samplerCube shadow_map0;
+uniform samplerCube shadow_map1;
+uniform samplerCube shadow_map2;
+uniform samplerCube shadow_map3;
 
 //attributes
 in vec3 world_position;
@@ -41,6 +47,24 @@ out vec4 color;
 const float PI = 3.14159265359;
 
 // Helper Functions for PBR
+float remap(float value, float low1, float high1, float low2, float high2) {
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+}
+
+
+float CalculateShadow(samplerCube shadowMap, vec3 lightPosition, vec3 normal){
+    vec3 fragToLight = lightPosition - world_position;
+    float distance = length(fragToLight);
+    float bias = max(0.05 * (1.0 - dot(normal, normalize(fragToLight))), 0.005);
+    float shadow = 0.0;
+    float shadowMapDepth = textureCube(shadowMap, normalize(fragToLight)).r;
+    if (shadowMapDepth < distance - bias) {
+        shadow = 1.0;
+    }
+    return shadow;
+}
+
+
 vec2 getSphereMapUV(vec3 dir) {
     float u = atan(dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
     float v = asin(dir.y) / 3.14159265 + 0.5;
@@ -108,9 +132,6 @@ vec4 calculatePBRColor(vec3 viewDir) {
         float attenuation = 1.0 / (distance * distance + 0.1 * distance + 0.01);
         vec3 radiance = light_color[i].xyz * light_intensity[i] * attenuation;
 
-        // Apply shadow
-        // TODO!
-
         vec3 halfDir = normalize(lightDir + viewDir);
         float NDF = DistributionGGX(normal, halfDir, roughness);
         float G = GeometrySmith(normal, viewDir, lightDir, roughness);
@@ -150,5 +171,14 @@ vec4 calculatePBRColor(vec3 viewDir) {
 }
 
 void main() {
-    color = calculatePBRColor(normalize(view_direction));
+
+    float shadow0 = CalculateShadow(shadow_map0, light_position[0].xyz, world_normal);
+    float shadow1 = CalculateShadow(shadow_map1, light_position[1].xyz, world_normal);
+    float shadow2 = CalculateShadow(shadow_map2, light_position[2].xyz, world_normal);
+    float shadow3 = CalculateShadow(shadow_map3, light_position[3].xyz, world_normal);
+
+    float shadow = shadow0 * shadow1 * shadow2 * shadow3;
+
+    vec4 pbrColor = calculatePBRColor(normalize(view_direction));
+    color = pbrColor * shadow; //  vec4(shadow, shadow, shadow, 1.0);
 }

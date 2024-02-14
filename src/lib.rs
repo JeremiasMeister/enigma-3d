@@ -511,7 +511,7 @@ impl EventLoop {
                             if material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &mut closest_shadowmaps);
                             render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                         }
                     }
@@ -529,7 +529,7 @@ impl EventLoop {
                             }
                             let closest_lights = closest_lights.1;
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
-                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &mut closest_shadowmaps);
                                 render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                             }
                         }
@@ -551,7 +551,7 @@ impl EventLoop {
                             if !material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &closest_shadowmaps);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix.into()), skybox_texture, &mut closest_shadowmaps);
                             render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                         }
                     }

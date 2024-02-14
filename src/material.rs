@@ -1,6 +1,7 @@
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::{DepthCubemap, RawImage2d};
+use glium::uniforms::SamplerWrapFunction;
 use crate::{shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
@@ -233,9 +234,14 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture, shadow_maps: &Vec<&DepthCubemap>) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture, shadow_maps: &mut Vec<&'a glium::texture::DepthCubemap>) -> impl glium::uniforms::Uniforms + '_ {
 
         let light_block = Material::light_block_from_vec(lights, ambient_light);
+        for i in 0..5 { // ensure to have exactly 4 shadow maps for the shader to calculate on
+            if shadow_maps.len() < i {
+                shadow_maps.push(&self._tex_depth);
+            }
+        }
 
         glium::uniform! {
             time: self.time,
@@ -290,6 +296,12 @@ impl Material {
                 Some(camera) => camera.near,
                 None => 0.1,
             },
+            shadow_near: 0.1,
+            shadow_far: 100.0,
+            shadow_map0: shadow_maps[0].sampled().wrap_function(SamplerWrapFunction::Clamp),
+            shadow_map1: shadow_maps[1].sampled().wrap_function(SamplerWrapFunction::Clamp),
+            shadow_map2: shadow_maps[2].sampled().wrap_function(SamplerWrapFunction::Clamp),
+            shadow_map3: shadow_maps[3].sampled().wrap_function(SamplerWrapFunction::Clamp),
         }
     }
 

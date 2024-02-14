@@ -189,12 +189,12 @@ fn main() {
 
     // add update
     //app_state.inject_update_function(Arc::new(hopping_objects));
-    app_state.inject_update_function(Arc::new(remove_object));
+    //app_state.inject_update_function(Arc::new(remove_object));
 
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
-    app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
-    app_state.add_post_process(Box::new(Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    //app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    //app_state.add_post_process(Box::new(Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
