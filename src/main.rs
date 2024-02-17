@@ -70,6 +70,13 @@ fn hopping_objects(app_state: &mut AppState) {
     }
 }
 
+fn move_light(app_state: &mut AppState) {
+    let light = &mut app_state.lights[0];
+    let time = app_state.time;
+    let new_pos = [(time * 20.0).sin() * 2.0, 1.0, -1.0];
+    light.position = new_pos.clone();
+}
+
 fn remove_object(app_state: &mut AppState) {
     if app_state.time % 0.1 < 0.001 {
         if app_state.objects.len() < 3 {
@@ -149,9 +156,9 @@ fn main() {
     let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.10, false);
 
     app_state.add_light(light1, enigma::light::LightType::Point);
-    app_state.add_light(light2, enigma::light::LightType::Point);
-    app_state.add_light(light3, enigma::light::LightType::Point);
-    app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
+    //app_state.add_light(light2, enigma::light::LightType::Point);
+    //app_state.add_light(light3, enigma::light::LightType::Point);
+    //app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
 
     // add a camera
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
@@ -190,6 +197,7 @@ fn main() {
     // add update
     //app_state.inject_update_function(Arc::new(hopping_objects));
     //app_state.inject_update_function(Arc::new(remove_object));
+    app_state.inject_update_function(Arc::new(move_light));
 
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));

@@ -1,4 +1,4 @@
-use glium::Display;
+use glium::{Display, Surface};
 use glium::glutin::surface::WindowSurface;
 use glium::texture::{DepthCubemap, RawImage2d};
 use glium::uniforms::SamplerWrapFunction;
@@ -77,6 +77,11 @@ impl Material {
         };
 
         let _tex_depth = DepthCubemap::empty(&display, 32).unwrap();
+        for i in 0..6 {
+            let face = texture::cube_layer_from_index(i);
+            let mut temp_fbo = glium::framebuffer::SimpleFrameBuffer::depth_only(&display, _tex_depth.main_level().image(face)).unwrap();
+            temp_fbo.clear_depth(1.0);
+        }
 
         Self {
             name: None,
@@ -290,14 +295,13 @@ impl Material {
             skybox: &skybox.texture,
             far: match camera {
                 Some(camera) => camera.far,
-                None => 100.0,
+                None => 100.0f32,
             },
             near: match camera {
                 Some(camera) => camera.near,
-                None => 0.1,
+                None => 0.1f32,
             },
-            shadow_near: 0.1,
-            shadow_far: 100.0,
+            shadow_far: 100.0f32, // TODO: expose this to the user
             shadow_map0: shadow_maps[0].sampled().wrap_function(SamplerWrapFunction::Clamp),
             shadow_map1: shadow_maps[1].sampled().wrap_function(SamplerWrapFunction::Clamp),
             shadow_map2: shadow_maps[2].sampled().wrap_function(SamplerWrapFunction::Clamp),

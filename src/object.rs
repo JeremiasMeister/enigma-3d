@@ -82,7 +82,7 @@ impl Object {
         object
     }
 
-    pub fn primitive_cube(size: f32) -> Self {
+    pub fn primitive_cube(size: f32, invert_normals: bool) -> Self {
         let mut object = Object::new(Some(String::from("Cube")));
         let mut vertices = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
@@ -102,7 +102,7 @@ impl Object {
             [half_size, -half_size, -half_size],  // Bottom-right
         ];
 
-        let normals = [
+        let mut normals = [
             [0.0, 0.0, 1.0],  // Front face
             [0.0, 0.0, -1.0], // Back face
             [1.0, 0.0, 0.0],  // Right face
@@ -111,14 +111,39 @@ impl Object {
             [0.0, -1.0, 0.0], // Bottom face
         ];
 
+        if invert_normals {
+            for normal in normals.iter_mut() {
+                normal[0] *= -1.0;
+                normal[1] *= -1.0;
+                normal[2] *= -1.0;
+            }
+        }
+
         // Create each face in CW order
-        let face_indices = [
+        let mut face_indices = [
             [0, 1, 2, 3], // Front face
             [4, 5, 6, 7], // Back face
             [1, 7, 6, 2], // Right face
             [4, 0, 3, 5], // Left face
             [3, 2, 6, 5], // Top face
             [4, 7, 1, 0], // Bottom face
+        ];
+
+        //invert the winding order of the faces
+        if invert_normals {
+            for face in face_indices.iter_mut() {
+                face.reverse();
+            }
+        }
+
+        //proper tex_coords per face
+        let tex_coords = [
+            [0.0, 0.0], // Front face
+            [1.0, 0.0], // Back face
+            [0.0, 0.0], // Right face
+            [1.0, 0.0], // Left face
+            [0.0, 1.0], // Top face
+            [0.0, 0.0], // Bottom face
         ];
 
         for &normal in &normals {
@@ -128,7 +153,7 @@ impl Object {
                     Vertex {
                         position,
                         color: [1.0, 1.0, 1.0],
-                        texcoord: [position[0] + 0.5, position[2] + 0.5],
+                        texcoord: tex_coords.iter().map(|x| x.to_owned()).collect::<Vec<[f32; 2]>>()[0],
                         normal,
                     }
                 }));
@@ -359,7 +384,7 @@ impl Object {
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
                 let prim_indices = reader.read_indices().unwrap().into_u32();
 
-                let mut flipped_tex_coords: Vec<[f32;2]> = Vec::new();
+                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
                 // flip tex_coords
                 for mut tex_coord in tex_coords.into_iter() {
                     tex_coord[1] = 1.0 - tex_coord[1];
