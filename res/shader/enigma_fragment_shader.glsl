@@ -10,7 +10,6 @@ uniform vec3 ambient_light_color;
 uniform float ambient_light_intensity;
 uniform float near; // Camera's near plane
 uniform float far;  // Camera's far plane
-uniform float shadow_near; // Shadow's near plane
 uniform float shadow_far;  // Shadow's far plane
 uniform samplerCube shadow_map0;
 uniform samplerCube shadow_map1;
@@ -51,17 +50,16 @@ float remap(float value, float low1, float high1, float low2, float high2) {
     return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
 }
 
-
-float CalculateShadow(samplerCube shadowMap, vec3 lightPosition, vec3 normal){
+float CalculateShadow(samplerCube shadowMap, vec3 lightPosition){
     vec3 fragToLight = lightPosition - world_position;
     float distance = length(fragToLight);
-    float bias = max(0.05 * (1.0 - dot(normal, normalize(fragToLight))), 0.005);
+    distance /= shadow_far;
+    float shadowMapDepth = texture(shadowMap, normalize(fragToLight)).r;
     float shadow = 0.0;
-    float shadowMapDepth = textureCube(shadowMap, normalize(fragToLight)).r;
-    if (shadowMapDepth < distance - bias) {
+    if (shadowMapDepth < distance ) {
         shadow = 1.0;
     }
-    return shadow;
+    return remap(shadowMapDepth, 0.9, 1.0, 0.0, 1.0);
 }
 
 
@@ -172,13 +170,13 @@ vec4 calculatePBRColor(vec3 viewDir) {
 
 void main() {
 
-    float shadow0 = CalculateShadow(shadow_map0, light_position[0].xyz, world_normal);
-    float shadow1 = CalculateShadow(shadow_map1, light_position[1].xyz, world_normal);
-    float shadow2 = CalculateShadow(shadow_map2, light_position[2].xyz, world_normal);
-    float shadow3 = CalculateShadow(shadow_map3, light_position[3].xyz, world_normal);
+    float shadow0 = CalculateShadow(shadow_map0, light_position[0].xyz);
+    float shadow1 = CalculateShadow(shadow_map1, light_position[1].xyz);
+    float shadow2 = CalculateShadow(shadow_map2, light_position[2].xyz);
+    float shadow3 = CalculateShadow(shadow_map3, light_position[3].xyz);
 
     float shadow = shadow0 * shadow1 * shadow2 * shadow3;
 
     vec4 pbrColor = calculatePBRColor(normalize(view_direction));
-    color = pbrColor * shadow; //  vec4(shadow, shadow, shadow, 1.0);
+    color = vec4(shadow, shadow, shadow, 1.0);
 }

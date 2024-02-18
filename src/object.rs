@@ -429,7 +429,7 @@ impl Transform {
         let rotation_matrix = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z).to_homogeneous();
         let translation_matrix = Translation3::from(self.position).to_homogeneous();
         // Scale, then rotate, then translate
-        self.matrix = translation_matrix * rotation_matrix * scale_matrix;
+        self.matrix = scale_matrix * rotation_matrix * translation_matrix;
     }
 
 
@@ -478,4 +478,30 @@ impl Transform {
         self.update();
         self.matrix
     }
+
+    pub fn look_at(&mut self, target: Vector3<f32>, up_vector: Vector3<f32>) {
+        // Convert positions to Point3 for clarity, though not strictly necessary here
+        let position = Point3::from(self.position);
+        let target_point = Point3::from(target);
+
+        // Compute the forward vector from the object to the target
+        let direction = (target_point - position).normalize();
+
+        // Use the provided up_vector instead of a hardcoded value
+        let up = up_vector.normalize();
+
+        // Compute the rotation as a quaternion
+        let rotation_quaternion = UnitQuaternion::face_towards(&direction, &up);
+
+        // Convert quaternion to Euler angles
+        let euler_angles = rotation_quaternion.euler_angles();
+
+        // Set the rotation; convert to degrees if necessary
+        self.rotation = Vector3::from([
+            euler_angles.0.to_degrees(),
+            euler_angles.1.to_degrees(),
+            euler_angles.2.to_degrees(),
+        ]);
+    }
+
 }

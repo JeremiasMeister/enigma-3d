@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use nalgebra::Vector3;
 use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
 use rand::Rng;
+use enigma::collision_world::RayCast;
 use enigma::postprocessing::bloom::Bloom;
 use enigma::postprocessing::edge::Edge;
 
@@ -73,8 +75,29 @@ fn hopping_objects(app_state: &mut AppState) {
 fn move_light(app_state: &mut AppState) {
     let light = &mut app_state.lights[0];
     let time = app_state.time;
-    let new_pos = [(time * 20.0).sin() * 2.0, 1.0, -1.0];
+    let val = (time * 10.0).sin() * 4.0;
+    let new_pos = [val, 3.0, 0.0];
     light.position = new_pos.clone();
+    for object in app_state.objects.iter_mut() {
+        if object.name.contains("LightCube") {
+            object.transform.set_position(new_pos);
+            break;
+        }
+    }
+}
+
+fn print_camera_position_and_rotation(app_state: &mut AppState) {
+    match &app_state.camera {
+        Some(c) => {
+            if app_state.time % 0.4 < 0.001 {
+                println!("Camera position: {:?}", c.transform.get_position());
+                println!("Camera rotation: {:?}", c.transform.get_rotation());
+            }
+        }
+        None => {
+            println!("No camera found to print position and rotation");
+        }
+    }
 }
 
 fn remove_object(app_state: &mut AppState) {
@@ -113,6 +136,116 @@ fn spawn_object(app_state: &mut AppState) {
     }
 }
 
+fn camera_forward(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([0.0, 0.0, -0.1]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn camera_back(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([0.0, 0.0, 0.1]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn camera_up(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([0.0, 0.1, 0.0]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn camera_down(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([0.0, -0.1, 0.0]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn camera_left(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([-0.1, 0.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn camera_right(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.move_dir([0.1, 0.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to move, could not move camera");
+        }
+    }
+}
+
+fn rotate_camera_left(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.rotate([0.0, 5.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to rotate, could not rotate camera");
+        }
+    }
+}
+
+fn rotate_camera_right(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.rotate([0.0, -5.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to rotate, could not rotate camera");
+        }
+    }
+}
+
+fn rotate_camera_up(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.rotate([-5.0, 0.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to rotate, could not rotate camera");
+        }
+    }
+}
+
+fn rotate_camera_down(app_state: &mut AppState) {
+    match &mut app_state.camera {
+        Some(c) => {
+            c.transform.rotate([5.0, 0.0, 0.0]);
+        }
+        None => {
+            println!("No camera found to rotate, could not rotate camera");
+        }
+    }
+}
+
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
@@ -132,36 +265,40 @@ fn main() {
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     object.name = "Suzanne".to_string();
-    object.transform.set_position([0.0, 0.0, -2.0]);
+    object.transform.set_position([0.0, 0.0, 2.0]);
 
     // adding all the objects
     app_state.add_object(object);
 
     // add ground
-    let mut ground_object = Object::primitive_plane(20,10);
-    ground_object.set_name("Ground".to_string());
-    ground_object.transform.set_position([-10.0, -0.5, -5.0]);
-    let mut ground_material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
-    ground_material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
-    ground_material.set_color([1.0, 1.0, 1.0]);
-    ground_material.set_roughness_strength(1.0);
-    ground_object.add_material(ground_material);
-    ground_object.get_shapes_mut()[0].set_material_from_object_list(0);
-    app_state.add_object(ground_object);
+    let mut cube = Object::primitive_cube(10.0, true);
+    let material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
+    //cube.set_name("Ground".to_string());
+    cube.add_material(material);
+    app_state.add_object(cube);
+
+    // add plane
+    let mut plane = Object::primitive_plane(10, 10);
+    let material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
+    plane.transform.set_position([-5.0, 0.0, -5.0]);
+    plane.add_material(material);
+    app_state.add_object(plane);
+
+    // add light_cube
+    let mut light_cube = Object::primitive_cube(0.1, true);
+    let material = enigma::material::Material::unlit(event_loop.display.clone(), false);
+    light_cube.set_name("LightCube".to_string());
+    light_cube.add_material(material);
+    app_state.add_object(light_cube);
+
+
 
     // add lighting
     let light1 = enigma::light::Light::new([0.0, 3.0, 0.0], [1.0, 1.0, 1.0], 30.0, true);
-    let light2 = enigma::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 10.0, false);
-    let light3 = enigma::light::Light::new([0.0, 1.0, 5.0], [0.0, 0.0, 1.0], 10.0, false);
-    let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.10, false);
-
     app_state.add_light(light1, enigma::light::LightType::Point);
-    //app_state.add_light(light2, enigma::light::LightType::Point);
-    //app_state.add_light(light3, enigma::light::LightType::Point);
-    //app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
 
     // add a camera
-    let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
+    let camera = Camera::new(Some([0.0, 0.0, 10.0]), Some([0.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
     // add events
@@ -194,15 +331,51 @@ fn main() {
         Arc::new(spawn_object),
     );
 
-    // add update
-    //app_state.inject_update_function(Arc::new(hopping_objects));
-    //app_state.inject_update_function(Arc::new(remove_object));
-    app_state.inject_update_function(Arc::new(move_light));
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::NumpadAdd),
+        Arc::new(camera_up),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::NumpadSubtract),
+        Arc::new(camera_down),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Left),
+        Arc::new(camera_left),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Right),
+        Arc::new(camera_right),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Up),
+        Arc::new(camera_forward),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Down),
+        Arc::new(camera_back),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::F),
+        Arc::new(rotate_camera_left),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::H),
+        Arc::new(rotate_camera_right),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::T),
+        Arc::new(rotate_camera_up),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::G),
+        Arc::new(rotate_camera_down),
+    );
 
-    // add post processing
-    //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
-    //app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
-    //app_state.add_post_process(Box::new(Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    // add update
+    app_state.inject_update_function(Arc::new(move_light));
+    //app_state.inject_update_function(Arc::new(print_camera_position_and_rotation));
+
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());

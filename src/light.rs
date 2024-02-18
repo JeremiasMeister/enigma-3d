@@ -36,16 +36,16 @@ impl Light {
     pub fn calculate_view_matrix_for_cubemap_face(&self, face_index: usize) -> Matrix4<f32> {
         let light_position = Point3::from(self.position);
         let (target, up) = match face_index {
-            0 => (light_position + Vector3::x(), Vector3::y()),
-            1 => (light_position - Vector3::x(), Vector3::y()),
-            2 => (light_position + Vector3::y(), Vector3::z()),
-            3 => (light_position - Vector3::y(), Vector3::z()),
-            4 => (light_position - Vector3::z(), Vector3::y()),
-            5 => (light_position + Vector3::z(), Vector3::y()),
+            0 => (light_position - Vector3::x(), Vector3::y()),
+            1 => (light_position + Vector3::x(), Vector3::y()),
+            2 => (light_position - Vector3::y(), Vector3::z()),
+            3 => (light_position + Vector3::y(), -Vector3::z()),
+            4 => (light_position + Vector3::z(), Vector3::y()),
+            5 => (light_position - Vector3::z(), Vector3::y()),
             _ => panic!("Invalid cubemap face index"),
         };
 
-        Matrix4::look_at_lh(&light_position, &target, &Unit::new_normalize(up))
+        Matrix4::look_at_rh(&light_position, &target, &Unit::new_normalize(up))
     }
 
     pub fn calculate_projection_matrix_for_point_light(&self, near_plane: f32, far_plane: f32) -> Matrix4<f32> {
