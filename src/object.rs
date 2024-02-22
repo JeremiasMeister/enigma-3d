@@ -81,6 +81,104 @@ impl Object {
         object
     }
 
+    pub fn primitive_cube(size: f32) -> Self {
+        let mut object = Object::new(Some(String::from("Cube")));
+        let mut vertices = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+
+        // Define the vertices for each face of the cube
+        let half_size = size / 2.0;
+        let positions = [
+            // Front face
+            [-half_size, -half_size, half_size], // Bottom-left
+            [half_size, -half_size, half_size],  // Bottom-right
+            [half_size, half_size, half_size],   // Top-right
+            [-half_size, half_size, half_size],  // Top-left
+            // Back face
+            [-half_size, -half_size, -half_size], // Bottom-left
+            [-half_size, half_size, -half_size],  // Top-left
+            [half_size, half_size, -half_size],   // Top-right
+            [half_size, -half_size, -half_size],  // Bottom-right
+        ];
+
+        let normals = [
+            [0.0, 0.0, 1.0],  // Front face
+            [0.0, 0.0, -1.0], // Back face
+            [1.0, 0.0, 0.0],  // Right face
+            [-1.0, 0.0, 0.0], // Left face
+            [0.0, 1.0, 0.0],  // Top face
+            [0.0, -1.0, 0.0], // Bottom face
+        ];
+
+        // Create each face in CW order
+        let face_indices = [
+            [0, 1, 2, 3], // Front face
+            [4, 5, 6, 7], // Back face
+            [1, 7, 6, 2], // Right face
+            [4, 0, 3, 5], // Left face
+            [3, 2, 6, 5], // Top face
+            [4, 7, 1, 0], // Bottom face
+        ];
+
+        for &normal in &normals {
+            for &face in &face_indices {
+                vertices.extend(face.iter().map(|&i| {
+                    let position = positions[i];
+                    Vertex {
+                        position,
+                        color: [1.0, 1.0, 1.0],
+                        texcoord: [position[0] + 0.5, position[2] + 0.5],
+                        normal,
+                    }
+                }));
+            }
+        }
+
+        // Each face is two triangles, so 6 indices per face
+        for (face_index, &face) in face_indices.iter().enumerate() {
+            let base_index = (face_index * 4) as u32;
+            indices.extend_from_slice(&[
+                base_index,
+                base_index + 1,
+                base_index + 2,
+                base_index,
+                base_index + 2,
+                base_index + 3, // First triangle
+            ]);
+        }
+
+        let shape = Shape::from_vertices_indices(vertices, indices);
+        object.add_shape(shape);
+        object
+    }
+
+
+    pub fn primitive_plane(size_x: i32, size_z: i32) -> Self {
+        let mut object = Object::new(Some(String::from("Plane")));
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for x in 0..size_x {
+            for z in 0..size_z {
+                vertices.push(Vertex { position: [x as f32, 0.0, z as f32], color: [1.0, 1.0, 1.0], texcoord: [0.0, 0.0], normal: [0.0, 1.0, 0.0] });
+                vertices.push(Vertex { position: [x as f32 + 1.0, 0.0, z as f32], color: [1.0, 1.0, 1.0], texcoord: [1.0, 0.0], normal: [0.0, 1.0, 0.0] });
+                vertices.push(Vertex { position: [x as f32 + 1.0, 0.0, z as f32 + 1.0], color: [1.0, 1.0, 1.0], texcoord: [1.0, 1.0], normal: [0.0, 1.0, 0.0] });
+                vertices.push(Vertex { position: [x as f32, 0.0, z as f32 + 1.0], color: [1.0, 1.0, 1.0], texcoord: [0.0, 1.0], normal: [0.0, 1.0, 0.0] });
+                let index = (x * size_z + z) * 4;
+                // Reverse the order of the last three indices for each triangle to change the winding order
+                indices.push(index.try_into().unwrap());
+                indices.push((index + 2).try_into().unwrap()); // Swapped from index + 1 to index + 2
+                indices.push((index + 1).try_into().unwrap()); // Swapped from index + 2 to index + 1
+                indices.push(index.try_into().unwrap());
+                indices.push((index + 3).try_into().unwrap()); // Swapped from index + 2 to index + 3
+                indices.push((index + 2).try_into().unwrap()); // Swapped from index + 3 to index + 2
+            }
+        }
+        let shape = Shape::from_vertices_indices(vertices, indices);
+        object.add_shape(shape);
+        object
+    }
+
+
     pub fn get_unique_id(&self) -> Uuid {
         self.unique_id
     }
@@ -347,8 +445,8 @@ impl Transform {
         self.scale.clone()
     }
 
-    pub fn get_matrix(&mut self) -> [[f32; 4]; 4] {
+    pub fn get_matrix(&mut self) -> Matrix4<f32> {
         self.update();
-        self.matrix.into()
+        self.matrix
     }
 }

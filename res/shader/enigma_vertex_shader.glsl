@@ -16,6 +16,7 @@ in uint index;
 
 
 out vec3 world_position;
+out vec3 world_normal;
 out vec3 view_direction;
 
 out vec3 vertex_color;
@@ -35,14 +36,19 @@ uniform float mat_metallic_strength;
 void main() {
     vec3 pos = position;
     float movement = 0.2;
-
     mat4 modelview = view_matrix * model_matrix;
+    mat3 normal_matrix = transpose(inverse(mat3(modelview)));
 
     gl_Position = projection_matrix * modelview * vec4(position, 1.0);
 
     world_position = (modelview * vec4(position, 1.0)).xyz;
+    world_normal = normal_matrix * normal;
     vertex_normal = transpose(inverse(mat3(modelview))) * normal;
-    view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
+
+    vec3 camera_world_position = (inverse(view_matrix) * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    view_direction = camera_world_position - world_position;
+
+    //view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
 
     vertex_color = color;
     vertex_texcoord = texcoord;

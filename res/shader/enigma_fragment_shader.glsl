@@ -8,9 +8,12 @@ uniform vec4 light_intensity;
 uniform int light_amount;
 uniform vec3 ambient_light_color;
 uniform float ambient_light_intensity;
+uniform float near; // Camera's near plane
+uniform float far;  // Camera's far plane
 
 //attributes
 in vec3 world_position;
+in vec3 world_normal;
 in vec3 view_direction;
 in vec3 vertex_color;
 in vec3 vertex_normal;
@@ -41,6 +44,8 @@ const float PI = 3.14159265359;
 vec2 getSphereMapUV(vec3 dir) {
     float u = atan(dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
     float v = asin(dir.y) / 3.14159265 + 0.5;
+    u = fract(u);
+    v = fract(v);
     return vec2(u, v);
 }
 
@@ -85,11 +90,10 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 vec4 calculatePBRColor(vec3 viewDir) {
     // Fetch material properties
     vec4 albedo_texel = texture(mat_albedo, vertex_texcoord);
-    float albedo_alpha = albedo_texel.a;
     vec3 albedo = albedo_texel.rgb * mat_color;
     vec3 normal = normalize(vertex_normal + (texture(mat_normal, vertex_texcoord).rgb - 0.5) * mat_normal_strength);
-    float roughness = texture(mat_roughness, vertex_texcoord).r * mat_roughness_strength;
-    float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
+    float roughness = max(texture(mat_roughness, vertex_texcoord).r, mat_roughness_strength);
+    float metallic = max(texture(mat_metallic, vertex_texcoord).r, mat_metallic_strength);
     vec3 emissive = texture(mat_emissive, vertex_texcoord).rgb * mat_emissive_strength;
 
     // Calculate reflectance at normal incidence
@@ -98,14 +102,16 @@ vec4 calculatePBRColor(vec3 viewDir) {
 
     vec3 result = vec3(0.0);
     for(int i = 0; i < light_amount; i++) {
-        // Light calculations for each active light
         vec3 lightDir = normalize(light_position[i].xyz - world_position);
-        vec3 halfDir = normalize(lightDir + viewDir);
         float distance = length(light_position[i].xyz - world_position);
-        float attenuation = 1.0 / (distance * distance);
+        //float attenuation = 1.0 / (distance * distance);
+        float attenuation = 1.0 / (distance * distance + 0.1 * distance + 0.01);
         vec3 radiance = light_color[i].xyz * light_intensity[i] * attenuation;
 
-        // Cook-Torrance BRDF
+        // Apply shadow
+        // TODO!
+
+        vec3 halfDir = normalize(lightDir + viewDir);
         float NDF = DistributionGGX(normal, halfDir, roughness);
         float G = GeometrySmith(normal, viewDir, lightDir, roughness);
         vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
@@ -116,33 +122,31 @@ vec4 calculatePBRColor(vec3 viewDir) {
 
         float NdotL = max(dot(normal, lightDir), 0.0);
 
-        // Combine terms
         vec3 numerator = NDF * G * F;
         float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * NdotL + 0.0001;
         vec3 specular = numerator / denominator;
 
-        // Ambient and diffuse lighting
         vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
         vec3 diffuse = kD * albedo / PI;
-        vec3 reflection = (diffuse + specular) * radiance * NdotL;
+
+        // Only direct light (diffuse + specular) is affected by shadows
+        vec3 directLight = (diffuse + specular) * radiance * NdotL; // * (1.0 - shadow);
 
         // Accumulate result from this light
-        result += ambient + reflection;
+        result += ambient + directLight;
     }
 
-    // Calculate reflection vector for environmental lighting
+    // Environmental reflection calculations
     vec3 reflectionVector = reflect(-viewDir, normal);
     vec2 uv = getSphereMapUV(reflectionVector);
     vec3 envReflection = texture(skybox, uv).rgb;
-
-    // Apply fresnel effect to the environmental reflection
     vec3 fresnelEffect = fresnelSchlick(max(dot(viewDir, normal), 0.0), F0);
-    vec3 envReflectionWithFresnel = envReflection * fresnelEffect * (1.0 - metallic);
+    vec3 envReflectionWithFresnel = envReflection * fresnelEffect * (1.0 - metallic) * (1.0 - roughness);
 
-    // Combine PBR lighting with environmental reflection
+    // Combine PBR lighting with environmental reflection and emissive
     vec3 finalColor = result + emissive + envReflectionWithFresnel;
 
-    return vec4(finalColor, albedo_alpha * mat_transparency_strength);
+    return vec4(finalColor, albedo_texel.a * mat_transparency_strength);
 }
 
 void main() {

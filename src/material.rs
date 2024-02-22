@@ -23,8 +23,7 @@ pub struct Material {
     _tex_black: glium::texture::SrgbTexture2d,
     _tex_gray: glium::texture::SrgbTexture2d,
     _tex_normal: glium::texture::SrgbTexture2d,
-    //this should be a raw image
-    pub display: glium::Display<WindowSurface>,
+    pub display: Display<WindowSurface>,
     pub program: glium::Program,
     pub time: f32,
     pub matrix: [[f32; 4]; 4],
@@ -78,7 +77,7 @@ impl Material {
         Self {
             name: None,
             shader,
-            display,
+            display: display.clone(),
             color: color.unwrap_or_else(|| [1.0, 1.0, 1.0]),
             albedo: match albedo {
                 Some(albedo) => Some(albedo),
@@ -94,12 +93,12 @@ impl Material {
                 Some(roughness) => Some(roughness),
                 None => None,
             },
-            roughness_strength: roughness_strength.unwrap_or_else(|| 1.0),
+            roughness_strength: roughness_strength.unwrap_or_else(|| 0.5),
             metallic: match metallic {
                 Some(metallic) => Some(metallic),
                 None => None,
             },
-            metallic_strength: metallic_strength.unwrap_or_else(|| 1.0),
+            metallic_strength: metallic_strength.unwrap_or_else(|| 0.0),
             emissive: match emissive {
                 Some(emissive) => Some(emissive),
                 None => None,
@@ -201,10 +200,11 @@ impl Material {
             light_amount = 4;
         }
 
-        let mut light_position: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
-        let mut light_color: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
-        let mut light_intensity: [f32;4] = [0.0, 0.0, 0.0, 0.0];
+        let mut light_position: [[f32; 4]; 4] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+        let mut light_color: [[f32; 4]; 4] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+        let mut light_intensity: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
 
+        // a maximum of 4 lights can be passed to the shader
         for i in 0..5 {
             if i < light_amount as usize {
                 light_position[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
@@ -246,27 +246,27 @@ impl Material {
             },
             mat_color: self.color,
             mat_albedo: match &self.albedo {
-                Some(albedo) => &albedo.texture,
-                None => &self._tex_white
+                Some(albedo) => albedo.texture.sampled(),
+                None => self._tex_white.sampled()
             },
             mat_normal: match &self.normal {
-                Some(normal) => &normal.texture,
-                None => &self._tex_normal,
+                Some(normal) => normal.texture.sampled(),
+                None => self._tex_normal.sampled(),
             },
             mat_normal_strength: self.normal_strength,
             mat_roughness: match &self.roughness {
-                Some(roughness) => &roughness.texture,
-                None => &self._tex_gray
+                Some(roughness) => roughness.texture.sampled(),
+                None => self._tex_gray.sampled()
             },
             mat_roughness_strength: self.roughness_strength,
             mat_metallic: match &self.metallic {
-                Some(metallic) => &metallic.texture,
-                None => &self._tex_black
+                Some(metallic) => metallic.texture.sampled(),
+                None => self._tex_black.sampled()
             },
             mat_metallic_strength: self.metallic_strength,
             mat_emissive: match &self.emissive {
-                Some(emissive) => &emissive.texture,
-                None => &self._tex_black
+                Some(emissive) => emissive.texture.sampled(),
+                None => self._tex_black.sampled()
             },
             mat_emissive_strength: self.emissive_strength,
             mat_transparency_strength: self.transparency,
@@ -278,6 +278,14 @@ impl Material {
             ambient_light_intensity: light_block.ambient_intensity,
             model_matrix: model_matrix.unwrap_or_else(|| self.matrix),
             skybox: &skybox.texture,
+            far: match camera {
+                Some(camera) => camera.far,
+                None => 100.0,
+            },
+            near: match camera {
+                Some(camera) => camera.near,
+                None => 0.1,
+            },
         }
     }
 
