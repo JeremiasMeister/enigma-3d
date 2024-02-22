@@ -23,10 +23,11 @@ pub mod event;
 pub mod collision_world;
 pub mod default_events;
 pub mod postprocessing;
+pub mod ui;
 
 
 pub fn init_default(app_state: &mut AppState) {
-    app_state.set_renderscale(2);
+    app_state.set_renderscale(1);
     app_state.set_fps(60);
     app_state.set_max_buffers(3);
 
@@ -57,6 +58,7 @@ pub struct AppState {
     pub render_scale: u32,
     pub max_buffers: usize,
     mouse_position: MousePosition,
+    gui: Option<ui::UI>,
 }
 
 pub struct EventLoop {
@@ -85,7 +87,20 @@ impl AppState {
             render_scale: 1,
             max_buffers: 3,
             mouse_position: MousePosition::new(),
+            gui: None,
         }
+    }
+
+    pub fn get_gui(&self) -> &Option<ui::UI> {
+        &self.gui
+    }
+
+    pub fn get_gui_mut(&mut self) -> &mut Option<ui::UI> {
+        &mut self.gui
+    }
+
+    pub fn set_gui(&mut self, gui: ui::UI) {
+        self.gui = Some(gui);
     }
 
     pub fn add_post_process(&mut self, post_process: Box<dyn PostProcessingEffect>) {
@@ -248,10 +263,11 @@ impl AppState {
 }
 
 impl EventLoop {
-    pub fn new(title: &str) -> Self {
+    pub fn new(title: &str, width: u32, height: u32) -> Self {
         let event_loop = winit::event_loop::EventLoopBuilder::new().build();
         let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
             .with_title(title)
+            .with_inner_size(width, height)
             .build(&event_loop);
         EventLoop {
             event_loop,
@@ -311,6 +327,14 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
+        //initializing GUI
+        match temp_app_state.get_gui_mut() {
+            Some(ref mut gui) => {
+                gui.init(&self);
+            },
+            None => {}
+        }
+
         //dropping modified appstate
         drop(temp_app_state);
 
@@ -318,6 +342,8 @@ impl EventLoop {
         let screen_vert_rect = postprocessing::get_screen_vert_rect(&self.display);
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
         let screen_program = postprocessing::get_screen_program(&self.display);
+
+        let mut egui_glium = egui_glium::EguiGlium::new(&self.display, &self.window, &self.event_loop);
 
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
@@ -341,7 +367,6 @@ impl EventLoop {
 
             // passing skybox
             let skybox_texture = &skybox_texture;
-
 
             match event {
                 Event::WindowEvent { event, .. } => match event {
@@ -464,6 +489,16 @@ impl EventLoop {
                         &screen_uniforms,
                         &Default::default(),
                     ).expect("Failed to draw screen");
+
+                    match app_state.get_gui_mut() {
+                        Some(ref mut gui) => {
+                            gui.draw_gui(&self.window, &self.display, &mut screen_target);
+                        },
+                        None => {}
+                    }
+
+
+
                     screen_target.finish().expect("Failed to swap buffers");
                 }
                 Event::MainEventsCleared => {

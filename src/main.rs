@@ -74,7 +74,7 @@ fn spawn_object(app_state: &mut AppState) {
 
 fn main() {
     // create an enigma eventloop and appstate
-    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
+    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
     let mut app_state = enigma::AppState::new();
 
     // some default event setups like selection
@@ -164,6 +164,20 @@ fn main() {
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+
+    //add UI
+    let mut gui = enigma::ui::UI::new();
+    gui.inject_gui(|ctx| {
+        egui::Window::new("Enigma")
+            .default_width(200.0)
+            .default_height(200.0)
+            .show(ctx, |ui| {
+                ui.label("Enigma 3D Renderer");
+                ui.label("Press A, D, W, S, E, Q to rotate the selected object");
+                ui.label("Press Space to spawn a new object");
+            });
+    });
+    app_state.set_gui(gui);
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());

@@ -21,6 +21,7 @@ obj-rs = "0.7.1"
 winit = "0.28.7"
 rand = "0.8.5"
 uuid = { version = "1.0", features = ["v4"] }
+egui_glium = "0.23.0"
 
 [package.metadata.bundle]
 name = "Enigma 3D"
