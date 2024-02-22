@@ -312,7 +312,7 @@ impl EventLoop {
         (object, skybox_texture)
     }
 
-   pub fn run(self, app_state: Arc<Mutex<AppState>>) {
+    pub fn run(self, app_state: Arc<Mutex<AppState>>) {
         let mut temp_app_state = app_state.lock().unwrap();
         temp_app_state.display = Some(self.display.clone());
 
@@ -339,7 +339,7 @@ impl EventLoop {
         }
 
         // shadow map creation
-        // TODO!
+        // TODO: make depth cubemaps for each point light, which has .cast_shadow = true
 
         //dropping modified appstate
         drop(temp_app_state);
@@ -363,11 +363,17 @@ impl EventLoop {
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
 
+            // passing skybox
+            let skybox_texture = &skybox_texture;
+
             // passing textures and creating fbo's
             let texture = &mut texture;
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
+
+            // passing shadow map
+            //TODO: ensure, the shadow_maps are passed properly in the loop
 
 
             // prepare rendering parameters
@@ -399,9 +405,6 @@ impl EventLoop {
                 backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
                 ..Default::default()
             };
-
-            // passing skybox
-            let skybox_texture = &skybox_texture;
 
 
             match event {
@@ -447,7 +450,7 @@ impl EventLoop {
                     });
 
                     //render shadow maps
-                    //TODO!
+                    // TODO: render shadow maps for each point light, which has .cast_shadow = true
 
                     // render objects opaque
                     for object in app_state.objects.iter_mut() {
