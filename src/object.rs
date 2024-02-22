@@ -417,19 +417,21 @@ pub struct Transform {
 
 impl Transform {
     pub fn new() -> Self {
-        Transform {
+        let mut transform = Transform {
             position: Vector3::new(0.0, 0.0, 0.0),
             rotation: Vector3::new(0.0, 0.0, 0.0),
             scale: Vector3::new(1.0, 1.0, 1.0),
             matrix: Matrix4::identity(),
-        }
+        };
+        transform.update();
+        transform
     }
     pub fn update(&mut self) {
         let scale_matrix = Matrix4::new_nonuniform_scaling(&self.scale);
         let rotation_matrix = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z).to_homogeneous();
         let translation_matrix = Translation3::from(self.position).to_homogeneous();
-        // Scale, then rotate, then translate
-        self.matrix = scale_matrix * rotation_matrix * translation_matrix;
+
+        self.matrix = translation_matrix * rotation_matrix * scale_matrix; // scale_matrix * rotation_matrix * translation_matrix; // <- this rotates around the world origin
     }
 
 

@@ -239,9 +239,30 @@ impl Material {
         }
     }
 
+    fn get_view_projection_matrices_for_lights(light_block: &LightBlock) -> Vec<[[f32;4];4]> {
+        let mut view_projection_matrices = Vec::new();
+        for i in 0..5 {
+            if i < light_block.amount as usize {
+                let light = Light::new(
+                    [light_block.position[i][0], light_block.position[i][1], light_block.position[i][2]],
+                    [light_block.color[i][0], light_block.color[i][1], light_block.color[i][2]],
+                    light_block.intensity[i],
+                    false,
+                );
+                let view_matrix = light.calculate_view_matrix_for_cubemap_face(i);
+                let projection_matrix = light.calculate_projection_matrix_for_point_light(0.1, 100.0);
+                view_projection_matrices.push((projection_matrix * view_matrix).into());
+            } else {
+                view_projection_matrices.push([[0.0; 4]; 4]);
+            }
+        }
+        view_projection_matrices
+    }
+
     pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture, shadow_maps: &mut Vec<&'a glium::texture::DepthCubemap>) -> impl glium::uniforms::Uniforms + '_ {
 
         let light_block = Material::light_block_from_vec(lights, ambient_light);
+        let view_projection_matrices = Material::get_view_projection_matrices_for_lights(&light_block);
         for i in 0..5 { // ensure to have exactly 4 shadow maps for the shader to calculate on
             if shadow_maps.len() < i {
                 shadow_maps.push(&self._tex_depth);
@@ -301,11 +322,16 @@ impl Material {
                 Some(camera) => camera.near,
                 None => 0.1f32,
             },
+            shadow_near: 0.01f32,
             shadow_far: 100.0f32, // TODO: expose this to the user
             shadow_map0: shadow_maps[0].sampled().wrap_function(SamplerWrapFunction::Clamp),
             shadow_map1: shadow_maps[1].sampled().wrap_function(SamplerWrapFunction::Clamp),
             shadow_map2: shadow_maps[2].sampled().wrap_function(SamplerWrapFunction::Clamp),
             shadow_map3: shadow_maps[3].sampled().wrap_function(SamplerWrapFunction::Clamp),
+            shadow_vp_matrix0: view_projection_matrices[0],
+            shadow_vp_matrix1: view_projection_matrices[1],
+            shadow_vp_matrix2: view_projection_matrices[2],
+            shadow_vp_matrix3: view_projection_matrices[3],
         }
     }
 

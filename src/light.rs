@@ -13,6 +13,7 @@ pub struct Light {
     pub color: [f32; 3],
     pub intensity: f32,
     pub cast_shadow: bool,
+    direction: [f32; 4],
 }
 
 pub struct LightBlock {
@@ -30,6 +31,22 @@ impl Light {
             color,
             intensity,
             cast_shadow,
+            direction: [0.0, 0.0, 0.0, 0.0],
+        }
+    }
+
+    pub fn set_direction(&mut self, is_directional: bool, direction: Option<[f32; 3]>) {
+        match direction {
+            Some(direction) => {
+                if is_directional {
+                    self.direction = [direction[0], direction[1], direction[2], 1.0];
+                } else {
+                    self.direction = [direction[0], direction[1], direction[2], 0.0];
+                }
+            },
+            None => {
+                    self.direction = [0.0, 0.0, 0.0, 0.0];
+            }
         }
     }
 
@@ -45,7 +62,9 @@ impl Light {
             _ => panic!("Invalid cubemap face index"),
         };
 
-        Matrix4::look_at_rh(&light_position, &target, &Unit::new_normalize(up))
+        let mut view_matrix = Matrix4::look_at_rh(&light_position, &target, &Unit::new_normalize(up));
+        view_matrix *= Matrix4::new_nonuniform_scaling(&Vector3::new(1.0, 1.0, -1.0)); // very dirty hack to fix the inverted z-axis. this is just masking the underlaying problem with my projection space.
+        view_matrix
     }
 
     pub fn calculate_projection_matrix_for_point_light(&self, near_plane: f32, far_plane: f32) -> Matrix4<f32> {

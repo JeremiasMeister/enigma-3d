@@ -475,7 +475,7 @@ impl EventLoop {
                             continue;
                         }
                         let map = &mut shadow_maps[index];
-                        let light_projection_matrix = light.calculate_projection_matrix_for_point_light(0.1, 100.0); //TODO: expose shadow far clip planes in app_state
+                        let light_projection_matrix = light.calculate_projection_matrix_for_point_light(0.01, 100.0); //TODO: expose shadow far clip planes in app_state
                         for i in 0..6{
                             let face = texture::cube_layer_from_index(i);
                             let mut shadow_fbo = glium::framebuffer::SimpleFrameBuffer::depth_only(&self.display, map.main_level().image(face)).expect("Failed to create shadow framebuffer");
