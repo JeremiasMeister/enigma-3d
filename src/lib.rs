@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
@@ -52,19 +53,20 @@ pub struct AppState {
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
     pub update_injections: Vec<event::EventFunction>,
+    pub gui_injections: Vec<ui::GUIDrawFunction>,
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
     pub render_scale: u32,
     pub max_buffers: usize,
     mouse_position: MousePosition,
-    gui: Option<ui::UI>,
 }
 
 pub struct EventLoop {
     pub event_loop: winit::event_loop::EventLoop<()>,
     pub window: Window,
     pub display: Display<WindowSurface>,
+    gui_renderer: Option<EguiGlium>,
 }
 
 
@@ -87,20 +89,12 @@ impl AppState {
             render_scale: 1,
             max_buffers: 3,
             mouse_position: MousePosition::new(),
-            gui: None,
+            gui_injections: Vec::new(),
         }
     }
 
-    pub fn get_gui(&self) -> &Option<ui::UI> {
-        &self.gui
-    }
-
-    pub fn get_gui_mut(&mut self) -> &mut Option<ui::UI> {
-        &mut self.gui
-    }
-
-    pub fn set_gui(&mut self, gui: ui::UI) {
-        self.gui = Some(gui);
+    pub fn inject_gui(&mut self, function: ui::GUIDrawFunction) {
+        self.gui_injections.push(function);
     }
 
     pub fn add_post_process(&mut self, post_process: Box<dyn PostProcessingEffect>) {
@@ -273,6 +267,7 @@ impl EventLoop {
             event_loop,
             window,
             display,
+            gui_renderer: None,
         }
     }
     pub fn get_display_clone(&self) -> Display<WindowSurface> {
@@ -305,7 +300,7 @@ impl EventLoop {
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
-    pub fn run(self, app_state: Arc<Mutex<AppState>>) {
+    pub fn run(mut self, app_state: Arc<Mutex<AppState>>) {
         let mut temp_app_state = app_state.lock().unwrap();
         temp_app_state.display = Some(self.display.clone());
 
@@ -327,14 +322,6 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
-        //initializing GUI
-        match temp_app_state.get_gui_mut() {
-            Some(ref mut gui) => {
-                gui.init(&self);
-            },
-            None => {}
-        }
-
         //dropping modified appstate
         drop(temp_app_state);
 
@@ -343,7 +330,14 @@ impl EventLoop {
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
         let screen_program = postprocessing::get_screen_program(&self.display);
 
-        let mut egui_glium = egui_glium::EguiGlium::new(&self.display, &self.window, &self.event_loop);
+        //initializing GUI
+        match self.gui_renderer {
+            Some(_) => {}
+            None => {
+                let egui_glium = EguiGlium::new(&self.display, &self.window, &self.event_loop);
+                self.gui_renderer = Some(egui_glium);
+            }
+        }
 
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
@@ -354,7 +348,7 @@ impl EventLoop {
             let camera = app_state.camera.clone();
             let event_injections = app_state.event_injections.clone();
             let update_injections = app_state.update_injections.clone();
-
+            let gui_injections = app_state.gui_injections.clone();
 
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
@@ -490,15 +484,14 @@ impl EventLoop {
                         &Default::default(),
                     ).expect("Failed to draw screen");
 
-                    match app_state.get_gui_mut() {
-                        Some(ref mut gui) => {
-                            gui.draw_gui(&self.window, &self.display, &mut screen_target);
-                        },
-                        None => {}
-                    }
-
-
-
+                    // drawing GUI
+                    let gui_renderer = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer");
+                    gui_renderer.run(&self.window, | egui_context | {
+                        for function in gui_injections.iter() {
+                            function(egui_context, &mut app_state);
+                        }
+                    });
+                    gui_renderer.paint(&self.display, &mut screen_target);
                     screen_target.finish().expect("Failed to swap buffers");
                 }
                 Event::MainEventsCleared => {

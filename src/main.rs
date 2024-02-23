@@ -72,6 +72,39 @@ fn spawn_object(app_state: &mut AppState) {
     }
 }
 
+fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
+    egui::Window::new("Enigma")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            ui.label("Enigma 3D Renderer");
+            ui.label("Press A, D, W, S, E, Q to rotate the selected object");
+            ui.label("Press Space to spawn a new object");
+        });
+
+    egui::Window::new("Selected Object")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            if app_state.get_selected_objects_mut().len() > 0 {
+                ui.label(format!("Selected: {}", app_state.get_selected_objects_mut()[0].name));
+                ui.label(format!("Position: {:?}", app_state.get_selected_objects_mut()[0].transform.get_position()));
+                ui.label(format!("Rotation: {:?}", app_state.get_selected_objects_mut()[0].transform.get_rotation()));
+                ui.label(format!("Scale: {:?}", app_state.get_selected_objects_mut()[0].transform.get_scale()));
+            } else {
+                ui.label("No object selected");
+            }
+        });
+    egui::Window::new("Edit Scene")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            if ui.button("Add Object").clicked() {
+                spawn_object(app_state);
+            }
+        });
+}
+
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
@@ -166,18 +199,7 @@ fn main() {
     app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 
     //add UI
-    let mut gui = enigma::ui::UI::new();
-    gui.inject_gui(|ctx| {
-        egui::Window::new("Enigma")
-            .default_width(200.0)
-            .default_height(200.0)
-            .show(ctx, |ui| {
-                ui.label("Enigma 3D Renderer");
-                ui.label("Press A, D, W, S, E, Q to rotate the selected object");
-                ui.label("Press Space to spawn a new object");
-            });
-    });
-    app_state.set_gui(gui);
+    app_state.inject_gui(Arc::new(enigma_ui_function));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
