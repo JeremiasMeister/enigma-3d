@@ -3,6 +3,7 @@ use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
 use rand::Rng;
+use uuid::Uuid;
 use enigma::postprocessing::bloom::Bloom;
 
 fn rotate_left(app_state: &mut AppState) {
@@ -82,17 +83,20 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
             ui.label("Press Space to spawn a new object");
         });
 
-    egui::Window::new("Selected Object")
+    egui::Window::new("Scene")
         .default_width(200.0)
         .default_height(200.0)
         .show(ctx, |ui| {
-            if app_state.get_selected_objects_mut().len() > 0 {
-                ui.label(format!("Selected: {}", app_state.get_selected_objects_mut()[0].name));
-                ui.label(format!("Position: {:?}", app_state.get_selected_objects_mut()[0].transform.get_position()));
-                ui.label(format!("Rotation: {:?}", app_state.get_selected_objects_mut()[0].transform.get_rotation()));
-                ui.label(format!("Scale: {:?}", app_state.get_selected_objects_mut()[0].transform.get_scale()));
-            } else {
-                ui.label("No object selected");
+            ui.label("Scene Objects");
+            for object in app_state.objects.iter() {
+                if ui.button(object.name.clone()).clicked() {
+                    let uuid = object.get_unique_id();
+                    if !app_state.object_selection.contains(&uuid) {
+                        app_state.object_selection.push(uuid);
+                    } else {
+                        app_state.object_selection.remove(app_state.object_selection.iter().position(|x| *x == uuid).unwrap());
+                    }
+                }
             }
         });
     egui::Window::new("Transform Edit")
