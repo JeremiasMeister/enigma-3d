@@ -33,6 +33,13 @@ impl Shader {
         }
     }
 
+    pub fn from_strings(vertex_shader: &str, fragment_shader: &str) -> Self {
+        Self {
+            fragment_shader: String::from(fragment_shader),
+            vertex_shader: String::from(vertex_shader),
+        }
+    }
+
     pub fn log(&self) {
         println!("Vertex Shader:\n{}", self.vertex_shader);
         println!("Fragment Shader:\n{}", self.fragment_shader);

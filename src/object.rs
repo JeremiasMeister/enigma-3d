@@ -242,6 +242,41 @@ impl Object {
         object
     }
 
+    pub fn load_from_gltf_resource(data: &[u8]) -> Self {
+        let (gltf, buffers, _) = gltf::import_slice(data).expect("Failed to import gltf file"); // gltf::import(path).expect("Failed to import gltf file");
+
+        let mut object = Object::new(Some(String::from("INTERNAL ENIGMA RESOURCE")));
+
+        for mesh in gltf.meshes() {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                let positions = reader.read_positions().unwrap();
+                let normals = reader.read_normals().unwrap();
+                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
+                let prim_indices = reader.read_indices().unwrap().into_u32();
+
+                let mut flipped_tex_coords: Vec<[f32;2]> = Vec::new();
+                // flip tex_coords
+                for mut tex_coord in tex_coords.into_iter() {
+                    tex_coord[1] = 1.0 - tex_coord[1];
+                    flipped_tex_coords.push(tex_coord);
+                }
+
+                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
+                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
+                    vertices.push(vertex);
+                }
+
+                prim_indices.for_each(|index| indices.push(index));
+            }
+            let shape = Shape::from_vertices_indices(vertices, indices);
+            object.add_shape(shape);
+        }
+        object
+    }
+
     pub fn load_from_gltf(path: &str) -> Self {
         let (gltf, buffers, _) = gltf::import(path).expect("Failed to import gltf file");
 

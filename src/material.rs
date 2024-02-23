@@ -1,7 +1,7 @@
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
-use crate::{shader, texture};
+use crate::{resources, shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
 
@@ -183,14 +183,24 @@ impl Material {
         }
     }
 
+    pub fn set_texture_from_resource(&mut self, data: &[u8], texture_type: TextureType) {
+        match texture_type {
+            TextureType::Albedo => self.albedo = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Normal => self.normal = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Roughness => self.roughness = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Metallic => self.metallic = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Emissive => self.emissive = Some(texture::Texture::from_resource(&self.display, data)),
+        }
+    }
+
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_shader.glsl"), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_files("res/shader/enigma_vertex_shader.glsl", "res/shader/enigma_fragment_unlit.glsl"), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER), &display);
         mat.set_transparency(transparency);
         mat
     }
