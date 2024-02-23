@@ -287,7 +287,11 @@ impl Object {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             for primitive in mesh.primitives() {
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                // Adjust the reader to use the buffers vector correctly
+                let reader = primitive.reader(|buffer| {
+                    // Access the corresponding buffer data using the buffer index
+                    buffers.get(buffer.index()).map(|data| &data[..])
+                });
                 let positions = reader.read_positions().unwrap();
                 let normals = reader.read_normals().unwrap();
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();

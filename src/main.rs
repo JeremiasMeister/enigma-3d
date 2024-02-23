@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use enigma::object::Object;
 use enigma::camera::Camera;
-use enigma::{AppState, event};
+use enigma::{AppState, event, resources};
 use rand::Rng;
 use enigma::postprocessing::bloom::Bloom;
 
@@ -51,11 +51,12 @@ fn hopping_objects(app_state: &mut AppState) {
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
-            let mut material = enigma::material::Material::lit_pbr(d.clone(), true);
+            let rand_bool = rand::thread_rng().gen_bool(0.5);
+            let mut material = enigma::material::Material::lit_pbr(d.clone(), rand_bool);
             material.set_transparency_strength(0.2);
-            material.set_texture_from_file("src/res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+            material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
 
-            let mut object = Object::load_from_gltf("src/res/models/suzanne.gltf");
+            let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
             object.add_material(material);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
@@ -131,10 +132,10 @@ fn main() {
     enigma::init_default(&mut app_state);
 
     let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
-    material.set_texture_from_file("src/res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+    material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
 
     // create a default object
-    let mut object = Object::load_from_gltf("src/res/models/suzanne.gltf");
+    let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
 
     // set the material
     object.add_material(material);
