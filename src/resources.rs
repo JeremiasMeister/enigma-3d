@@ -1,7 +1,6 @@
 
 // models
 pub const SUZANNE: &'static [u8] = include_bytes!("res/models/suzanne.gltf");
-pub const SUZANNE_BIN: &'static [u8] = include_bytes!("res/models/suzanne.bin");
 pub const SKYBOX: &'static [u8] = include_bytes!("res/models/skybox.gltf");
 
 // shaders

@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 
 use std::fs::File;
+use std::io;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
 

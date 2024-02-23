@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
 description = "A 3D Rendering Engine with a focus on simplicity and ease of use."
-include = ["res/**/*"]
+include = ["src/res/**/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
