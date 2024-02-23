@@ -3,6 +3,7 @@ use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event};
 use rand::Rng;
+use uuid::Uuid;
 use enigma::postprocessing::bloom::Bloom;
 
 fn rotate_left(app_state: &mut AppState) {
@@ -72,9 +73,59 @@ fn spawn_object(app_state: &mut AppState) {
     }
 }
 
+fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
+    egui::Window::new("Enigma")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            ui.label("Enigma 3D Renderer");
+            ui.label("Press A, D, W, S, E, Q to rotate the selected object");
+            ui.label("Press Space to spawn a new object");
+        });
+
+    egui::Window::new("Scene")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            ui.label("Scene Objects");
+            for object in app_state.objects.iter() {
+                if ui.button(object.name.clone()).clicked() {
+                    let uuid = object.get_unique_id();
+                    if !app_state.object_selection.contains(&uuid) {
+                        app_state.object_selection.push(uuid);
+                    } else {
+                        app_state.object_selection.remove(app_state.object_selection.iter().position(|x| *x == uuid).unwrap());
+                    }
+                }
+            }
+        });
+    egui::Window::new("Transform Edit")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            if app_state.get_selected_objects_mut().len() > 0 {
+                ui.label("Transform Edit");
+                ui.label("Position");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[0], -10.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[1], -10.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[2], -10.0..=10.0).text("Z"));
+                ui.label("Rotation");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[0], -180.0..=180.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[1], -180.0..=180.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[2], -180.0..=180.0).text("Z"));
+                ui.label("Scale");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[0], 0.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[1], 0.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[2], 0.0..=10.0).text("Z"));
+            } else {
+                ui.label("No object selected");
+            }
+        });
+}
+
 fn main() {
     // create an enigma eventloop and appstate
-    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
+    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
     let mut app_state = enigma::AppState::new();
 
     // some default event setups like selection
@@ -164,6 +215,9 @@ fn main() {
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+
+    //add UI
+    app_state.inject_gui(Arc::new(enigma_ui_function));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());

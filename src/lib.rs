@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
@@ -23,10 +24,11 @@ pub mod event;
 pub mod collision_world;
 pub mod default_events;
 pub mod postprocessing;
+pub mod ui;
 
 
 pub fn init_default(app_state: &mut AppState) {
-    app_state.set_renderscale(2);
+    app_state.set_renderscale(1);
     app_state.set_fps(60);
     app_state.set_max_buffers(3);
 
@@ -51,6 +53,7 @@ pub struct AppState {
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
     pub update_injections: Vec<event::EventFunction>,
+    pub gui_injections: Vec<ui::GUIDrawFunction>,
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
@@ -63,6 +66,7 @@ pub struct EventLoop {
     pub event_loop: winit::event_loop::EventLoop<()>,
     pub window: Window,
     pub display: Display<WindowSurface>,
+    gui_renderer: Option<EguiGlium>,
 }
 
 
@@ -85,7 +89,12 @@ impl AppState {
             render_scale: 1,
             max_buffers: 3,
             mouse_position: MousePosition::new(),
+            gui_injections: Vec::new(),
         }
+    }
+
+    pub fn inject_gui(&mut self, function: ui::GUIDrawFunction) {
+        self.gui_injections.push(function);
     }
 
     pub fn add_post_process(&mut self, post_process: Box<dyn PostProcessingEffect>) {
@@ -248,15 +257,17 @@ impl AppState {
 }
 
 impl EventLoop {
-    pub fn new(title: &str) -> Self {
+    pub fn new(title: &str, width: u32, height: u32) -> Self {
         let event_loop = winit::event_loop::EventLoopBuilder::new().build();
         let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
             .with_title(title)
+            .with_inner_size(width, height)
             .build(&event_loop);
         EventLoop {
             event_loop,
             window,
             display,
+            gui_renderer: None,
         }
     }
     pub fn get_display_clone(&self) -> Display<WindowSurface> {
@@ -289,7 +300,7 @@ impl EventLoop {
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
-    pub fn run(self, app_state: Arc<Mutex<AppState>>) {
+    pub fn run(mut self, app_state: Arc<Mutex<AppState>>) {
         let mut temp_app_state = app_state.lock().unwrap();
         temp_app_state.display = Some(self.display.clone());
 
@@ -319,6 +330,15 @@ impl EventLoop {
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
         let screen_program = postprocessing::get_screen_program(&self.display);
 
+        //initializing GUI
+        match self.gui_renderer {
+            Some(_) => {}
+            None => {
+                let egui_glium = EguiGlium::new(&self.display, &self.window, &self.event_loop);
+                self.gui_renderer = Some(egui_glium);
+            }
+        }
+
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
             // unpacking appstate
@@ -328,7 +348,7 @@ impl EventLoop {
             let camera = app_state.camera.clone();
             let event_injections = app_state.event_injections.clone();
             let update_injections = app_state.update_injections.clone();
-
+            let gui_injections = app_state.gui_injections.clone();
 
             *control_flow = ControlFlow::WaitUntil(next_frame_time);
             next_frame_time = Instant::now() + frame_duration;
@@ -342,36 +362,49 @@ impl EventLoop {
             // passing skybox
             let skybox_texture = &skybox_texture;
 
-
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
-                        app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
-                        self.display.resize(new_size.into());
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
+                            self.display.resize(new_size.into());
+                        }
                     }
                     WindowEvent::CursorMoved { position, .. } => {
-                        app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                        }
                     }
                     WindowEvent::MouseInput { state, button, .. } => {
-                        for (characteristic, function) in event_injections {
-                            if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
-                                if state == winit::event::ElementState::Pressed && button == mouse_button {
-                                    function(&mut app_state);
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            for (characteristic, function) in event_injections {
+                                if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                    if state == winit::event::ElementState::Pressed && button == mouse_button {
+                                        function(&mut app_state);
+                                    }
                                 }
-                            }
-                        };
+                            };
+                        }
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
-                        for (characteristic, function) in event_injections {
-                            if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
-                                if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
-                                    function(&mut app_state);
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed{
+                            for (characteristic, function) in event_injections {
+                                if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
+                                    if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
+                                        function(&mut app_state);
+                                    }
                                 }
-                            }
-                        };
+                            };
+                        }
                     }
-                    _ => ()
+                    _ => {
+                        _ = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                    }
                 }
                 Event::RedrawRequested(_) => {
                     app_state.time += 0.001;
@@ -464,6 +497,15 @@ impl EventLoop {
                         &screen_uniforms,
                         &Default::default(),
                     ).expect("Failed to draw screen");
+
+                    // drawing GUI
+                    let gui_renderer = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer");
+                    gui_renderer.run(&self.window, | egui_context | {
+                        for function in gui_injections.iter() {
+                            function(egui_context, &mut app_state);
+                        }
+                    });
+                    gui_renderer.paint(&self.display, &mut screen_target);
                     screen_target.finish().expect("Failed to swap buffers");
                 }
                 Event::MainEventsCleared => {
