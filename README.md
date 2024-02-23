@@ -14,6 +14,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Screen to World positions, including a selection system
 - Postprocessing
 - Skybox and Sky reflections
+- egui integration for a simple UI
 
 
 The API is quite straightforward and easy to use; see the example below.
