@@ -25,6 +25,7 @@ pub mod collision_world;
 pub mod default_events;
 pub mod postprocessing;
 pub mod ui;
+pub mod resources;
 
 
 pub fn init_default(app_state: &mut AppState) {
@@ -280,10 +281,10 @@ impl EventLoop {
 
     pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
         let mut material = crate::material::Material::unlit(self.display.clone(), false);
-        material.set_texture_from_file("res/textures/skybox.png", crate::material::TextureType::Albedo);
+        material.set_texture_from_resource(resources::SKYBOX_TEXTURE, crate::material::TextureType::Albedo);
 
         // create a default object
-        let mut object = Object::load_from_gltf("res/models/skybox.gltf");
+        let mut object = Object::load_from_gltf_resource(resources::SKYBOX);
 
         // set the material
         object.add_material(material);
@@ -294,7 +295,7 @@ impl EventLoop {
         object.transform.set_scale([1.0, 1.0, 1.0]);
 
         // skybox texture
-        let skybox_texture = texture::Texture::new(&self.display, "res/textures/skybox.png");
+        let skybox_texture = texture::Texture::from_resource(&self.display, resources::SKYBOX_TEXTURE);
 
         (object, skybox_texture)
     }

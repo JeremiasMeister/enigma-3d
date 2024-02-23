@@ -4,7 +4,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::texture::DepthTexture2d;
 use crate::geometry::Vertex;
 use crate::postprocessing::PostProcessingEffect;
-use crate::{AppState, postprocessing, shader};
+use crate::{AppState, postprocessing, resources, shader};
 
 pub struct Bloom {
     pub threshold: f32,
@@ -17,9 +17,9 @@ pub struct Bloom {
 
 impl Bloom {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, iterations: i32) -> Self {
-        let extract_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_extract.glsl");
-        let blur_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_blur.glsl");
-        let combine_shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/bloom/enigma_bloom_combine.glsl");
+        let extract_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT);
+        let blur_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_BLUR_FRAGMENT);
+        let combine_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_COMBINE_FRAGMENT);
         let program_extract = glium::Program::from_source(display, &extract_shader.get_vertex_shader(), &extract_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_blur = glium::Program::from_source(display, &blur_shader.get_vertex_shader(), &blur_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_combine = glium::Program::from_source(display, &combine_shader.get_vertex_shader(), &combine_shader.get_fragment_shader(), None).expect("Failed to compile shader program");

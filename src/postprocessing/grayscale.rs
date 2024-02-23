@@ -3,7 +3,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
 use glium::texture::DepthTexture2d;
 use crate::geometry::Vertex;
-use crate::{AppState, shader};
+use crate::{AppState, resources, shader};
 use crate::postprocessing::PostProcessingEffect;
 
 pub struct GrayScale {
@@ -28,7 +28,7 @@ impl PostProcessingEffect for GrayScale {
 
 impl GrayScale {
     pub fn new(display: &glium::Display<WindowSurface>) -> Self {
-        let shader = shader::Shader::from_files("res/shader/post_processing/post_processing_vert.glsl", "res/shader/post_processing/grayscale/enigma_grayscale.glsl");
+        let shader = shader::Shader::from_files(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT);
         let program = glium::Program::from_source(display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         Self {
             program,
