@@ -366,31 +366,45 @@ impl EventLoop {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
-                        app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
-                        self.display.resize(new_size.into());
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
+                            self.display.resize(new_size.into());
+                        }
                     }
                     WindowEvent::CursorMoved { position, .. } => {
-                        app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                        }
                     }
                     WindowEvent::MouseInput { state, button, .. } => {
-                        for (characteristic, function) in event_injections {
-                            if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
-                                if state == winit::event::ElementState::Pressed && button == mouse_button {
-                                    function(&mut app_state);
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            for (characteristic, function) in event_injections {
+                                if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                    if state == winit::event::ElementState::Pressed && button == mouse_button {
+                                        function(&mut app_state);
+                                    }
                                 }
-                            }
-                        };
+                            };
+                        }
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
-                        for (characteristic, function) in event_injections {
-                            if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
-                                if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
-                                    function(&mut app_state);
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed{
+                            for (characteristic, function) in event_injections {
+                                if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
+                                    if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
+                                        function(&mut app_state);
+                                    }
                                 }
-                            }
-                        };
+                            };
+                        }
                     }
-                    _ => ()
+                    _ => {
+                        _ = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                    }
                 }
                 Event::RedrawRequested(_) => {
                     app_state.time += 0.001;

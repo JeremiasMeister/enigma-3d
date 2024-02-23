@@ -95,12 +95,26 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
                 ui.label("No object selected");
             }
         });
-    egui::Window::new("Edit Scene")
+    egui::Window::new("Transform Edit")
         .default_width(200.0)
         .default_height(200.0)
         .show(ctx, |ui| {
-            if ui.button("Add Object").clicked() {
-                spawn_object(app_state);
+            if app_state.get_selected_objects_mut().len() > 0 {
+                ui.label("Transform Edit");
+                ui.label("Position");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[0], -10.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[1], -10.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[2], -10.0..=10.0).text("Z"));
+                ui.label("Rotation");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[0], -180.0..=180.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[1], -180.0..=180.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[2], -180.0..=180.0).text("Z"));
+                ui.label("Scale");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[0], 0.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[1], 0.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[2], 0.0..=10.0).text("Z"));
+            } else {
+                ui.label("No object selected");
             }
         });
 }
