@@ -371,6 +371,9 @@ impl EventLoop {
                         if !response.consumed {
                             app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
                             self.display.resize(new_size.into());
+                            if let Some(app_state_display) = app_state.display.as_mut() {
+                                app_state_display.resize(new_size.into());
+                            }
                         }
                     }
                     WindowEvent::CursorMoved { position, .. } => {
