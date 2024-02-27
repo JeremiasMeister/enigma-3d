@@ -1,4 +1,4 @@
-Enigma is my first attempt to do a little graphics API for Rust.
+enigma is my first attempt to do a little graphics API for Rust.
 Please be aware that I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. That said, I have the following features working.
 
 - Model loading from GLTF and OBJ
@@ -15,6 +15,9 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Postprocessing
 - Skybox and Sky reflections
 - egui integration for a simple UI
+
+
+A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
 
 
 The API is quite straightforward and easy to use; see the example below.
