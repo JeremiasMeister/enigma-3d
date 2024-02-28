@@ -15,6 +15,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Postprocessing
 - Skybox and Sky reflections
 - egui integration for a simple UI
+- loading resources from the 'include_bytes!' macro to include them in the built application 
 
 
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
