@@ -115,6 +115,18 @@ impl AppState {
         None
     }
 
+    pub fn get_state_data_value_mut<T: 'static>(&mut self, name: &str) -> Option<&mut T> {
+        for data in self.state_data.iter_mut() {
+            if data.get_name() == name {
+                // Attempt to downcast to the requested type T
+                if let Some(value) = data.get_value_mut().downcast_mut::<T>() {
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+
     pub fn set_state_data_value(&mut self, name: &str, value: Box<dyn Any>) {
         for data in &mut self.state_data {
             if data.get_name() == name {
