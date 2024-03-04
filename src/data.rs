@@ -20,6 +20,10 @@ impl AppStateData {
         self.value.as_ref()
     }
 
+    pub fn get_value_mut(&mut self) -> &mut dyn Any {
+        self.value.as_mut()
+    }
+
     // Since the value is already a Box<dyn Any>, setting a new value should accept a Box<dyn Any>
     pub fn set_value(&mut self, value: Box<dyn Any>) {
         self.value = value;
