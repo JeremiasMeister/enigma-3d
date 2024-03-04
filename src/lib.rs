@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use egui_glium::EguiGlium;
@@ -8,6 +9,7 @@ use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::collision_world::MousePosition;
+use crate::data::AppStateData;
 use crate::light::LightType;
 use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
@@ -26,6 +28,7 @@ pub mod default_events;
 pub mod postprocessing;
 pub mod ui;
 pub mod resources;
+pub mod data;
 
 
 pub fn init_default(app_state: &mut AppState) {
@@ -61,6 +64,7 @@ pub struct AppState {
     pub render_scale: u32,
     pub max_buffers: usize,
     mouse_position: MousePosition,
+    pub state_data: Vec<AppStateData>,
 }
 
 pub struct EventLoop {
@@ -91,7 +95,35 @@ impl AppState {
             max_buffers: 3,
             mouse_position: MousePosition::new(),
             gui_injections: Vec::new(),
+            state_data: Vec::new(),
         }
+    }
+
+    pub fn add_state_data(&mut self, name: &str, data: Box<dyn Any>) {
+        self.state_data.push(AppStateData::new(name, data));
+    }
+
+    pub fn get_state_data_value<T: 'static>(&self, name: &str) -> Option<&T> {
+        for data in self.state_data.iter() {
+            if data.get_name() == name {
+                // Attempt to downcast to the requested type T
+                if let Some(value) = data.get_value().downcast_ref::<T>() {
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn set_state_data_value(&mut self, name: &str, value: Box<dyn Any>) {
+        for data in &mut self.state_data {
+            if data.get_name() == name {
+                data.set_value(value);
+                return;
+            }
+        }
+        // If no existing data is found with the name, add as new state data
+        self.add_state_data(name, value);
     }
 
     pub fn inject_gui(&mut self, function: ui::GUIDrawFunction) {
