@@ -123,6 +123,29 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
         });
 }
 
+pub fn print_data(app_state: &mut AppState) {
+    if app_state.time % 2.0 < 0.01 {
+        let intdata = app_state.get_state_data_value::<i32>("intdata");
+        let stringdata = app_state.get_state_data_value::<String>("stringdata");
+        let booldata = app_state.get_state_data_value::<bool>("booldata");
+
+        println!("Data: ");
+        if let Some(intdata) = intdata {
+            println!("intdata: {}", intdata);
+        }
+        if let Some(stringdata) = stringdata {
+            println!("stringdata: {}", stringdata);
+        }
+        if let Some(booldata) = booldata {
+            println!("booldata: {}", booldata);
+        }
+    }
+}
+
+
+
+
+
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
@@ -210,6 +233,7 @@ fn main() {
 
     // add update
     app_state.inject_update_function(Arc::new(hopping_objects));
+    app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing
     //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
@@ -218,6 +242,12 @@ fn main() {
 
     //add UI
     app_state.inject_gui(Arc::new(enigma_ui_function));
+
+
+    // add data
+    app_state.add_state_data( "intdata", Box::new(10i32));
+    app_state.add_state_data( "stringdata", Box::new("Hello World".to_string() as String));
+    app_state.add_state_data( "booldata", Box::new(true as bool));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
