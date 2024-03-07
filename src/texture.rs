@@ -1,5 +1,4 @@
 use glium::glutin::surface::WindowSurface;
-use std::fs::File;
 use std::path::Path;
 use std::vec::Vec;
 

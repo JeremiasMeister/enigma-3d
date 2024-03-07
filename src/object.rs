@@ -2,7 +2,7 @@ use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoundingBox, Vertex};
-use crate::material::{Material, TextureType};
+use crate::material::Material;
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 use uuid::Uuid;
