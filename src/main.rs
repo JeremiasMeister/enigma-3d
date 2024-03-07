@@ -110,9 +110,13 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
                 ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[1], -10.0..=10.0).text("Y"));
                 ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[2], -10.0..=10.0).text("Z"));
                 ui.label("Rotation");
-                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[0], -180.0..=180.0).text("X"));
-                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[1], -180.0..=180.0).text("Y"));
-                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.rotation[2], -180.0..=180.0).text("Z"));
+
+                let mut rotation = app_state.get_selected_objects_mut()[0].transform.get_rotation();
+                ui.add(egui::Slider::new(&mut rotation.x, -180.0..=180.0).text("X"));
+                ui.add(egui::Slider::new(&mut rotation.y, -180.0..=180.0).text("Y"));
+                ui.add(egui::Slider::new(&mut rotation.z, -180.0..=180.0).text("Z"));
+                app_state.get_selected_objects_mut()[0].transform.set_rotation(rotation.into());
+
                 ui.label("Scale");
                 ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[0], 0.0..=10.0).text("X"));
                 ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[1], 0.0..=10.0).text("Y"));

@@ -2,7 +2,7 @@ use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoundingBox, Vertex};
-use crate::material::Material;
+use crate::material::{Material, TextureType};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 use uuid::Uuid;
@@ -19,6 +19,68 @@ pub struct Object {
     materials: Vec<Material>,
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
+}
+
+impl Clone for Object {
+    fn clone(&self) -> Self {
+        //creating new object
+        let mut new_object = Object::new(Some(self.name.clone()));
+
+        //setting transform for new object
+        new_object.transform.set_position(self.transform.get_position().into());
+        new_object.transform.set_rotation(self.transform.get_rotation().into());
+        new_object.transform.set_scale(self.transform.get_scale().into());
+
+        //cloning shapes
+        for shape in self.shapes.iter() {
+            let mut new_shape = Shape::new();
+            new_shape.vertices = shape.vertices.clone();
+            new_shape.indices = shape.indices.clone();
+            new_shape.material_index = shape.material_index;
+            new_object.add_shape(new_shape);
+        }
+
+        //cloning materials
+        for material in self.materials.iter() {
+            let mut new_material = Material::default(material.shader.clone(), &material.display);
+
+            //coloring
+            new_material.set_color(material.color);
+            if let Some(texture) = &material.albedo {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_albedo(new_texture);
+            }
+            new_material.set_transparency_strength(material.transparency);
+            if let Some(texture) = &material.normal {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_normal(new_texture);
+            }
+            new_material.set_normal_strength(material.normal_strength);
+            if let Some(texture) = &material.roughness {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_roughness(new_texture);
+            }
+            new_material.set_roughness_strength(material.roughness_strength);
+            if let Some(texture) = &material.metallic {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_metallic(new_texture);
+            }
+            new_material.set_metallic_strength(material.metallic_strength);
+            if let Some(texture) = &material.emissive {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_emissive(new_texture);
+            }
+            new_material.set_emissive_strength(material.emissive_strength);
+            new_material.set_transparency(material.render_transparent);
+            new_material.time = material.time;
+
+            new_object.add_material(new_material);
+        }
+
+        new_object.bounding_box = self.bounding_box.clone();
+        new_object.unique_id = Uuid::new_v4();
+        new_object
+    }
 }
 
 pub struct Shape {

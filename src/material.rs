@@ -138,7 +138,8 @@ impl Material {
     }
 
     pub fn set_shader(&mut self, shader: shader::Shader) {
-        self.shader = shader;
+        self.shader = shader.clone();
+        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
     }
 
     pub fn set_albedo(&mut self, albedo: texture::Texture) {
