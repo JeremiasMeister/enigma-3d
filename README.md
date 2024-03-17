@@ -16,7 +16,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Skybox and Sky reflections
 - egui integration for a simple UI
 - loading resources from the `include_bytes!` and `include_str!` macro to include them in the built application
-- adding and carrying an arbitrary amount of data within the `app_state`
+- adding and carrying an arbitrary amount of data within the `AppState`
 - serialize currently loaded `AppState` to json and inject serialized `AppState` into running one.
 
 
