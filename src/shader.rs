@@ -1,8 +1,15 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct ShaderSerializer {
+    fragment_shader: String,
+    vertex_shader: String,
+}
+
 pub struct Shader {
     pub fragment_shader: String,
     pub vertex_shader: String,
 }
-
 
 impl Shader {
     pub fn new() -> Self {
@@ -11,6 +18,21 @@ impl Shader {
             vertex_shader: String::from(""),
         }
     }
+
+    pub fn from_serializer(serializer: ShaderSerializer) -> Self {
+        Self {
+            fragment_shader: serializer.fragment_shader,
+            vertex_shader: serializer.vertex_shader,
+        }
+    }
+
+    pub fn to_serializer(&self) -> ShaderSerializer {
+        ShaderSerializer {
+            fragment_shader: self.fragment_shader.clone(),
+            vertex_shader: self.vertex_shader.clone(),
+        }
+    }
+
     pub fn set_fragment_shader(&mut self, fragment_shader: String) {
         self.fragment_shader = fragment_shader;
     }

@@ -1,12 +1,21 @@
 use std::fmt::Debug;
 use nalgebra::Vector3;
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub texcoord: [f32; 2],
     pub color: [f32; 3],
     pub normal: [f32; 3],
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BoundingBoxSerializer {
+    pub center: [f32; 3],
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
 }
 
 #[derive(Copy, Clone)]
@@ -18,6 +27,7 @@ pub struct BoundingBox {
     pub depth: f32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BoundingBoxMesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -97,5 +107,23 @@ impl BoundingBox {
             self.center.y + self.height / 2.0,
             self.center.z + self.depth / 2.0,
         )
+    }
+
+    pub fn to_serializer(&self) -> BoundingBoxSerializer {
+        BoundingBoxSerializer {
+            center: [self.center.x, self.center.y, self.center.z],
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+        }
+    }
+
+    pub fn from_serializer(serializer: BoundingBoxSerializer) -> Self {
+        Self {
+            center: Vector3::new(serializer.center[0], serializer.center[1], serializer.center[2]),
+            width: serializer.width,
+            height: serializer.height,
+            depth: serializer.depth,
+        }
     }
 }

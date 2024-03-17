@@ -5,14 +5,17 @@ use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
+use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MousePosition;
 use crate::data::AppStateData;
-use crate::light::LightType;
+use crate::light::{Light, LightType};
 use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
+use crate::texture::Texture;
 
 pub mod shader;
 pub mod geometry;
@@ -30,7 +33,6 @@ pub mod ui;
 pub mod resources;
 pub mod data;
 
-
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
     app_state.set_fps(60);
@@ -44,6 +46,17 @@ pub fn init_default(app_state: &mut AppState) {
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
         Arc::new(default_events::select_object_add),
     );
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AppStateSerializer {
+    pub camera: Option<CameraSerializer>,
+    pub light: Vec<light::LightSerializer>,
+    pub ambient_light: Option<light::LightSerializer>,
+    pub skybox: Option<object::ObjectSerializer>,
+    pub skybox_texture: Option<texture::TextureSerializer>,
+    pub objects: Vec<object::ObjectSerializer>,
+    pub object_selection: Vec<String>,
 }
 
 pub struct AppState {
@@ -74,7 +87,6 @@ pub struct EventLoop {
     gui_renderer: Option<EguiGlium>,
 }
 
-
 impl AppState {
     pub fn new() -> Self {
         AppState {
@@ -96,6 +108,72 @@ impl AppState {
             mouse_position: MousePosition::new(),
             gui_injections: Vec::new(),
             state_data: Vec::new(),
+        }
+    }
+
+    pub fn to_serializer(&self) -> AppStateSerializer {
+        println!("WARNING: an AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!");
+        let camera = match self.camera {
+            Some(camera) => Some(camera.to_serializer()),
+            None => None,
+        };
+        let light = self.light.iter().map(|l| l.to_serializer()).collect();
+        let ambient_light = match &self.ambient_light {
+            Some(light) => Some(light.to_serializer()),
+            None => None,
+        };
+        let skybox = match &self.skybox {
+            Some(skybox) => Some(skybox.to_serializer()),
+            None => None,
+        };
+        let skybox_texture = match &self.skybox_texture {
+            Some(texture) => Some(texture.to_serializer()),
+            None => None,
+        };
+        let objects = self.objects.iter().map(|o| o.to_serializer()).collect();
+        let object_selection = self.object_selection.iter().map(|o| o.to_string()).collect();
+        AppStateSerializer {
+            camera,
+            light,
+            ambient_light,
+            skybox,
+            skybox_texture,
+            objects,
+            object_selection,
+        }
+    }
+
+    pub fn inject_serializer(&mut self, serializer: AppStateSerializer, display: Display<WindowSurface>, additive: bool) {
+        self.camera = match serializer.camera {
+            Some(camera) => Some(Camera::from_serializer(camera)),
+            None => None,
+        };
+        self.ambient_light = match serializer.ambient_light {
+            Some(light) => Some(Light::from_serializer(light)),
+            None => None,
+        };
+        self.skybox = match serializer.skybox {
+            Some(skybox) => Some(Object::from_serializer(skybox, display.clone())),
+            None => None,
+        };
+        self.skybox_texture = match serializer.skybox_texture {
+            Some(texture) => Some(Texture::from_serializer(texture, &display.clone())),
+            None => None,
+        };
+
+        if !additive {
+            self.light.clear();
+            self.objects.clear();
+            self.object_selection.clear();
+        }
+        for l in serializer.light {
+            self.add_light(Light::from_serializer(l), LightType::Point);
+        }
+        for o in serializer.objects {
+            self.add_object(Object::from_serializer(o, display.clone()));
+        }
+        for o in serializer.object_selection {
+            self.object_selection.push(Uuid::parse_str(&o).unwrap());
         }
     }
 

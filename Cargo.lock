@@ -483,6 +483,8 @@ dependencies = [
  "nalgebra-glm",
  "obj-rs",
  "rand",
+ "serde",
+ "serde_json",
  "uuid",
  "winit",
 ]

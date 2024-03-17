@@ -1,4 +1,17 @@
-use crate::object::Transform;
+use crate::object::{Transform, TransformSerializer};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct CameraSerializer {
+    transform: TransformSerializer,
+    fov: f32,
+    width: f32,
+    height: f32,
+    near: f32,
+    far: f32,
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
+}
 
 #[derive(Copy, Clone)]
 pub struct Camera {
@@ -41,6 +54,31 @@ impl Camera {
         c
     }
 
+    pub fn from_serializer(serializer: CameraSerializer) -> Self {
+        Self {
+            transform: Transform::from_serializer(serializer.transform),
+            fov: serializer.fov,
+            width: serializer.width,
+            height: serializer.height,
+            near: serializer.near,
+            far: serializer.far,
+            view: serializer.view,
+            projection: serializer.projection,
+        }
+    }
+
+    pub fn to_serializer(&self) -> CameraSerializer {
+        CameraSerializer {
+            transform: self.transform.to_serializer(),
+            fov: self.fov,
+            width: self.width,
+            height: self.height,
+            near: self.near,
+            far: self.far,
+            view: self.view,
+            projection: self.projection,
+        }
+    }
 
     pub fn update_matrices(&mut self) {
         self.view = Camera::view_matrix(

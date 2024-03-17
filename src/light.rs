@@ -1,8 +1,16 @@
 use glium::implement_uniform_block;
+use serde::{Deserialize, Serialize};
 
 pub enum LightType {
     Point,
     Ambient,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LightSerializer {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+    pub intensity: f32,
 }
 
 #[derive(Copy, Clone)]
@@ -10,6 +18,32 @@ pub struct Light {
     pub position: [f32; 3],
     pub color: [f32; 3],
     pub intensity: f32,
+}
+
+impl Light {
+    pub fn new(position: [f32; 3], color: [f32; 3], intensity: f32) -> Self {
+        Self {
+            position,
+            color,
+            intensity,
+        }
+    }
+
+    pub fn from_serializer(serializer: LightSerializer) -> Self {
+        Self {
+            position: serializer.position,
+            color: serializer.color,
+            intensity: serializer.intensity,
+        }
+    }
+
+    pub fn to_serializer(&self) -> LightSerializer {
+        LightSerializer {
+            position: self.position,
+            color: self.color,
+            intensity: self.intensity,
+        }
+    }
 }
 
 pub struct LightBlock {

@@ -1,8 +1,8 @@
 use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
-use crate::geometry::{BoundingBox, Vertex};
-use crate::material::Material;
+use crate::geometry::{BoundingBox, BoundingBoxSerializer, Vertex};
+use crate::material::{Material, MaterialSerializer};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 use uuid::Uuid;
@@ -11,6 +11,16 @@ use uuid::Uuid;
 use std::fs::File;
 use std::io::BufReader;
 use obj::{load_obj, Obj};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct ObjectSerializer {
+    pub name: String,
+    pub transform: TransformSerializer,
+    shapes: Vec<Shape>,
+    materials: Vec<MaterialSerializer>,
+    unique_id: String,
+}
 
 pub struct Object {
     pub name: String,
@@ -83,10 +93,21 @@ impl Clone for Object {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Shape {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
     pub material_index: usize,
+}
+
+impl Clone for Shape {
+    fn clone(&self) -> Self {
+        Shape {
+            vertices: self.vertices.clone(),
+            indices: self.indices.clone(),
+            material_index: self.material_index,
+        }
+    }
 }
 
 impl Shape {
@@ -139,6 +160,33 @@ impl Object {
             bounding_box: None,
             unique_id: Uuid::new_v4(), //generating unique id for object
         };
+        object.calculate_bounding_box();
+        object
+    }
+
+    pub fn to_serializer(&self) -> ObjectSerializer {
+        let name = self.name.clone();
+        let transform = self.transform.to_serializer();
+        let shapes = self.shapes.clone();
+        let materials = self.materials.iter().map(|x| x.to_serializer()).collect();
+        let unique_id = self.unique_id.to_string();
+        ObjectSerializer {
+            name,
+            transform,
+            shapes,
+            materials,
+            unique_id,
+        }
+    }
+
+    pub fn from_serializer(serializer: ObjectSerializer, display: Display<WindowSurface>) -> Self {
+        let mut object = Object::new(Some(serializer.name));
+        object.transform = Transform::from_serializer(serializer.transform);
+        object.shapes = serializer.shapes;
+        for mat in serializer.materials {
+            object.add_material(Material::from_serializer(mat, display.clone()));
+        }
+        object.unique_id = uuid::Uuid::parse_str(serializer.unique_id.as_str()).unwrap();
         object.calculate_bounding_box();
         object
     }
@@ -319,7 +367,7 @@ impl Object {
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
                 let prim_indices = reader.read_indices().unwrap().into_u32();
 
-                let mut flipped_tex_coords: Vec<[f32;2]> = Vec::new();
+                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
                 // flip tex_coords
                 for mut tex_coord in tex_coords.into_iter() {
                     tex_coord[1] = 1.0 - tex_coord[1];
@@ -358,7 +406,7 @@ impl Object {
                 let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
                 let prim_indices = reader.read_indices().unwrap().into_u32();
 
-                let mut flipped_tex_coords: Vec<[f32;2]> = Vec::new();
+                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
                 // flip tex_coords
                 for mut tex_coord in tex_coords.into_iter() {
                     tex_coord[1] = 1.0 - tex_coord[1];
@@ -379,6 +427,12 @@ impl Object {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct TransformSerializer {
+    position: [f32; 3],
+    rotation: [f32; 3],
+    scale: [f32; 3],
+}
 
 #[derive(Copy, Clone)]
 pub struct Transform {
@@ -398,6 +452,23 @@ impl Transform {
             matrix: Matrix4::identity(),
         }
     }
+
+    pub fn from_serializer(serializer: TransformSerializer) -> Self {
+        let mut t = Transform::new();
+        t.set_position(serializer.position);
+        t.set_rotation(serializer.rotation);
+        t.set_scale(serializer.scale);
+        t
+    }
+
+    pub fn to_serializer(&self) -> TransformSerializer {
+        TransformSerializer {
+            position: self.get_position().into(),
+            rotation: self.get_rotation().into(),
+            scale: self.get_scale().into(),
+        }
+    }
+
     pub fn update(&mut self) {
         let scale_matrix = Matrix4::new_nonuniform_scaling(&self.scale);
         let rotation_matrix = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z).to_homogeneous();

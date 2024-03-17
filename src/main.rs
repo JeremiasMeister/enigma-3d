@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use enigma::object::Object;
 use enigma::camera::Camera;
-use enigma::{AppState, event, resources};
+use enigma::{AppState, AppStateSerializer, event, resources};
 use rand::Rng;
 use enigma::postprocessing::bloom::Bloom;
 
@@ -81,6 +81,8 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
             ui.label("Enigma 3D Renderer");
             ui.label("Press A, D, W, S, E, Q to rotate the selected object");
             ui.label("Press Space to spawn a new object");
+            ui.label("Press F1 to save the current state");
+            ui.label("Press F2 to load the saved state");
         });
 
     egui::Window::new("Scene")
@@ -146,8 +148,24 @@ pub fn print_data(app_state: &mut AppState) {
     }
 }
 
+fn save_app_state(app_state: &mut AppState) {
+    let serialize_app_state = app_state.to_serializer();
+    let serialized = serde_json::to_string_pretty(&serialize_app_state).unwrap();
+    std::fs::write("app_state.json", serialized).unwrap();
+}
 
-
+fn load_app_state(app_state: &mut AppState) {
+    let serialized = std::fs::read_to_string("app_state.json").unwrap();
+    match serde_json::from_str(&serialized) {
+        Ok(deserialized) => {
+            let display = app_state.display.clone().unwrap();
+            app_state.inject_serializer(deserialized, display, false);
+        }
+        Err(e) => {
+            println!("Could not load app state: {}", e);
+        }
+    }
+}
 
 
 fn main() {
@@ -158,7 +176,7 @@ fn main() {
     // some default event setups like selection
     enigma::init_default(&mut app_state);
 
-    let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone(), false);
+    let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
     material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
 
     // create a default object
@@ -234,13 +252,21 @@ fn main() {
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
     );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::F1),
+        Arc::new(save_app_state),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::F2),
+        Arc::new(load_app_state),
+    );
 
     // add update
     app_state.inject_update_function(Arc::new(hopping_objects));
     app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing
-    //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
+    //app_state.add_post_process(Box::new(enigma::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 

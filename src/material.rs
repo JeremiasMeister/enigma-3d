@@ -1,9 +1,30 @@
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
+use serde::{Deserialize, Serialize};
 use crate::{resources, shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
+
+#[derive(Serialize, Deserialize)]
+pub struct MaterialSerializer {
+    name : Option<String>,
+    color: [f32; 3],
+    albedo: Option<texture::TextureSerializer>,
+    transparency: f32,
+    normal: Option<texture::TextureSerializer>,
+    normal_strength: f32,
+    roughness: Option<texture::TextureSerializer>,
+    roughness_strength: f32,
+    metallic: Option<texture::TextureSerializer>,
+    metallic_strength: f32,
+    emissive: Option<texture::TextureSerializer>,
+    emissive_strength: f32,
+    shader: shader::ShaderSerializer,
+    matrix: [[f32;4]; 4],
+    render_transparent: bool,
+}
+
 
 pub struct Material {
     pub name: Option<String>,
@@ -43,6 +64,68 @@ impl Material {
     pub fn default(shader: shader::Shader, display: &glium::Display<WindowSurface>) -> Self {
         Material::new(shader, display.clone(), None, None, None, None, None, None, None, None, None, None)
     }
+
+    pub fn from_serializer(serializer: MaterialSerializer, display: glium::Display<WindowSurface>) -> Self {
+        let shader = shader::Shader::from_serializer(serializer.shader);
+        let albedo = match serializer.albedo {
+            Some(albedo) => Some(texture::Texture::from_serializer(albedo, &display)),
+            None => None,
+        };
+        let normal = match serializer.normal {
+            Some(normal) => Some(texture::Texture::from_serializer(normal, &display)),
+            None => None,
+        };
+        let roughness = match serializer.roughness {
+            Some(roughness) => Some(texture::Texture::from_serializer(roughness, &display)),
+            None => None,
+        };
+        let metallic = match serializer.metallic {
+            Some(metallic) => Some(texture::Texture::from_serializer(metallic, &display)),
+            None => None,
+        };
+        let emissive = match serializer.emissive {
+            Some(emissive) => Some(texture::Texture::from_serializer(emissive, &display)),
+            None => None,
+        };
+
+        Material::new(shader, display, Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength))
+    }
+
+    pub fn to_serializer(&self) -> MaterialSerializer {
+        MaterialSerializer {
+            name: self.name.clone(),
+            color: self.color,
+            albedo: match &self.albedo {
+                Some(albedo) => Some(albedo.to_serializer()),
+                None => None,
+            },
+            transparency: self.transparency,
+            normal: match &self.normal {
+                Some(normal) => Some(normal.to_serializer()),
+                None => None,
+            },
+            normal_strength: self.normal_strength,
+            roughness: match &self.roughness {
+                Some(roughness) => Some(roughness.to_serializer()),
+                None => None,
+            },
+            roughness_strength: self.roughness_strength,
+            metallic: match &self.metallic {
+                Some(metallic) => Some(metallic.to_serializer()),
+                None => None,
+            },
+            metallic_strength: self.metallic_strength,
+            emissive: match &self.emissive {
+                Some(emissive) => Some(emissive.to_serializer()),
+                None => None,
+            },
+            emissive_strength: self.emissive_strength,
+            shader: self.shader.to_serializer(),
+            matrix: self.matrix,
+            render_transparent: self.render_transparent,
+        }
+    }
+
     pub fn new(
         shader: shader::Shader,
         display: glium::Display<WindowSurface>,
