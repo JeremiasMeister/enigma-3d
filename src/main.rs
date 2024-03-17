@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use enigma::object::Object;
 use enigma::camera::Camera;
-use enigma::{AppState, AppStateSerializer, event, resources};
+use enigma::{AppState, event, resources};
 use rand::Rng;
 use enigma::postprocessing::bloom::Bloom;
 
