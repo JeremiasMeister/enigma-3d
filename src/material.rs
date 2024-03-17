@@ -88,7 +88,12 @@ impl Material {
             None => None,
         };
 
-        Material::new(shader, display, Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength))
+        let mut mat = Material::new(shader, display, Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength));
+        mat.name = serializer.name;
+        mat.matrix = serializer.matrix;
+        mat.set_transparency_strength(serializer.transparency);
+        mat.set_transparency(serializer.render_transparent);
+        mat
     }
 
     pub fn to_serializer(&self) -> MaterialSerializer {
