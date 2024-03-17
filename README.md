@@ -3,20 +3,21 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 
 - Model loading from GLTF and OBJ
 - Opaque and Transparent rendering
-- Material, Shader, Shape, Object Abstractions
+- `Material`, `Shader`, `Shape`, `Object` Abstractions
 - PBR Shading
 - Texturing, Normals and Vertex Colors
 - up to 4 point lights per object
 - one ambient light
-- a Camera
-- a simple Event system to inject functions and Keyboard presses into the event loop. Atm events get processed one by one in sequence
+- a `Camera`
+- a simple Event system to inject functions and Keyboard presses into the `EventLoop`. Atm events get processed one by one in sequence
 - a simple Update system to inject functions into the update loop. Atm, the functions get processes one by one in sequence
 - Screen to World positions, including a selection system
 - Postprocessing
 - Skybox and Sky reflections
 - egui integration for a simple UI
-- loading resources from the 'include_bytes!' macro to include them in the built application
+- loading resources from the `include_bytes!` and `include_str!` macro to include them in the built application
 - adding and carrying an arbitrary amount of data within the `app_state`
+- serialize currently loaded `AppState` to json and inject serialized `AppState` into running one.
 
 
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
