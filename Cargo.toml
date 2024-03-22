@@ -1,6 +1,6 @@
 [package]
 name = "enigma"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
 description = "A 3D Rendering Engine with a focus on simplicity and ease of use."
