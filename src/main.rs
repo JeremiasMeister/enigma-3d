@@ -171,6 +171,7 @@ fn load_app_state(app_state: &mut AppState) {
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
+    event_loop.set_icon_from_path("src/res/textures/icon.png");
     let mut app_state = enigma::AppState::new();
 
     // some default event setups like selection

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
+use winit::platform::windows::IconExtWindows;
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MousePosition;
 use crate::data::AppStateData;
@@ -420,6 +421,20 @@ impl EventLoop {
         let skybox_texture = texture::Texture::from_resource(&self.display, resources::SKYBOX_TEXTURE);
 
         (object, skybox_texture)
+    }
+
+    pub fn set_icon_from_path(&self, path: &str) {
+        let image = image::open(path).expect("failed to load icon").to_rgba8();
+        let image_dimensions = image.dimensions();
+        let data = image.into_raw();
+        let icon = winit::window::Icon::from_rgba(data, image_dimensions.0, image_dimensions.1).expect("failed to load icon");
+        self.window.set_window_icon(Some(icon));
+    }
+
+    pub fn set_icon_from_resource(&self, data: &[u8]) {
+        let data: Vec<u8> = data.to_vec();
+        let icon = winit::window::Icon::from_rgba(data, 32, 32).expect("failed to load icon");
+        self.window.set_window_icon(Some(icon));
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
