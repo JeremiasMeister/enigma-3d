@@ -433,8 +433,17 @@ impl EventLoop {
 
     pub fn set_icon_from_resource(&self, data: &[u8]) {
         let data: Vec<u8> = data.to_vec();
-        let icon = winit::window::Icon::from_rgba(data, 32, 32).expect("failed to load icon");
-        self.window.set_window_icon(Some(icon));
+
+        // assume icon is a square -> we need this to be handled
+        let size = (data.len() as f32).sqrt() as u32;
+        match winit::window::Icon::from_rgba(data, size, size) {
+            Ok(icon) => {
+                self.window.set_window_icon(Some(icon));
+            }
+            Err(err) => {
+                println!("could not set icon. due to this error: {}", err);
+            }
+        };
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
@@ -533,7 +542,7 @@ impl EventLoop {
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
-                        if !response.consumed{
+                        if !response.consumed {
                             for (characteristic, function) in event_injections {
                                 if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
                                     if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
@@ -584,7 +593,7 @@ impl EventLoop {
                         backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
                         ..Default::default()
                     };
-                    match app_state.get_skybox_mut(){
+                    match app_state.get_skybox_mut() {
                         Some(skybox) => {
                             let model_matrix = skybox.transform.get_matrix();
                             let closest_lights = skybox.get_closest_lights(&light);
@@ -592,7 +601,7 @@ impl EventLoop {
                                 let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
                                 render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                             }
-                        },
+                        }
                         None => {}
                     }
 
@@ -620,7 +629,6 @@ impl EventLoop {
                     }
 
 
-
                     // execute post processing#
                     for process in app_state.get_post_processes() {
                         process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
@@ -641,7 +649,7 @@ impl EventLoop {
 
                     // drawing GUI
                     let gui_renderer = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer");
-                    gui_renderer.run(&self.window, | egui_context | {
+                    gui_renderer.run(&self.window, |egui_context| {
                         for function in gui_injections.iter() {
                             function(egui_context, &mut app_state);
                         }

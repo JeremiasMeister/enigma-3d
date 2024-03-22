@@ -21,3 +21,4 @@ pub const FRAGMENT_UNLIT_SHADER: &str = include_str!("res/shader/enigma_fragment
 pub const UV_CHECKER: &'static [u8] = include_bytes!("res/textures/uv_checker.png");
 pub const SKYBOX_TEXTURE: &'static [u8] = include_bytes!("res/textures/skybox.png");
 pub const SKYBOX_TEXTURE_HDR: &'static [u8] = include_bytes!("res/textures/skybox.hdr");
+pub const ICON: &'static [u8] = include_bytes!("res/textures/icon.png");
