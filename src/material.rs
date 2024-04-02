@@ -6,7 +6,7 @@ use crate::{resources, shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct MaterialSerializer {
     name : Option<String>,
     color: [f32; 3],

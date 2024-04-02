@@ -13,7 +13,7 @@ use std::io::BufReader;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ObjectSerializer {
     pub name: String,
     pub transform: TransformSerializer,
@@ -427,7 +427,7 @@ impl Object {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TransformSerializer {
     position: [f32; 3],
     rotation: [f32; 3],

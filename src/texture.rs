@@ -3,7 +3,7 @@ use std::path::Path;
 use std::vec::Vec;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TextureSerializer {
     path: String,
     width: u32,
