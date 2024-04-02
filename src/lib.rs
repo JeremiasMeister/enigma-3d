@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use winit::platform::windows::IconExtWindows;
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MousePosition;
 use crate::data::AppStateData;
@@ -432,18 +431,11 @@ impl EventLoop {
     }
 
     pub fn set_icon_from_resource(&self, data: &[u8]) {
-        let data: Vec<u8> = data.to_vec();
-
-        // assume icon is a square -> we need this to be handled
-        let size = (data.len() as f32).sqrt() as u32;
-        match winit::window::Icon::from_rgba(data, size, size) {
-            Ok(icon) => {
-                self.window.set_window_icon(Some(icon));
-            }
-            Err(err) => {
-                println!("could not set icon. due to this error: {}", err);
-            }
-        };
+        let image = image::load_from_memory(data).expect("failed to load icon").to_rgba8();
+        let image_dimensions = image.dimensions();
+        let data = image.into_raw();
+        let icon = winit::window::Icon::from_rgba(data, image_dimensions.0, image_dimensions.1).expect("failed to load icon");
+        self.window.set_window_icon(Some(icon));
     }
 
     // This is just the render loop . an actual event loop still needs to be set up
