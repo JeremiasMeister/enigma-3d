@@ -12,7 +12,7 @@ use winit::event_loop::{ControlFlow};
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MousePosition;
 use crate::data::AppStateData;
-use crate::light::{Light, LightType};
+use crate::light::{Light, LightEmissionType};
 use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
 use crate::texture::Texture;
@@ -148,9 +148,11 @@ impl AppState {
             Some(camera) => Some(Camera::from_serializer(camera)),
             None => None,
         };
-        self.ambient_light = match serializer.ambient_light {
-            Some(light) => Some(Light::from_serializer(light)),
-            None => None,
+        match serializer.ambient_light {
+            Some(light) => {
+                self.add_light(Light::from_serializer(light), LightEmissionType::Ambient);
+            },
+            None => {},
         };
         self.skybox = match serializer.skybox {
             Some(skybox) => Some(Object::from_serializer(skybox, display.clone())),
@@ -167,7 +169,7 @@ impl AppState {
             self.object_selection.clear();
         }
         for l in serializer.light {
-            self.add_light(Light::from_serializer(l), LightType::Point);
+            self.add_light(Light::from_serializer(l), LightEmissionType::Source);
         }
         for o in serializer.objects {
             self.add_object(Object::from_serializer(o, display.clone()));
@@ -298,22 +300,22 @@ impl AppState {
         selected
     }
 
-    pub fn add_light(&mut self, light: light::Light, light_type: LightType) {
+    pub fn add_light(&mut self, light: light::Light, light_type: LightEmissionType) {
         match light_type {
-            LightType::Point => self.light.push(light),
-            LightType::Ambient => self.ambient_light = Some(light),
+            LightEmissionType::Source => self.light.push(light),
+            LightEmissionType::Ambient => self.ambient_light = Some(light),
         }
     }
 
-    pub fn remove_light(&mut self, index: usize, light_type: LightType) {
+    pub fn remove_light(&mut self, index: usize, light_type: LightEmissionType) {
         match light_type {
-            LightType::Point => {
+            LightEmissionType::Source => {
                 if index >= self.light.len() {
                     panic!("Index out of bounds");
                 }
                 self.light.remove(index);
             }
-            LightType::Ambient => {
+            LightEmissionType::Ambient => {
                 self.ambient_light = None;
             }
         };

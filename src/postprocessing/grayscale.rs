@@ -28,7 +28,7 @@ impl PostProcessingEffect for GrayScale {
 
 impl GrayScale {
     pub fn new(display: &glium::Display<WindowSurface>) -> Self {
-        let shader = shader::Shader::from_files(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT);
+        let shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT);
         let program = glium::Program::from_source(display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         Self {
             program,

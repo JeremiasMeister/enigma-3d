@@ -303,17 +303,30 @@ impl Material {
         let mut light_position: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
         let mut light_color: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
         let mut light_intensity: [f32;4] = [0.0, 0.0, 0.0, 0.0];
+        let mut light_direction: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut cast_shadow: [i32;4] = [0, 0, 0, 0];
 
         for i in 0..5 {
             if i < light_amount as usize {
                 light_position[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
                 light_color[i] = [lights[i].color[0], lights[i].color[1], lights[i].color[2], 0.0];
                 light_intensity[i] = lights[i].intensity;
+                light_direction[i] = {
+                    let direction = lights[i].direction;
+                    if direction == [0.0, 0.0, 0.0] {
+                        [0.0,0.0,0.0,0.0]
+                    } else {
+                        [lights[i].direction[0], lights[i].direction[1], lights[i].direction[2], 1.0]
+                    }
+                };
+                cast_shadow[i] = if lights[i].cast_shadow { 1 } else { 0 };
             }
         }
 
         LightBlock {
             position: light_position,
+            directions: light_direction,
+            cast_shadow,
             color: light_color,
             intensity: light_intensity,
             amount: light_amount,
@@ -370,6 +383,7 @@ impl Material {
             mat_emissive_strength: self.emissive_strength,
             mat_transparency_strength: self.transparency,
             light_position: light_block.position,
+            light_direction: light_block.directions,
             light_color: light_block.color,
             light_intensity: light_block.intensity,
             light_amount: light_block.amount,

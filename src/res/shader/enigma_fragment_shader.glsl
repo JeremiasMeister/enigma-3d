@@ -3,6 +3,7 @@
 //uniforms
 uniform float time;
 uniform mat4 light_position;
+uniform mat4 light_direction;
 uniform mat4 light_color;
 uniform vec4 light_intensity;
 uniform int light_amount;
@@ -99,7 +100,11 @@ vec4 calculatePBRColor(vec3 viewDir) {
     vec3 result = vec3(0.0);
     for(int i = 0; i < light_amount; i++) {
         // Light calculations for each active light
+        vec4 lightDirUniform = light_direction[i];
         vec3 lightDir = normalize(light_position[i].xyz - world_position);
+        if(lightDirUniform.w == 1.0) {
+            lightDir = normalize(lightDirUniform.xyz);
+        }
         vec3 halfDir = normalize(lightDir + viewDir);
         float distance = length(light_position[i].xyz - world_position);
         float attenuation = 1.0 / (distance * distance);
