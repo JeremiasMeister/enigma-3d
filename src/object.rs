@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use std::fs::File;
 use std::io::BufReader;
+use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 
@@ -451,6 +452,27 @@ impl Transform {
             scale: Vector3::new(1.0, 1.0, 1.0),
             matrix: Matrix4::identity(),
         }
+    }
+
+    pub fn forward(&self) -> Vector3<f32> {
+        // return the forward vector of the transform with positive z being forward
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let forward = rotation * Vector3::new(0.0, 0.0, 1.0);
+        normalize(&forward)
+    }
+
+    pub fn left(&self) -> Vector3<f32> {
+        // return the left vector of the transform with positive x being left
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let left = rotation * Vector3::new(-1.0, 0.0, 0.0);
+        normalize(&left)
+    }
+
+    pub fn up(&self) -> Vector3<f32> {
+        // return the up vector of the transform with positive y being up
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let up = rotation * Vector3::new(0.0, 1.0, 0.0);
+        normalize(&up)
     }
 
     pub fn from_serializer(serializer: TransformSerializer) -> Self {
