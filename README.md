@@ -34,8 +34,7 @@ The API is quite straightforward and easy to use; see the example below.
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/9003a00e-f52c-4692-b7b7-e387b780d456)
 
-
-***
+```rust
     // create an enigma eventloop and appstate
     let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
     let mut app_state = enigma::AppState::new();
@@ -147,4 +146,4 @@ The API is quite straightforward and easy to use; see the example below.
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
-  ***
+```
