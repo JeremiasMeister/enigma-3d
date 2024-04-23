@@ -145,7 +145,7 @@ impl Material {
         emissive: Option<texture::Texture>,
         emissive_strength: Option<f32>,
     ) -> Self {
-        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), shader.get_geometry_shader().as_deref()).expect("Failed to compile shader program");
         let _tex_white = {
             let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
@@ -227,7 +227,7 @@ impl Material {
 
     pub fn set_shader(&mut self, shader: shader::Shader) {
         self.shader = shader.clone();
-        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), shader.get_geometry_shader().as_deref()).expect("Failed to compile shader program");
     }
 
     pub fn set_albedo(&mut self, albedo: texture::Texture) {
@@ -283,13 +283,13 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER, None), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER, None), &display);
         mat.set_transparency(transparency);
         mat
     }

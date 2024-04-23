@@ -4,11 +4,13 @@ use serde::{Deserialize, Serialize};
 pub struct ShaderSerializer {
     fragment_shader: String,
     vertex_shader: String,
+    geometry_shader: Option<String>
 }
 
 pub struct Shader {
     pub fragment_shader: String,
     pub vertex_shader: String,
+    pub geometry_shader: Option<String>
 }
 
 impl Shader {
@@ -16,6 +18,7 @@ impl Shader {
         Self {
             fragment_shader: String::from(""),
             vertex_shader: String::from(""),
+            geometry_shader: None,
         }
     }
 
@@ -23,6 +26,7 @@ impl Shader {
         Self {
             fragment_shader: serializer.fragment_shader,
             vertex_shader: serializer.vertex_shader,
+            geometry_shader: serializer.geometry_shader,
         }
     }
 
@@ -30,6 +34,7 @@ impl Shader {
         ShaderSerializer {
             fragment_shader: self.fragment_shader.clone(),
             vertex_shader: self.vertex_shader.clone(),
+            geometry_shader: self.geometry_shader.clone(),
         }
     }
 
@@ -39,6 +44,11 @@ impl Shader {
     pub fn set_vertex_shader(&mut self, vertex_shader: String) {
         self.vertex_shader = vertex_shader;
     }
+
+    pub fn set_geometry_shader(&mut self, geometry_shader: String) {
+        self.geometry_shader = Some(geometry_shader);
+    }
+
     pub fn get_fragment_shader(&self) -> String {
         self.fragment_shader.clone()
     }
@@ -46,25 +56,42 @@ impl Shader {
         self.vertex_shader.clone()
     }
 
-    pub fn from_files(vertex_shader: &str, fragment_shader: &str) -> Self {
+    pub fn get_geometry_shader(&self) -> Option<String> {
+        self.geometry_shader.clone()
+    }
+
+    pub fn from_files(vertex_shader: &str, fragment_shader: &str, geometry_shader: Option<&str>) -> Self {
         let vertex_shader = std::fs::read_to_string(vertex_shader).expect("Unable to read file");
         let fragment_shader = std::fs::read_to_string(fragment_shader).expect("Unable to read file");
+        let geometry_shader = match geometry_shader {
+            Some(geometry_shader) => Some(std::fs::read_to_string(geometry_shader).expect("Unable to read file")),
+            None => None,
+        };
         Self {
             fragment_shader,
             vertex_shader,
+            geometry_shader,
         }
     }
 
-    pub fn from_strings(vertex_shader: &str, fragment_shader: &str) -> Self {
+    pub fn from_strings(vertex_shader: &str, fragment_shader: &str, geometry_shader: Option<&str>) -> Self {
         Self {
             fragment_shader: String::from(fragment_shader),
             vertex_shader: String::from(vertex_shader),
+            geometry_shader: match geometry_shader {
+                Some(geometry_shader) => Some(String::from(geometry_shader)),
+                None => None,
+            },
         }
     }
 
     pub fn log(&self) {
         println!("Vertex Shader:\n{}", self.vertex_shader);
         println!("Fragment Shader:\n{}", self.fragment_shader);
+        match &self.geometry_shader {
+            Some(geometry_shader) => println!("Geometry Shader:\n{}", geometry_shader),
+            None => (),
+        }
     }
 
     pub fn default() -> Self {
@@ -90,6 +117,7 @@ impl Shader {
         Self {
             fragment_shader: String::from(fragment_shader),
             vertex_shader: String::from(vertex_shader),
+            geometry_shader: None,
         }
     }
 }
@@ -102,13 +130,19 @@ impl Default for Shader {
 
 impl std::fmt::Display for Shader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+        write!(f, "{}{}{}", self.vertex_shader, self.fragment_shader, match &self.geometry_shader {
+            Some(geometry_shader) => geometry_shader,
+            None => "",
+        })
     }
 }
 
 impl std::fmt::Debug for Shader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+        write!(f, "{}{}{}", self.vertex_shader, self.fragment_shader, match &self.geometry_shader {
+            Some(geometry_shader) => geometry_shader,
+            None => "",
+        })
     }
 }
 
@@ -117,6 +151,10 @@ impl Clone for Shader {
         Self {
             fragment_shader: self.fragment_shader.clone(),
             vertex_shader: self.vertex_shader.clone(),
+            geometry_shader: match &self.geometry_shader {
+                Some(geometry_shader) => Some(geometry_shader.clone()),
+                None => None,
+            },
         }
     }
 }
