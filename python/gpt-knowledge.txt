@@ -1,0 +1,3747 @@
+# Directory: ../src
+
+// File: camera.rs
+// Path: ..\src\camera.rs
+/* Start of file camera.rs */
+use crate::object::{Transform, TransformSerializer};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct CameraSerializer {
+    transform: TransformSerializer,
+    fov: f32,
+    width: f32,
+    height: f32,
+    near: f32,
+    far: f32,
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
+}
+
+#[derive(Copy, Clone)]
+pub struct Camera {
+    pub transform: Transform,
+    pub fov: f32,
+    pub width: f32,
+    pub height: f32,
+    pub near: f32,
+    pub far: f32,
+    pub view: [[f32; 4]; 4],
+    pub projection: [[f32; 4]; 4],
+}
+
+
+impl Camera {
+    pub fn new(
+        position: Option<[f32; 3]>,
+        rotation: Option<[f32; 3]>, // Expected in degrees, will be converted to radians
+        fov: Option<f32>, // Expected in degrees, will be converted to radians
+        aspect: Option<f32>,
+        near: Option<f32>,
+        far: Option<f32>
+    ) -> Self {
+        let mut c = Self {
+            transform: {
+                let mut t = Transform::new();
+                t.set_position(position.unwrap_or_else(|| [0.0, 0.0, 0.0]));
+                t.set_rotation(rotation.unwrap_or_else(|| [0.0, 0.0, 0.0]));
+                t
+            },
+            fov: fov.unwrap_or_else(|| 90.0).to_radians(),
+            width: aspect.unwrap_or_else(|| 1920.0),
+            height: aspect.unwrap_or_else(|| 1080.0),
+            near: near.unwrap_or_else(|| 0.1),
+            far: far.unwrap_or_else(|| 1024.0),
+            view: [[0.0; 4]; 4],
+            projection: [[0.0; 4]; 4],
+        };
+        c.update_matrices();
+        c
+    }
+
+    pub fn from_serializer(serializer: CameraSerializer) -> Self {
+        Self {
+            transform: Transform::from_serializer(serializer.transform),
+            fov: serializer.fov,
+            width: serializer.width,
+            height: serializer.height,
+            near: serializer.near,
+            far: serializer.far,
+            view: serializer.view,
+            projection: serializer.projection,
+        }
+    }
+
+    pub fn to_serializer(&self) -> CameraSerializer {
+        CameraSerializer {
+            transform: self.transform.to_serializer(),
+            fov: self.fov,
+            width: self.width,
+            height: self.height,
+            near: self.near,
+            far: self.far,
+            view: self.view,
+            projection: self.projection,
+        }
+    }
+
+    pub fn update_matrices(&mut self) {
+        self.view = Camera::view_matrix(
+            &self.transform.get_position().into(),
+            &self.calculate_direction_vector(),
+            &[0.0, 1.0, 0.0],
+        );
+        self.projection = Camera::projection_matrix(
+            self.fov,
+            self.width / self.height,
+            self.near,
+            self.far,
+        );
+    }
+
+    pub fn calculate_direction_vector(&self) -> [f32; 3] {
+        let pitch = self.transform.rotation[0]; // Rotation around X-axis
+        let yaw = self.transform.rotation[1];   // Rotation around Y-axis
+
+        let x = yaw.sin() * pitch.cos();
+        let y = pitch.sin();
+        let z = yaw.cos() * pitch.cos();
+
+        [-x, -y, -z] // Pointing down negative Z-axis
+    }
+
+
+    fn projection_matrix(fov: f32, aspect: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
+        let f = 1.0 / (fov / 2.0).tan();
+        [
+            [f / aspect, 0.0, 0.0, 0.0],
+            [0.0, f, 0.0, 0.0],
+            [0.0, 0.0, (far + near) / (near - far), -1.0],
+            [0.0, 0.0, (2.0 * far * near) / (near - far), 0.0],
+        ]
+    }
+
+    fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> [[f32; 4]; 4] {
+        let f = {
+            let len = (direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]).sqrt();
+            [-direction[0] / len, -direction[1] / len, -direction[2] / len] // Negate direction for a right-handed system
+        };
+
+        let s = [
+            up[1] * f[2] - up[2] * f[1],
+            up[2] * f[0] - up[0] * f[2],
+            up[0] * f[1] - up[1] * f[0],
+        ];
+        let s_norm = {
+            let len = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt();
+            [s[0] / len, s[1] / len, s[2] / len]
+        };
+
+        let u = [
+            f[1] * s_norm[2] - f[2] * s_norm[1],
+            f[2] * s_norm[0] - f[0] * s_norm[2],
+            f[0] * s_norm[1] - f[1] * s_norm[0],
+        ];
+
+        let p = [
+            -position[0] * s_norm[0] - position[1] * s_norm[1] - position[2] * s_norm[2],
+            -position[0] * u[0] - position[1] * u[1] - position[2] * u[2],
+            -position[0] * f[0] - position[1] * f[1] - position[2] * f[2],
+        ];
+
+        [
+            [s_norm[0], u[0], f[0], 0.0],
+            [s_norm[1], u[1], f[1], 0.0],
+            [s_norm[2], u[2], f[2], 0.0],
+            [p[0], p[1], p[2], 1.0],
+        ]
+    }
+
+    pub fn get_view_matrix(&self) -> [[f32; 4]; 4] {
+        Camera::view_matrix(
+            &self.transform.get_position().into(),
+            &self.calculate_direction_vector(),
+            &[0.0, 1.0, 0.0],
+        )
+    }
+
+    pub fn get_projection_matrix(&self) -> [[f32; 4]; 4] {
+        Camera::projection_matrix(
+            self.fov,
+            self.width / self.height,
+            self.near,
+            self.far,
+        )
+    }
+
+    pub fn get_position(&self) -> [f32; 3] {
+        self.transform.get_position().into()
+    }
+
+    pub fn get_rotation(&self) -> [f32; 3] {
+        self.transform.get_rotation().into()
+    }
+
+    pub fn get_fov(&self) -> f32 {
+        self.fov.clone()
+    }
+
+    pub fn get_aspect(&self) -> (f32, f32) {
+        (self.width.clone(), self.height.clone())
+    }
+
+    pub fn get_near(&self) -> f32 {
+        self.near.clone()
+    }
+
+    pub fn get_far(&self) -> f32 {
+        self.far.clone()
+    }
+
+    pub fn get_view(&self) -> [[f32; 4]; 4] {
+        self.view.clone()
+    }
+
+    pub fn get_projection(&self) -> [[f32; 4]; 4] {
+        self.projection.clone()
+    }
+
+    pub fn set_position(&mut self, position: [f32; 3]) {
+        self.transform.set_position(position);
+        self.update_matrices();
+    }
+
+    pub fn set_rotation(&mut self, rotation: [f32; 3]) {
+        self.transform.set_rotation(rotation);
+        self.update_matrices();
+    }
+
+    pub fn set_fov(&mut self, fov: f32) {
+        self.fov = fov;
+        self.update_matrices();
+    }
+
+    pub fn set_aspect(&mut self, width: f32, heigth: f32) {
+        self.width = width;
+        self.height = heigth;
+        self.update_matrices();
+    }
+
+    pub fn set_near(&mut self, near: f32) {
+        self.near = near;
+        self.update_matrices();
+    }
+
+    pub fn set_far(&mut self, far: f32) {
+        self.far = far;
+        self.update_matrices();
+    }
+}
+/* End of file camera.rs */
+
+
+// File: collision_world.rs
+// Path: ..\src\collision_world.rs
+/* Start of file collision_world.rs */
+use std::collections::HashMap;
+use std::fmt::Debug;
+use crate::AppState;
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
+use uuid::Uuid;
+use crate::camera::Camera;
+use crate::geometry::BoundingBox;
+
+pub struct MousePosition {
+    pub screen_space: (f64, f64),
+    pub world_space: Vector3<f32>,
+}
+
+pub struct RayCast {
+    origin: Vector3<f32>,
+    direction: Vector3<f32>,
+    length: f32,
+    intersection_objects: HashMap<Uuid, Vector3<f32>>
+}
+
+pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
+    let aabb1_min = aabb1.min_point();
+    let aabb1_max = aabb1.max_point();
+    let aabb2_min = aabb2.min_point();
+    let aabb2_max = aabb2.max_point();
+
+    if aabb1_min.x > aabb2_max.x || aabb1_max.x < aabb2_min.x {
+        return false;
+    }
+
+    if aabb1_min.y > aabb2_max.y || aabb1_max.y < aabb2_min.y {
+        return false;
+    }
+
+    if aabb1_min.z > aabb2_max.z || aabb1_max.z < aabb2_min.z {
+        return false;
+    }
+
+    true
+}
+
+impl Debug for MousePosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MousePosition")
+            .field("screen_space", &self.screen_space)
+            .field("world_space", &self.world_space)
+            .finish()
+    }
+}
+
+impl MousePosition {
+    pub fn new() -> Self {
+        Self {
+            screen_space: (0.0, 0.0),
+            world_space: Vector3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    pub fn get_world_position(&self, camera: &Camera) -> (Vector3<f32>, Vector3<f32>) {
+        let clip_space_x = (self.screen_space.0 as f32 / camera.width) * 2.0 - 1.0;
+        let clip_space_y = 1.0-(self.screen_space.1 as f32 / camera.height) * 2.0;
+        let clip_space_z = -1.0;
+        let clip_space_coord: Vector4<f32> = Vector4::new(clip_space_x, clip_space_y, clip_space_z, 1.0);
+        let view_space_coord = Matrix4::from(camera.get_projection_matrix()).try_inverse().unwrap().transform_point(&Point3::from_homogeneous(clip_space_coord).unwrap());
+        let world_space_coord = Matrix4::from(camera.get_view_matrix()).try_inverse().unwrap().transform_point(&view_space_coord);
+        let world_space_point: Point3<f32> = world_space_coord.xyz().into();
+        let ray_direction: Vector3<f32> = (world_space_point - camera.transform.get_position()).coords.normalize();
+
+        (world_space_point.coords, ray_direction)
+    }
+
+    pub fn get_screen_position(&self) -> (f64, f64) {
+        self.screen_space
+    }
+
+    pub fn set_screen_position(&mut self, position: (f64, f64)) {
+        self.screen_space = position;
+    }
+}
+
+impl RayCast {
+    pub fn new(origin: Vector3<f32>, direction: Vector3<f32>, length: f32) -> Self {
+        Self {
+            origin,
+            direction,
+            length,
+            intersection_objects: HashMap::new(),
+        }
+    }
+
+    pub fn get_intersection_map(&self) -> &HashMap<Uuid, Vector3<f32>> {
+        &self.intersection_objects
+    }
+
+    pub fn get_intersection_uuids(&self) -> Vec<Uuid> {
+        let mut uuids = Vec::new();
+        for (uuid, _) in self.intersection_objects.iter() {
+            uuids.push(*uuid);
+        }
+        uuids
+    }
+
+    pub fn get_intersection_points(&self) -> Vec<Vector3<f32>> {
+        let mut points = Vec::new();
+        for (_, point) in self.intersection_objects.iter() {
+            points.push(*point);
+        }
+        points
+    }
+
+    pub fn cast(&mut self, app_state: &mut AppState) {
+        for object in app_state.objects.iter_mut() {
+            let aabb = object.get_bounding_box();
+            match self.intersects_bounding_box(&aabb) {
+                Some(intersection_point) => {
+                    self.intersection_objects.insert(object.get_unique_id(), intersection_point);
+                },
+                None => {}
+            }
+        }
+    }
+
+    fn intersects_bounding_box(&self, bounding_box: &BoundingBox) -> Option<Vector3<f32>> {
+        let inv_direction = Vector3::new(1.0 / self.direction.x, 1.0 / self.direction.y, 1.0 / self.direction.z);
+        let sign = [
+            (inv_direction.x < 0.0) as usize,
+            (inv_direction.y < 0.0) as usize,
+            (inv_direction.z < 0.0) as usize,
+        ];
+
+        let bbox = [bounding_box.min_point(), bounding_box.max_point()];
+        let mut tmin = (bbox[sign[0]].x - self.origin.x) * inv_direction.x;
+        let mut tmax = (bbox[1 - sign[0]].x - self.origin.x) * inv_direction.x;
+        let tymin = (bbox[sign[1]].y - self.origin.y) * inv_direction.y;
+        let tymax = (bbox[1 - sign[1]].y - self.origin.y) * inv_direction.y;
+
+        if (tmin > tymax) || (tymin > tmax) {
+            return None;
+        }
+
+        if tymin > tmin {
+            tmin = tymin;
+        }
+
+        if tymax < tmax {
+            tmax = tymax;
+        }
+
+        let tzmin = (bbox[sign[2]].z - self.origin.z) * inv_direction.z;
+        let tzmax = (bbox[1 - sign[2]].z - self.origin.z) * inv_direction.z;
+
+        if (tmin > tzmax) || (tzmin > tmax) {
+            return None;
+        }
+
+        if tzmin > tmin {
+            tmin = tzmin;
+        }
+
+        if tzmax < tmax {
+            tmax = tzmax;
+        }
+
+        if (tmin < self.length) && (tmax > 0.0) {
+            return Some(self.origin + tmin * self.direction);
+        }
+
+        None
+    }
+}
+/* End of file collision_world.rs */
+
+
+// File: data.rs
+// Path: ..\src\data.rs
+/* Start of file data.rs */
+use std::any::Any;
+
+pub struct AppStateData {
+    name: String,
+    value: Box<dyn Any>,
+}
+impl AppStateData {
+    pub fn new(name: &str, value: Box<dyn Any>) -> Self {
+        AppStateData {
+            name: name.to_string(),
+            value,
+        }
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_value(&self) -> &dyn Any {
+        self.value.as_ref()
+    }
+
+    pub fn get_value_mut(&mut self) -> &mut dyn Any {
+        self.value.as_mut()
+    }
+
+    // Since the value is already a Box<dyn Any>, setting a new value should accept a Box<dyn Any>
+    pub fn set_value(&mut self, value: Box<dyn Any>) {
+        self.value = value;
+    }
+}
+/* End of file data.rs */
+
+
+// File: debug_geo.rs
+// Path: ..\src\debug_geo.rs
+/* Start of file debug_geo.rs */
+use crate::geometry;
+
+pub const TRIANGLE: [geometry::Vertex; 3] = [
+    geometry::Vertex { position: [-0.5, 0.5, 0.0], color: [1.0, 0.0, 0.0], texcoord: [0.0, 0.0], normal: [1.0, 0.0, 1.0] },
+    geometry::Vertex { position: [0.0, 0.9, 0.0], color: [0.0, 1.0, 0.0], texcoord: [0.5, 1.0], normal: [1.0, 0.0, 1.0] },
+    geometry::Vertex { position: [0.5, 0.5, 0.0], color: [0.0, 0.0, 1.0], texcoord: [0.0, 0.0], normal: [1.0, 0.0, 1.0] },
+];
+
+pub const SQUARE: [geometry::Vertex; 6] = [
+    geometry::Vertex { position: [-0.5, -0.8, 0.0], color: [1.0, 0.0, 0.0], texcoord: [0.0, 0.0], normal: [0.5, 0.0, 1.0] },
+    geometry::Vertex { position: [0.5, -0.8, 0.0], color: [0.0, 1.0, 0.0], texcoord: [0.0, 1.0], normal: [0.5, 0.0, 1.0] },
+    geometry::Vertex { position: [0.5, 0.5, 0.0], color: [0.0, 0.0, 1.0], texcoord: [1.0, 0.0], normal: [0.5, 0.0, 1.0] },
+    geometry::Vertex { position: [0.5, 0.5, 0.0], color: [0.0, 1.0, 1.0], texcoord: [1.0, 0.0], normal: [0.5, 0.0, 1.0] },
+    geometry::Vertex { position: [-0.5, 0.5, 0.0], color: [1.0, 1.0, 0.0], texcoord: [0.0, 1.0], normal: [0.5, 0.0, 1.0] },
+    geometry::Vertex { position: [-0.5, -0.8, 0.0], color: [1.0, 0.0, 1.0], texcoord: [0.0, 0.0], normal: [0.5, 0.0, 1.0] },
+];
+
+pub fn get_debug_shapes() -> Vec<&'static [geometry::Vertex]> {
+    vec![&SQUARE, &TRIANGLE]
+}
+/* End of file debug_geo.rs */
+
+
+// File: default_events.rs
+// Path: ..\src\default_events.rs
+/* Start of file default_events.rs */
+use uuid::Uuid;
+use crate::AppState;
+use crate::collision_world::RayCast;
+
+pub fn select_object(app_state: &mut AppState){
+    app_state.object_selection.clear();
+    select_object_single(app_state);
+}
+
+pub fn select_object_add(app_state: &mut AppState){
+    select_object_single(app_state);
+}
+
+fn select_object_single(app_state: &mut AppState) {
+    match app_state.camera {
+        Some(camera) => {
+            let world_space_mouse_position = app_state.get_mouse_position().get_world_position(&camera);
+            let mut raycast = RayCast::new(
+                world_space_mouse_position.0,
+                world_space_mouse_position.1,
+                100.0,
+            );
+            raycast.cast(app_state);
+            for (id, _) in raycast.get_intersection_map().iter() {
+                let mut ids: Vec<Uuid> = app_state.object_selection.clone();
+                for object in app_state.get_objects_mut() {
+                    if object.get_unique_id() == *id {
+                        if !ids.contains(&object.get_unique_id()) {
+                            ids.push(object.get_unique_id());
+                        }
+                    }
+                }
+                app_state.object_selection = ids;
+            }
+            println!("Selected object(s): {:?}", app_state.object_selection);
+        },
+        None => {
+            println!("No camera found to cast from, could not select object");
+        }
+    }
+}
+/* End of file default_events.rs */
+
+
+// File: event.rs
+// Path: ..\src\event.rs
+/* Start of file event.rs */
+use std::sync::Arc;
+use crate::AppState;
+
+#[derive(Copy, Clone)]
+pub enum EventCharacteristic {
+    KeyPress(winit::event::VirtualKeyCode),
+    MousePress(winit::event::MouseButton),
+    MouseScroll(winit::event::MouseScrollDelta),
+    //TODO: impl more events
+}
+
+#[derive(Copy, Clone)]
+pub struct EventModifiers {
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+}
+
+impl EventModifiers {
+    pub fn new(ctrl: bool, shift: bool, alt: bool) -> Self {
+        Self {
+            ctrl,
+            shift,
+            alt,
+        }
+    }
+    pub fn default() -> Self {
+        Self {
+            ctrl: false,
+            shift: false,
+            alt: false,
+        }
+    }
+}
+
+impl PartialEq for EventModifiers {
+    fn eq(&self, other: &Self) -> bool {
+        self.ctrl == other.ctrl && self.shift == other.shift && self.alt == other.alt
+    }
+}
+
+pub type EventFunction = Arc<dyn Fn(&mut AppState)>;
+/* End of file event.rs */
+
+
+// File: geometry.rs
+// Path: ..\src\geometry.rs
+/* Start of file geometry.rs */
+use std::fmt::Debug;
+use nalgebra::Vector3;
+use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub texcoord: [f32; 2],
+    pub color: [f32; 3],
+    pub normal: [f32; 3],
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BoundingBoxSerializer {
+    pub center: [f32; 3],
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
+}
+
+#[derive(Copy, Clone)]
+pub struct BoundingBox {
+    pub center: Vector3<f32>,
+    //relative to the objects position
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BoundingBoxMesh {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+}
+
+glium::implement_vertex!(Vertex, position, texcoord, color, normal);
+
+impl Debug for Vertex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Vertex")
+            .field("position", &self.position)
+            .field("texcoord", &self.texcoord)
+            .field("color", &self.color)
+            .field("normal", &self.normal)
+            .finish()
+    }
+}
+
+impl BoundingBoxMesh {
+    pub fn new(bounding_box: &BoundingBox) -> Self {
+        let half_width = bounding_box.width / 2.0;
+        let half_height = bounding_box.height / 2.0;
+        let half_depth = bounding_box.depth / 2.0;
+
+        let corners = [
+            bounding_box.center + Vector3::new(-half_width, -half_height, -half_depth),
+            bounding_box.center + Vector3::new(half_width, -half_height, -half_depth),
+            bounding_box.center + Vector3::new(half_width, half_height, -half_depth),
+            bounding_box.center + Vector3::new(-half_width, half_height, -half_depth),
+            bounding_box.center + Vector3::new(-half_width, -half_height, half_depth),
+            bounding_box.center + Vector3::new(half_width, -half_height, half_depth),
+            bounding_box.center + Vector3::new(half_width, half_height, half_depth),
+            bounding_box.center + Vector3::new(-half_width, half_height, half_depth),
+        ];
+
+        let mut vertices = Vec::new();
+
+        for i in 0..corners.len() {
+            let corner = corners[i];
+            vertices.push(Vertex {
+                position: [corner.x, corner.y, corner.z],
+                texcoord: [0.0, 0.0],
+                color: [1.0, 1.0, 1.0],
+                normal: [0.0, 0.0, 0.0],
+            });
+        }
+        let indices = vec![
+            0, 1, 2, 2, 3, 0, // Front face
+            1, 5, 6, 6, 2, 1, // Right face
+            5, 4, 7, 7, 6, 5, // Back face
+            4, 0, 3, 3, 7, 4, // Left face
+            3, 2, 6, 6, 7, 3, // Top face
+            4, 5, 1, 1, 0, 4, // Bottom face
+        ];
+
+        Self {
+            vertices,
+            indices,
+        }
+    }
+}
+
+impl BoundingBox {
+    // Returns the minimum point of the bounding box
+    pub fn min_point(&self) -> Vector3<f32> {
+        Vector3::new(
+            self.center.x - self.width / 2.0,
+            self.center.y - self.height / 2.0,
+            self.center.z - self.depth / 2.0,
+        )
+    }
+
+    // Returns the maximum point of the bounding box
+    pub fn max_point(&self) -> Vector3<f32> {
+        Vector3::new(
+            self.center.x + self.width / 2.0,
+            self.center.y + self.height / 2.0,
+            self.center.z + self.depth / 2.0,
+        )
+    }
+
+    pub fn to_serializer(&self) -> BoundingBoxSerializer {
+        BoundingBoxSerializer {
+            center: [self.center.x, self.center.y, self.center.z],
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+        }
+    }
+
+    pub fn from_serializer(serializer: BoundingBoxSerializer) -> Self {
+        Self {
+            center: Vector3::new(serializer.center[0], serializer.center[1], serializer.center[2]),
+            width: serializer.width,
+            height: serializer.height,
+            depth: serializer.depth,
+        }
+    }
+}
+/* End of file geometry.rs */
+
+
+// File: lib.rs
+// Path: ..\src\lib.rs
+/* Start of file lib.rs */
+use std::any::Any;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use egui_glium::EguiGlium;
+use winit::window::Window;
+use glium::glutin::surface::WindowSurface;
+use glium::{Display, Surface, Texture2d, uniform};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::{ControlFlow};
+use crate::camera::{Camera, CameraSerializer};
+use crate::collision_world::MousePosition;
+use crate::data::AppStateData;
+use crate::event::EventModifiers;
+use crate::light::{Light, LightEmissionType};
+use crate::object::Object;
+use crate::postprocessing::PostProcessingEffect;
+use crate::texture::Texture;
+
+pub mod shader;
+pub mod geometry;
+pub mod debug_geo;
+pub mod texture;
+pub mod material;
+pub mod object;
+pub mod light;
+pub mod camera;
+pub mod event;
+pub mod collision_world;
+pub mod default_events;
+pub mod postprocessing;
+pub mod ui;
+pub mod resources;
+pub mod data;
+
+pub fn init_default(app_state: &mut AppState) {
+    app_state.set_renderscale(1);
+    app_state.set_fps(60);
+    app_state.set_max_buffers(3);
+
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
+        Arc::new(default_events::select_object),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
+        Arc::new(default_events::select_object_add),
+        None,
+    );
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AppStateSerializer {
+    pub camera: Option<CameraSerializer>,
+    pub light: Vec<light::LightSerializer>,
+    pub ambient_light: Option<light::LightSerializer>,
+    pub skybox: Option<object::ObjectSerializer>,
+    pub skybox_texture: Option<texture::TextureSerializer>,
+    pub objects: Vec<object::ObjectSerializer>,
+    pub object_selection: Vec<String>,
+}
+
+pub struct AppState {
+    pub fps: u64,
+    pub camera: Option<camera::Camera>,
+    pub light: Vec<light::Light>,
+    pub ambient_light: Option<light::Light>,
+    pub skybox: Option<object::Object>,
+    pub skybox_texture: Option<texture::Texture>,
+    pub objects: Vec<object::Object>,
+    pub object_selection: Vec<Uuid>,
+    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction, event::EventModifiers)>,
+    pub update_injections: Vec<event::EventFunction>,
+    pub gui_injections: Vec<ui::GUIDrawFunction>,
+    pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
+    pub display: Option<glium::Display<WindowSurface>>,
+    pub time: f32,
+    pub render_scale: u32,
+    pub max_buffers: usize,
+    mouse_position: MousePosition,
+    pub state_data: Vec<AppStateData>,
+}
+
+pub struct EventLoop {
+    pub event_loop: winit::event_loop::EventLoop<()>,
+    pub window: Window,
+    pub display: Display<WindowSurface>,
+    pub modifiers: EventModifiers,
+    gui_renderer: Option<EguiGlium>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        AppState {
+            fps: 60,
+            camera: None,
+            skybox: None,
+            skybox_texture: None,
+            objects: Vec::new(),
+            object_selection: Vec::new(),
+            light: Vec::new(),
+            ambient_light: None,
+            event_injections: Vec::new(),
+            update_injections: Vec::new(),
+            post_processes: Vec::new(),
+            display: None,
+            time: 0.0,
+            render_scale: 1,
+            max_buffers: 3,
+            mouse_position: MousePosition::new(),
+            gui_injections: Vec::new(),
+            state_data: Vec::new(),
+        }
+    }
+
+    pub fn to_serializer(&self) -> AppStateSerializer {
+        println!("WARNING: an AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!");
+        let camera = match self.camera {
+            Some(camera) => Some(camera.to_serializer()),
+            None => None,
+        };
+        let light = self.light.iter().map(|l| l.to_serializer()).collect();
+        let ambient_light = match &self.ambient_light {
+            Some(light) => Some(light.to_serializer()),
+            None => None,
+        };
+        let skybox = match &self.skybox {
+            Some(skybox) => Some(skybox.to_serializer()),
+            None => None,
+        };
+        let skybox_texture = match &self.skybox_texture {
+            Some(texture) => Some(texture.to_serializer()),
+            None => None,
+        };
+        let objects = self.objects.iter().map(|o| o.to_serializer()).collect();
+        let object_selection = self.object_selection.iter().map(|o| o.to_string()).collect();
+        AppStateSerializer {
+            camera,
+            light,
+            ambient_light,
+            skybox,
+            skybox_texture,
+            objects,
+            object_selection,
+        }
+    }
+
+    pub fn inject_serializer(&mut self, serializer: AppStateSerializer, display: Display<WindowSurface>, additive: bool) {
+        self.camera = match serializer.camera {
+            Some(camera) => Some(Camera::from_serializer(camera)),
+            None => None,
+        };
+        match serializer.ambient_light {
+            Some(light) => {
+                self.add_light(Light::from_serializer(light), LightEmissionType::Ambient);
+            },
+            None => {},
+        };
+        self.skybox = match serializer.skybox {
+            Some(skybox) => Some(Object::from_serializer(skybox, display.clone())),
+            None => None,
+        };
+        self.skybox_texture = match serializer.skybox_texture {
+            Some(texture) => Some(Texture::from_serializer(texture, &display.clone())),
+            None => None,
+        };
+
+        if !additive {
+            self.light.clear();
+            self.objects.clear();
+            self.object_selection.clear();
+        }
+        for l in serializer.light {
+            self.add_light(Light::from_serializer(l), LightEmissionType::Source);
+        }
+        for o in serializer.objects {
+            self.add_object(Object::from_serializer(o, display.clone()));
+        }
+        for o in serializer.object_selection {
+            self.object_selection.push(Uuid::parse_str(&o).unwrap());
+        }
+    }
+
+    pub fn add_state_data(&mut self, name: &str, data: Box<dyn Any>) {
+        self.state_data.push(AppStateData::new(name, data));
+    }
+
+    pub fn get_state_data_value<T: 'static>(&self, name: &str) -> Option<&T> {
+        for data in self.state_data.iter() {
+            if data.get_name() == name {
+                // Attempt to downcast to the requested type T
+                if let Some(value) = data.get_value().downcast_ref::<T>() {
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_state_data_value_mut<T: 'static>(&mut self, name: &str) -> Option<&mut T> {
+        for data in self.state_data.iter_mut() {
+            if data.get_name() == name {
+                // Attempt to downcast to the requested type T
+                if let Some(value) = data.get_value_mut().downcast_mut::<T>() {
+                    return Some(value);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn set_state_data_value(&mut self, name: &str, value: Box<dyn Any>) {
+        for data in &mut self.state_data {
+            if data.get_name() == name {
+                data.set_value(value);
+                return;
+            }
+        }
+        // If no existing data is found with the name, add as new state data
+        self.add_state_data(name, value);
+    }
+
+    pub fn inject_gui(&mut self, function: ui::GUIDrawFunction) {
+        self.gui_injections.push(function);
+    }
+
+    pub fn add_post_process(&mut self, post_process: Box<dyn PostProcessingEffect>) {
+        self.post_processes.push(post_process);
+    }
+
+    pub fn get_post_processes(&self) -> &Vec<Box<dyn PostProcessingEffect>> {
+        &self.post_processes
+    }
+
+    pub fn get_post_processes_mut(&mut self) -> &mut Vec<Box<dyn PostProcessingEffect>> {
+        &mut self.post_processes
+    }
+
+    pub fn get_mouse_position(&self) -> &MousePosition {
+        &self.mouse_position
+    }
+
+    pub fn get_mouse_position_mut(&mut self) -> &mut MousePosition {
+        &mut self.mouse_position
+    }
+
+    pub fn convert_to_arc_mutex(self) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(self))
+    }
+
+    pub fn add_object(&mut self, object: object::Object) {
+        self.objects.push(object);
+    }
+
+    pub fn get_objects(&self) -> &Vec<object::Object> {
+        &self.objects
+    }
+
+    pub fn get_object(&self, name: &str) -> Option<&object::Object> {
+        for object in self.objects.iter() {
+            if object.name == name {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_mut(&mut self, name: &str) -> Option<&mut object::Object> {
+        for object in self.objects.iter_mut() {
+            if object.name == name {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_by_uuid(&self, uuid: Uuid) -> Option<&object::Object> {
+        for object in self.objects.iter() {
+            if object.get_unique_id() == uuid {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_object_by_uuid_mut(&mut self, uuid: Uuid) -> Option<&mut object::Object> {
+        for object in self.objects.iter_mut() {
+            if object.get_unique_id() == uuid {
+                return Some(object);
+            }
+        }
+        None
+    }
+
+    pub fn get_selected_objects_mut(&mut self) -> Vec<&mut object::Object> {
+        let mut selected = Vec::new();
+        for object in self.objects.iter_mut() {
+            if self.object_selection.contains(&object.get_unique_id()) {
+                selected.push(object);
+            }
+        }
+        selected
+    }
+
+    pub fn add_light(&mut self, light: light::Light, light_type: LightEmissionType) {
+        match light_type {
+            LightEmissionType::Source => self.light.push(light),
+            LightEmissionType::Ambient => self.ambient_light = Some(light),
+        }
+    }
+
+    pub fn remove_light(&mut self, index: usize, light_type: LightEmissionType) {
+        match light_type {
+            LightEmissionType::Source => {
+                if index >= self.light.len() {
+                    panic!("Index out of bounds");
+                }
+                self.light.remove(index);
+            }
+            LightEmissionType::Ambient => {
+                self.ambient_light = None;
+            }
+        };
+    }
+
+    pub fn get_lights(&self) -> &Vec<light::Light> {
+        &self.light
+    }
+
+    pub fn set_fps(&mut self, fps: u64) {
+        self.fps = fps;
+    }
+
+    pub fn get_fps(&self) -> u64 {
+        self.fps
+    }
+
+    pub fn get_objects_mut(&mut self) -> &mut Vec<object::Object> {
+        &mut self.objects
+    }
+
+    pub fn set_camera(&mut self, camera: camera::Camera) {
+        self.camera = Some(camera);
+    }
+
+    pub fn get_camera(&self) -> &Option<camera::Camera> {
+        &self.camera
+    }
+
+    pub fn set_renderscale(&mut self, scale: u32) {
+        self.render_scale = scale;
+    }
+
+    pub fn get_renderscale(&self) -> u32 {
+        self.render_scale
+    }
+
+    pub fn set_max_buffers(&mut self, max_buffers: usize) {
+        self.max_buffers = max_buffers;
+    }
+
+    pub fn get_max_buffers(&self) -> usize {
+        self.max_buffers
+    }
+
+    pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction, modifiers: Option<event::EventModifiers>) {
+        match modifiers {
+            Some(modifiers) => self.event_injections.push((characteristic, function, modifiers)),
+            None => self.event_injections.push((characteristic, function, event::EventModifiers::default())),
+        }
+    }
+    pub fn inject_update_function(&mut self, function: event::EventFunction) {
+        self.update_injections.push(function);
+    }
+
+    pub fn set_skybox(&mut self, skybox: object::Object) {
+        self.skybox = Some(skybox);
+    }
+
+    pub fn get_skybox(&self) -> &Option<object::Object> {
+        &self.skybox
+    }
+
+    pub fn get_skybox_mut(&mut self) -> &mut Option<object::Object> {
+        &mut self.skybox
+    }
+}
+
+impl EventLoop {
+    pub fn new(title: &str, width: u32, height: u32) -> Self {
+        let event_loop = winit::event_loop::EventLoopBuilder::new().build();
+        let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
+            .with_title(title)
+            .with_inner_size(width, height)
+            .build(&event_loop);
+        EventLoop {
+            event_loop,
+            window,
+            display,
+            modifiers: EventModifiers::default(),
+            gui_renderer: None,
+        }
+    }
+    pub fn get_display_clone(&self) -> Display<WindowSurface> {
+        self.display.clone()
+    }
+
+    pub fn get_display_reference(&self) -> &Display<WindowSurface> {
+        &self.display
+    }
+
+    pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
+        let mut material = crate::material::Material::unlit(self.display.clone(), false);
+        material.set_texture_from_resource(resources::SKYBOX_TEXTURE, crate::material::TextureType::Albedo);
+
+        // create a default object
+        let mut object = Object::load_from_gltf_resource(resources::SKYBOX);
+
+        // set the material
+        object.add_material(material);
+        object.get_shapes_mut()[0].set_material_from_object_list(0);
+
+        object.name = "Skybox".to_string();
+
+        object.transform.set_scale([1.0, 1.0, 1.0]);
+
+        // skybox texture
+        let skybox_texture = texture::Texture::from_resource(&self.display, resources::SKYBOX_TEXTURE);
+
+        (object, skybox_texture)
+    }
+
+    pub fn set_icon_from_path(&self, path: &str) {
+        let image = image::open(path).expect("failed to load icon").to_rgba8();
+        let image_dimensions = image.dimensions();
+        let data = image.into_raw();
+        let icon = winit::window::Icon::from_rgba(data, image_dimensions.0, image_dimensions.1).expect("failed to load icon");
+        self.window.set_window_icon(Some(icon));
+    }
+
+    pub fn set_icon_from_resource(&self, data: &[u8]) {
+        let image = image::load_from_memory(data).expect("failed to load icon").to_rgba8();
+        let image_dimensions = image.dimensions();
+        let data = image.into_raw();
+        let icon = winit::window::Icon::from_rgba(data, image_dimensions.0, image_dimensions.1).expect("failed to load icon");
+        self.window.set_window_icon(Some(icon));
+    }
+
+    // This is just the render loop . an actual event loop still needs to be set up
+    pub fn run(mut self, app_state: Arc<Mutex<AppState>>) {
+        let mut temp_app_state = app_state.lock().unwrap();
+        temp_app_state.display = Some(self.display.clone());
+
+        //spawning skybox
+        let (skybox, skybox_texture) = self.spawn_skybox();
+        temp_app_state.set_skybox(skybox);
+
+
+        // managing fps
+        let mut next_frame_time = Instant::now();
+        let nanos = 1_000_000_000 / temp_app_state.fps;
+        let frame_duration = Duration::from_nanos(nanos); // 60 FPS (1,000,000,000 ns / 60)
+
+        let mut texture = Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture");
+        let mut depth_texture = glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create depth texture");
+
+        let mut buffer_textures: Vec<Texture2d> = Vec::new();
+        for _ in 0..temp_app_state.max_buffers {
+            buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
+        }
+
+        //dropping modified appstate
+        drop(temp_app_state);
+
+        // prepare post processing
+        let screen_vert_rect = postprocessing::get_screen_vert_rect(&self.display);
+        let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
+        let screen_program = postprocessing::get_screen_program(&self.display);
+
+        //initializing GUI
+        match self.gui_renderer {
+            Some(_) => {}
+            None => {
+                let egui_glium = EguiGlium::new(&self.display, &self.window, &self.event_loop);
+                self.gui_renderer = Some(egui_glium);
+            }
+        }
+
+        // run loop
+        self.event_loop.run(move |event, _window_target, control_flow| {
+            // unpacking appstate
+            let mut app_state = app_state.lock().unwrap();
+            let light = app_state.light.clone();
+            let ambient_light = app_state.ambient_light.clone();
+            let camera = app_state.camera.clone();
+            let event_injections = app_state.event_injections.clone();
+            let update_injections = app_state.update_injections.clone();
+            let gui_injections = app_state.gui_injections.clone();
+
+            *control_flow = ControlFlow::WaitUntil(next_frame_time);
+            next_frame_time = Instant::now() + frame_duration;
+
+            // passing framebuffer
+            let texture = &mut texture;
+            let depth_texture = &mut depth_texture;
+            let buffer_textures = &mut buffer_textures;
+            let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
+
+            // passing skybox
+            let skybox_texture = &skybox_texture;
+
+            match event {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
+                    WindowEvent::Resized(new_size) => {
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.camera.as_mut().expect("failed to retrieve camera").set_aspect(new_size.width as f32, new_size.height as f32);
+                            self.display.resize(new_size.into());
+                            if let Some(app_state_display) = app_state.display.as_mut() {
+                                app_state_display.resize(new_size.into());
+                            }
+                        }
+                    }
+                    WindowEvent::ModifiersChanged(modifiers) => {
+                        self.modifiers.ctrl = modifiers.ctrl();
+                        self.modifiers.shift = modifiers.shift();
+                        self.modifiers.alt = modifiers.alt();
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                        }
+                    }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            for (characteristic, function, modifiers) in event_injections {
+                                if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                    if state == winit::event::ElementState::Pressed && button == mouse_button && modifiers == self.modifiers {
+                                        function(&mut app_state);
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if !response.consumed {
+                            for (characteristic, function, modifiers) in event_injections {
+                                if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
+                                    if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) && modifiers == self.modifiers {
+                                        function(&mut app_state);
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    _ => {
+                        _ = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                    }
+                }
+                Event::RedrawRequested(_) => {
+                    app_state.time += 0.001;
+                    let render_target = &mut framebuffer;
+                    render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+
+                    // render objects opaque
+                    let opaque_rendering_parameter = glium::DrawParameters {
+                        depth: glium::Depth {
+                            test: glium::draw_parameters::DepthTest::IfLess,
+                            write: true,
+                            ..Default::default()
+                        },
+                        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        ..Default::default()
+                    };
+                    for object in app_state.objects.iter_mut() {
+                        let model_matrix = object.transform.get_matrix();
+                        let closest_lights = object.get_closest_lights(&light);
+                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
+                            if material.render_transparent {
+                                continue;
+                            }
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                            render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
+                        }
+                    }
+
+                    // render skybox
+                    let skybox_rendering_parameter = glium::DrawParameters {
+                        depth: glium::Depth {
+                            test: glium::draw_parameters::DepthTest::IfLess,
+                            write: false,
+                            ..Default::default()
+                        },
+                        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        ..Default::default()
+                    };
+                    match app_state.get_skybox_mut() {
+                        Some(skybox) => {
+                            let model_matrix = skybox.transform.get_matrix();
+                            let closest_lights = skybox.get_closest_lights(&light);
+                            for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                                render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
+                            }
+                        }
+                        None => {}
+                    }
+
+
+                    // render objects transparent
+                    app_state.objects.sort_by(|a, b| {
+                        let distance_a = (camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
+                        let distance_b = (camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
+                        distance_b.partial_cmp(&distance_a).unwrap()
+                    });
+                    let transparent_rendering_parameter = glium::DrawParameters {
+                        blend: glium::Blend::alpha_blending(),
+                        ..opaque_rendering_parameter
+                    };
+                    for object in app_state.objects.iter_mut() {
+                        let model_matrix = object.transform.get_matrix();
+                        let closest_lights = object.get_closest_lights(&light);
+                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
+                            if !material.render_transparent {
+                                continue;
+                            }
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                            render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
+                        }
+                    }
+
+
+                    // execute post processing#
+                    for process in app_state.get_post_processes() {
+                        process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
+                    }
+
+                    // drawing to screen
+                    let mut screen_target = self.display.draw();
+                    let screen_uniforms = uniform! {
+                        scene: &*texture,
+                    };
+                    screen_target.draw(
+                        &screen_vert_rect,
+                        &screen_indices_rect,
+                        &screen_program,
+                        &screen_uniforms,
+                        &Default::default(),
+                    ).expect("Failed to draw screen");
+
+                    // drawing GUI
+                    let gui_renderer = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer");
+                    gui_renderer.run(&self.window, |egui_context| {
+                        for function in gui_injections.iter() {
+                            function(egui_context, &mut app_state);
+                        }
+                    });
+                    gui_renderer.paint(&self.display, &mut screen_target);
+                    screen_target.finish().expect("Failed to swap buffers");
+                }
+                Event::MainEventsCleared => {
+                    // executing update functions
+                    for function in update_injections {
+                        function(&mut app_state);
+                    }
+                    self.window.request_redraw();
+                }
+                _ => (),
+            }
+        });
+    }
+}
+
+/* End of file lib.rs */
+
+
+// File: light.rs
+// Path: ..\src\light.rs
+/* Start of file light.rs */
+use glium::implement_uniform_block;
+use serde::{Deserialize, Serialize};
+
+pub enum LightEmissionType {
+    Source,
+    Ambient,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LightSerializer {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub direction: [f32; 3],
+    pub cast_shadow: bool,
+}
+
+#[derive(Copy, Clone)]
+pub struct Light {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub direction: [f32; 3],
+    pub cast_shadow: bool
+}
+
+impl Light {
+    pub fn new(position: [f32; 3], color: [f32; 3], intensity: f32, direction: Option<[f32;3]>, cast_shadow: bool) -> Self {
+        Self {
+            position,
+            color,
+            intensity,
+            direction : direction.unwrap_or_else(|| [0.0, 0.0, 0.0]),
+            cast_shadow,
+        }
+    }
+
+    pub fn is_directional(&self) -> bool {
+        self.direction != [0.0, 0.0, 0.0]
+    }
+
+    pub fn from_serializer(serializer: LightSerializer) -> Self {
+        Self {
+            position: serializer.position,
+            color: serializer.color,
+            intensity: serializer.intensity,
+            direction: serializer.direction,
+            cast_shadow: serializer.cast_shadow,
+        }
+    }
+
+    pub fn to_serializer(&self) -> LightSerializer {
+        LightSerializer {
+            position: self.position,
+            color: self.color,
+            intensity: self.intensity,
+            direction: self.direction,
+            cast_shadow: self.cast_shadow,
+        }
+    }
+}
+
+pub struct LightBlock {
+    pub position: [[f32; 4]; 4],
+    pub directions: [[f32; 4]; 4],
+    pub color: [[f32; 4]; 4],
+    pub intensity: [f32; 4],
+    pub cast_shadow: [i32; 4],
+    pub amount: i32,
+    pub ambient_color: [f32; 3],
+    pub ambient_intensity: f32,
+}
+
+impl std::fmt::Debug for LightBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LightBlock")
+            .field("position", &self.position)
+            .field("color", &self.color)
+            .field("intensity", &self.intensity)
+            .field("amount", &self.amount)
+            .field("ambient_color", &self.ambient_color)
+            .finish()
+    }
+}
+
+glium::implement_uniform_block!(Light, position, color, intensity, direction, cast_shadow);
+glium::implement_uniform_block!(LightBlock, position, directions, cast_shadow, color, intensity, amount, ambient_color, ambient_intensity);
+/* End of file light.rs */
+
+
+// File: main.rs
+// Path: ..\src\main.rs
+/* Start of file main.rs */
+use std::sync::Arc;
+use enigma::object::Object;
+use enigma::camera::Camera;
+use enigma::{AppState, event, resources};
+use rand::Rng;
+use enigma::event::EventModifiers;
+
+fn rotate_left(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([0.0, -5.0, 0.0]);
+    }
+}
+
+fn rotate_right(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([0.0, 5.0, 0.0]);
+    }
+}
+
+fn rotate_up(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([-5.0, 0.0, 0.0]);
+    }
+}
+
+fn rotate_down(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([5.0, 0.0, 0.0]);
+    }
+}
+
+fn roll_left(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([0.0, 0.0, 5.0]);
+    }
+}
+
+fn roll_right(app_state: &mut AppState) {
+    for object in app_state.get_selected_objects_mut() {
+        object.transform.rotate([0.0, 0.0, -5.0]);
+    }
+}
+
+fn hopping_objects(app_state: &mut AppState) {
+    for object in app_state.objects.iter_mut() {
+        let rand_scale = rand::thread_rng().gen_range(0.0..0.015);
+        object.transform.move_dir([0.0, (app_state.time * 20.0).sin() * rand_scale, 0.0])
+    }
+}
+
+fn spawn_object(app_state: &mut AppState) {
+    match &app_state.display {
+        Some(d) => {
+            let rand_bool = rand::thread_rng().gen_bool(0.5);
+            let mut material = enigma::material::Material::lit_pbr(d.clone(), rand_bool);
+            material.set_transparency_strength(0.2);
+            material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
+
+            let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
+            object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
+            object.add_material(material);
+            let random_x = rand::thread_rng().gen_range(-4.0..4.0);
+            let random_z = rand::thread_rng().gen_range(-4.0..-1.0);
+
+            object.transform.set_position([random_x, 0.0, random_z]);
+            object.transform.set_scale([0.3, 0.3, 0.3]);
+
+            app_state.add_object(object);
+        }
+        None => {
+            println!("No display found, could not spawn object");
+        }
+    }
+}
+
+fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
+    egui::Window::new("Enigma")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            ui.label("Enigma 3D Renderer");
+            ui.label("Press A, D, W, S, E, Q to rotate the selected object");
+            ui.label("Press Space to spawn a new object");
+            ui.label("Press Ctrl + S to save the current state");
+            ui.label("Press Ctrl + O to load the saved state");
+        });
+
+    egui::Window::new("Scene")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            ui.label("Scene Objects");
+            for object in app_state.objects.iter() {
+                if ui.button(object.name.clone()).clicked() {
+                    let uuid = object.get_unique_id();
+                    if !app_state.object_selection.contains(&uuid) {
+                        app_state.object_selection.push(uuid);
+                    } else {
+                        app_state.object_selection.remove(app_state.object_selection.iter().position(|x| *x == uuid).unwrap());
+                    }
+                }
+            }
+        });
+    egui::Window::new("Transform Edit")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            if app_state.get_selected_objects_mut().len() > 0 {
+                ui.label("Transform Edit");
+                ui.label("Position");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[0], -10.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[1], -10.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.position[2], -10.0..=10.0).text("Z"));
+                ui.label("Rotation");
+
+                let mut rotation = app_state.get_selected_objects_mut()[0].transform.get_rotation();
+                ui.add(egui::Slider::new(&mut rotation.x, -180.0..=180.0).text("X"));
+                ui.add(egui::Slider::new(&mut rotation.y, -180.0..=180.0).text("Y"));
+                ui.add(egui::Slider::new(&mut rotation.z, -180.0..=180.0).text("Z"));
+                app_state.get_selected_objects_mut()[0].transform.set_rotation(rotation.into());
+
+                ui.label("Scale");
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[0], 0.0..=10.0).text("X"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[1], 0.0..=10.0).text("Y"));
+                ui.add(egui::Slider::new(&mut app_state.get_selected_objects_mut()[0].transform.scale[2], 0.0..=10.0).text("Z"));
+            } else {
+                ui.label("No object selected");
+            }
+        });
+}
+
+pub fn print_data(app_state: &mut AppState) {
+    if app_state.time % 2.0 < 0.01 {
+        let intdata = app_state.get_state_data_value::<i32>("intdata");
+        let stringdata = app_state.get_state_data_value::<String>("stringdata");
+        let booldata = app_state.get_state_data_value::<bool>("booldata");
+
+        println!("Data: ");
+        if let Some(intdata) = intdata {
+            println!("intdata: {}", intdata);
+        }
+        if let Some(stringdata) = stringdata {
+            println!("stringdata: {}", stringdata);
+        }
+        if let Some(booldata) = booldata {
+            println!("booldata: {}", booldata);
+        }
+    }
+}
+
+fn save_app_state(app_state: &mut AppState) {
+    let serialize_app_state = app_state.to_serializer();
+    let serialized = serde_json::to_string_pretty(&serialize_app_state).unwrap();
+    std::fs::write("app_state.json", serialized).unwrap();
+}
+
+fn load_app_state(app_state: &mut AppState) {
+    let serialized = std::fs::read_to_string("app_state.json").unwrap();
+    match serde_json::from_str(&serialized) {
+        Ok(deserialized) => {
+            let display = app_state.display.clone().unwrap();
+            app_state.inject_serializer(deserialized, display, false);
+        }
+        Err(e) => {
+            println!("Could not load app state: {}", e);
+        }
+    }
+}
+
+
+fn main() {
+    // create an enigma eventloop and appstate
+    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
+    let mut app_state = enigma::AppState::new();
+
+    // set the icon from the resources
+    event_loop.set_icon_from_resource(resources::ICON);
+
+    // some default event setups like e.g. selection
+    enigma::init_default(&mut app_state);
+
+    // create a material and assign the UV checker texture from resources
+    let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
+
+    // create an object, and load the Suzanne model from resources
+    let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
+
+    // set the material to the suzan object to the first shape (submesh) slot
+    object.add_material(material);
+    object.get_shapes_mut()[0].set_material_from_object_list(0);
+
+    // set the name and position of the object
+    object.name = "Suzanne".to_string();
+    object.transform.set_position([0.0, 0.0, -2.0]);
+
+    // adding the object to the app state
+    app_state.add_object(object);
+
+    // create a bunch of lights
+    let light1 = enigma::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light2 = enigma::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light3 = enigma::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
+
+    // add the lights to the app state
+    app_state.add_light(light1, enigma::light::LightEmissionType::Source);
+    app_state.add_light(light2, enigma::light::LightEmissionType::Source);
+    app_state.add_light(light3, enigma::light::LightEmissionType::Source);
+    app_state.add_light(ambient_light, enigma::light::LightEmissionType::Ambient); // only one ambient light is supported atm
+
+    // create and add a camera to the app state
+    let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
+    app_state.set_camera(camera);
+
+    // add events
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        Arc::new(rotate_left),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        Arc::new(rotate_right),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        Arc::new(rotate_up),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(rotate_down),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
+        Arc::new(roll_right),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
+        Arc::new(roll_left),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(spawn_object),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(save_app_state),
+        Some(EventModifiers::new(true, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::O),
+        Arc::new(load_app_state),
+        Some(EventModifiers::new(true, false, false)),
+    );
+
+    // add update functions
+    app_state.inject_update_function(Arc::new(hopping_objects));
+    app_state.inject_update_function(Arc::new(print_data));
+
+    // add post processing effects
+    //app_state.add_post_process(Box::new(enigma::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
+    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+
+    //add one ui function to the app state. multiple ui functions can be added modularly
+    app_state.inject_gui(Arc::new(enigma_ui_function));
+
+
+    // add some arbitrary state data. This can be used to store any kind of data in the app state
+    // game globals, or other data that needs to be shared between different parts of the application
+    app_state.add_state_data( "intdata", Box::new(10i32));
+    app_state.add_state_data( "stringdata", Box::new("Hello World".to_string() as String));
+    app_state.add_state_data( "booldata", Box::new(true as bool));
+
+    // run the event loop
+    event_loop.run(app_state.convert_to_arc_mutex());
+}
+
+/* End of file main.rs */
+
+
+// File: material.rs
+// Path: ..\src\material.rs
+/* Start of file material.rs */
+use glium::Display;
+use glium::glutin::surface::WindowSurface;
+use glium::texture::RawImage2d;
+use serde::{Deserialize, Serialize};
+use crate::{resources, shader, texture};
+use crate::camera::Camera;
+use crate::light::{Light, LightBlock};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MaterialSerializer {
+    name : Option<String>,
+    color: [f32; 3],
+    albedo: Option<texture::TextureSerializer>,
+    transparency: f32,
+    normal: Option<texture::TextureSerializer>,
+    normal_strength: f32,
+    roughness: Option<texture::TextureSerializer>,
+    roughness_strength: f32,
+    metallic: Option<texture::TextureSerializer>,
+    metallic_strength: f32,
+    emissive: Option<texture::TextureSerializer>,
+    emissive_strength: f32,
+    shader: shader::ShaderSerializer,
+    matrix: [[f32;4]; 4],
+    render_transparent: bool,
+}
+
+
+pub struct Material {
+    pub name: Option<String>,
+    pub color: [f32; 3],
+    pub albedo: Option<texture::Texture>,
+    pub transparency: f32,
+    pub normal: Option<texture::Texture>,
+    pub normal_strength: f32,
+    pub roughness: Option<texture::Texture>,
+    pub roughness_strength: f32,
+    pub metallic: Option<texture::Texture>,
+    pub metallic_strength: f32,
+    pub emissive: Option<texture::Texture>,
+    pub emissive_strength: f32,
+    pub shader: shader::Shader,
+    _tex_white: glium::texture::SrgbTexture2d,
+    _tex_black: glium::texture::SrgbTexture2d,
+    _tex_gray: glium::texture::SrgbTexture2d,
+    _tex_normal: glium::texture::SrgbTexture2d,
+    //this should be a raw image
+    pub display: glium::Display<WindowSurface>,
+    pub program: glium::Program,
+    pub time: f32,
+    pub matrix: [[f32; 4]; 4],
+    pub render_transparent: bool,
+}
+
+pub enum TextureType {
+    Albedo,
+    Normal,
+    Roughness,
+    Metallic,
+    Emissive,
+}
+
+impl Material {
+    pub fn default(shader: shader::Shader, display: &glium::Display<WindowSurface>) -> Self {
+        Material::new(shader, display.clone(), None, None, None, None, None, None, None, None, None, None)
+    }
+
+    pub fn from_serializer(serializer: MaterialSerializer, display: glium::Display<WindowSurface>) -> Self {
+        let shader = shader::Shader::from_serializer(serializer.shader);
+        let albedo = match serializer.albedo {
+            Some(albedo) => Some(texture::Texture::from_serializer(albedo, &display)),
+            None => None,
+        };
+        let normal = match serializer.normal {
+            Some(normal) => Some(texture::Texture::from_serializer(normal, &display)),
+            None => None,
+        };
+        let roughness = match serializer.roughness {
+            Some(roughness) => Some(texture::Texture::from_serializer(roughness, &display)),
+            None => None,
+        };
+        let metallic = match serializer.metallic {
+            Some(metallic) => Some(texture::Texture::from_serializer(metallic, &display)),
+            None => None,
+        };
+        let emissive = match serializer.emissive {
+            Some(emissive) => Some(texture::Texture::from_serializer(emissive, &display)),
+            None => None,
+        };
+
+        let mut mat = Material::new(shader, display, Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength));
+        mat.name = serializer.name;
+        mat.matrix = serializer.matrix;
+        mat.set_transparency_strength(serializer.transparency);
+        mat.set_transparency(serializer.render_transparent);
+        mat
+    }
+
+    pub fn to_serializer(&self) -> MaterialSerializer {
+        MaterialSerializer {
+            name: self.name.clone(),
+            color: self.color,
+            albedo: match &self.albedo {
+                Some(albedo) => Some(albedo.to_serializer()),
+                None => None,
+            },
+            transparency: self.transparency,
+            normal: match &self.normal {
+                Some(normal) => Some(normal.to_serializer()),
+                None => None,
+            },
+            normal_strength: self.normal_strength,
+            roughness: match &self.roughness {
+                Some(roughness) => Some(roughness.to_serializer()),
+                None => None,
+            },
+            roughness_strength: self.roughness_strength,
+            metallic: match &self.metallic {
+                Some(metallic) => Some(metallic.to_serializer()),
+                None => None,
+            },
+            metallic_strength: self.metallic_strength,
+            emissive: match &self.emissive {
+                Some(emissive) => Some(emissive.to_serializer()),
+                None => None,
+            },
+            emissive_strength: self.emissive_strength,
+            shader: self.shader.to_serializer(),
+            matrix: self.matrix,
+            render_transparent: self.render_transparent,
+        }
+    }
+
+    pub fn new(
+        shader: shader::Shader,
+        display: glium::Display<WindowSurface>,
+        color: Option<[f32; 3]>,
+        albedo: Option<texture::Texture>,
+        normal: Option<texture::Texture>,
+        normal_strength: Option<f32>,
+        roughness: Option<texture::Texture>,
+        roughness_strength: Option<f32>,
+        metallic: Option<texture::Texture>,
+        metallic_strength: Option<f32>,
+        emissive: Option<texture::Texture>,
+        emissive_strength: Option<f32>,
+    ) -> Self {
+        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let _tex_white = {
+            let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
+        };
+        let _tex_black = {
+            let raw = Material::tex_raw_from_array([0.0, 0.0, 0.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
+        };
+        let _tex_gray = {
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 0.5, 1.0]);
+            glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
+        };
+        let _tex_normal = {
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 1.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
+        };
+
+        Self {
+            name: None,
+            shader,
+            display,
+            color: color.unwrap_or_else(|| [1.0, 1.0, 1.0]),
+            albedo: match albedo {
+                Some(albedo) => Some(albedo),
+                None => None,
+            },
+            transparency: 1.0,
+            normal: match normal {
+                Some(normal) => Some(normal),
+                None => None,
+            },
+            normal_strength: normal_strength.unwrap_or_else(|| 1.0),
+            roughness: match roughness {
+                Some(roughness) => Some(roughness),
+                None => None,
+            },
+            roughness_strength: roughness_strength.unwrap_or_else(|| 1.0),
+            metallic: match metallic {
+                Some(metallic) => Some(metallic),
+                None => None,
+            },
+            metallic_strength: metallic_strength.unwrap_or_else(|| 1.0),
+            emissive: match emissive {
+                Some(emissive) => Some(emissive),
+                None => None,
+            },
+            emissive_strength: emissive_strength.unwrap_or_else(|| 1.0),
+            _tex_white,
+            _tex_black,
+            _tex_gray,
+            _tex_normal,
+            program: _program,
+            time: 0.0,
+            matrix: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0f32],
+            ],
+            render_transparent: false,
+        }
+    }
+
+    pub fn set_transparency(&mut self, transparent: bool) {
+        self.render_transparent = transparent;
+    }
+
+    pub fn set_emissive(&mut self, emissive: texture::Texture) {
+        self.emissive = Some(emissive);
+    }
+
+    pub fn set_emissive_strength(&mut self, emissive_strength: f32) {
+        self.emissive_strength = emissive_strength;
+    }
+
+    pub fn set_color(&mut self, color: [f32; 3]) {
+        self.color = color;
+    }
+
+    pub fn set_shader(&mut self, shader: shader::Shader) {
+        self.shader = shader.clone();
+        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+    }
+
+    pub fn set_albedo(&mut self, albedo: texture::Texture) {
+        self.albedo = Some(albedo);
+    }
+
+    pub fn set_normal(&mut self, normal: texture::Texture) {
+        self.normal = Some(normal);
+    }
+
+    pub fn set_transparency_strength(&mut self, transparency: f32) {
+        self.transparency = transparency;
+    }
+
+    pub fn set_normal_strength(&mut self, normal_strength: f32) {
+        self.normal_strength = normal_strength;
+    }
+
+    pub fn set_roughness(&mut self, roughness: texture::Texture) {
+        self.roughness = Some(roughness);
+    }
+
+    pub fn set_roughness_strength(&mut self, roughness_strength: f32) {
+        self.roughness_strength = roughness_strength;
+    }
+
+    pub fn set_metallic(&mut self, metallic: texture::Texture) {
+        self.metallic = Some(metallic);
+    }
+
+    pub fn set_metallic_strength(&mut self, metallic_strength: f32) {
+        self.metallic_strength = metallic_strength;
+    }
+
+    pub fn set_texture_from_file(&mut self, path: &str, texture_type: TextureType) {
+        match texture_type {
+            TextureType::Albedo => self.albedo = Some(texture::Texture::new(&self.display, path)),
+            TextureType::Normal => self.normal = Some(texture::Texture::new(&self.display, path)),
+            TextureType::Roughness => self.roughness = Some(texture::Texture::new(&self.display, path)),
+            TextureType::Metallic => self.metallic = Some(texture::Texture::new(&self.display, path)),
+            TextureType::Emissive => self.emissive = Some(texture::Texture::new(&self.display, path)),
+        }
+    }
+
+    pub fn set_texture_from_resource(&mut self, data: &[u8], texture_type: TextureType) {
+        match texture_type {
+            TextureType::Albedo => self.albedo = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Normal => self.normal = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Roughness => self.roughness = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Metallic => self.metallic = Some(texture::Texture::from_resource(&self.display, data)),
+            TextureType::Emissive => self.emissive = Some(texture::Texture::from_resource(&self.display, data)),
+        }
+    }
+
+    pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER), &display);
+        mat.set_transparency(transparency);
+        mat
+    }
+
+    pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER), &display);
+        mat.set_transparency(transparency);
+        mat
+    }
+
+    fn light_block_from_vec(lights: Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
+        let mut light_amount = lights.len() as i32;
+        if light_amount > 4 {
+            light_amount = 4;
+        }
+
+        let mut light_position: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut light_color: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut light_intensity: [f32;4] = [0.0, 0.0, 0.0, 0.0];
+        let mut light_direction: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
+        let mut cast_shadow: [i32;4] = [0, 0, 0, 0];
+
+        for i in 0..5 {
+            if i < light_amount as usize {
+                light_position[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
+                light_color[i] = [lights[i].color[0], lights[i].color[1], lights[i].color[2], 0.0];
+                light_intensity[i] = lights[i].intensity;
+                light_direction[i] = {
+                    let direction = lights[i].direction;
+                    if direction == [0.0, 0.0, 0.0] {
+                        [0.0,0.0,0.0,0.0]
+                    } else {
+                        [lights[i].direction[0], lights[i].direction[1], lights[i].direction[2], 1.0]
+                    }
+                };
+                cast_shadow[i] = if lights[i].cast_shadow { 1 } else { 0 };
+            }
+        }
+
+        LightBlock {
+            position: light_position,
+            directions: light_direction,
+            cast_shadow,
+            color: light_color,
+            intensity: light_intensity,
+            amount: light_amount,
+            ambient_color: match ambient_light {
+                Some(ambient_light) => ambient_light.color,
+                None => [0.0, 0.0, 0.0],
+            },
+            ambient_intensity: match ambient_light {
+                Some(ambient_light) => ambient_light.intensity,
+                None => 0.0,
+            },
+        }
+    }
+
+    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<[[f32; 4]; 4]>, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
+
+        let light_block = Material::light_block_from_vec(lights, ambient_light);
+
+        glium::uniform! {
+            time: self.time,
+            matrix: self.matrix,
+            projection_matrix: match camera {
+                Some(camera) => camera.get_projection_matrix(),
+                None => Camera::new(None, None, None, None, None, None).get_projection_matrix(),
+            },
+            view_matrix: match camera {
+                Some(camera) => camera.get_view_matrix(),
+                None => Camera::new(None, None, None, None, None, None).get_view_matrix(),
+            },
+            mat_color: self.color,
+            mat_albedo: match &self.albedo {
+                Some(albedo) => &albedo.texture,
+                None => &self._tex_white
+            },
+            mat_normal: match &self.normal {
+                Some(normal) => &normal.texture,
+                None => &self._tex_normal,
+            },
+            mat_normal_strength: self.normal_strength,
+            mat_roughness: match &self.roughness {
+                Some(roughness) => &roughness.texture,
+                None => &self._tex_gray
+            },
+            mat_roughness_strength: self.roughness_strength,
+            mat_metallic: match &self.metallic {
+                Some(metallic) => &metallic.texture,
+                None => &self._tex_black
+            },
+            mat_metallic_strength: self.metallic_strength,
+            mat_emissive: match &self.emissive {
+                Some(emissive) => &emissive.texture,
+                None => &self._tex_black
+            },
+            mat_emissive_strength: self.emissive_strength,
+            mat_transparency_strength: self.transparency,
+            light_position: light_block.position,
+            light_direction: light_block.directions,
+            light_color: light_block.color,
+            light_intensity: light_block.intensity,
+            light_amount: light_block.amount,
+            ambient_light_color: light_block.ambient_color,
+            ambient_light_intensity: light_block.ambient_intensity,
+            model_matrix: model_matrix.unwrap_or_else(|| self.matrix),
+            skybox: &skybox.texture,
+        }
+    }
+
+    fn tex_raw_from_array(color: [f32; 4]) -> RawImage2d<'static, u8> {
+        let byte_color: [u8; 4] = [
+            (color[0] * 255.0) as u8,
+            (color[1] * 255.0) as u8,
+            (color[2] * 255.0) as u8,
+            (color[3] * 255.0) as u8,
+        ];
+
+        RawImage2d::from_raw_rgba_reversed(&byte_color, (1, 1))
+    }
+
+    pub fn update(&mut self) {
+        self.time += 0.001;
+    }
+}
+
+/* End of file material.rs */
+
+
+// File: object.rs
+// Path: ..\src\object.rs
+/* Start of file object.rs */
+use std::vec::Vec;
+use glium::Display;
+use glium::glutin::surface::WindowSurface;
+use crate::geometry::{BoundingBox, Vertex};
+use crate::material::{Material, MaterialSerializer};
+use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
+use crate::{debug_geo, geometry};
+use uuid::Uuid;
+
+
+use std::fs::File;
+use std::io::BufReader;
+use nalgebra_glm::normalize;
+use obj::{load_obj, Obj};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ObjectSerializer {
+    pub name: String,
+    pub transform: TransformSerializer,
+    shapes: Vec<Shape>,
+    materials: Vec<MaterialSerializer>,
+    unique_id: String,
+}
+
+pub struct Object {
+    pub name: String,
+    pub transform: Transform,
+    shapes: Vec<Shape>,
+    materials: Vec<Material>,
+    bounding_box: Option<geometry::BoundingBox>,
+    unique_id: Uuid,
+}
+
+impl Clone for Object {
+    fn clone(&self) -> Self {
+        //creating new object
+        let mut new_object = Object::new(Some(self.name.clone()));
+
+        //setting transform for new object
+        new_object.transform.set_position(self.transform.get_position().into());
+        new_object.transform.set_rotation(self.transform.get_rotation().into());
+        new_object.transform.set_scale(self.transform.get_scale().into());
+
+        //cloning shapes
+        for shape in self.shapes.iter() {
+            let mut new_shape = Shape::new();
+            new_shape.vertices = shape.vertices.clone();
+            new_shape.indices = shape.indices.clone();
+            new_shape.material_index = shape.material_index;
+            new_object.add_shape(new_shape);
+        }
+
+        //cloning materials
+        for material in self.materials.iter() {
+            let mut new_material = Material::default(material.shader.clone(), &material.display);
+
+            //coloring
+            new_material.set_color(material.color);
+            if let Some(texture) = &material.albedo {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_albedo(new_texture);
+            }
+            new_material.set_transparency_strength(material.transparency);
+            if let Some(texture) = &material.normal {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_normal(new_texture);
+            }
+            new_material.set_normal_strength(material.normal_strength);
+            if let Some(texture) = &material.roughness {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_roughness(new_texture);
+            }
+            new_material.set_roughness_strength(material.roughness_strength);
+            if let Some(texture) = &material.metallic {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_metallic(new_texture);
+            }
+            new_material.set_metallic_strength(material.metallic_strength);
+            if let Some(texture) = &material.emissive {
+                let new_texture = texture.get_texture_clone(&new_material.display);
+                new_material.set_emissive(new_texture);
+            }
+            new_material.set_emissive_strength(material.emissive_strength);
+            new_material.set_transparency(material.render_transparent);
+            new_material.time = material.time;
+
+            new_object.add_material(new_material);
+        }
+
+        new_object.bounding_box = self.bounding_box.clone();
+        new_object.unique_id = Uuid::new_v4();
+        new_object
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Shape {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+    pub material_index: usize,
+}
+
+impl Clone for Shape {
+    fn clone(&self) -> Self {
+        Shape {
+            vertices: self.vertices.clone(),
+            indices: self.indices.clone(),
+            material_index: self.material_index,
+        }
+    }
+}
+
+impl Shape {
+    pub fn new() -> Self {
+        Shape {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+            material_index: 0,
+        }
+    }
+
+    pub fn from_vertices_indices(vertices: Vec<Vertex>, indices: Vec<u32>) -> Self {
+        Shape {
+            vertices,
+            indices,
+            material_index: 0,
+        }
+    }
+
+    pub fn default() -> Self {
+        let triangle = debug_geo::TRIANGLE;
+        let mut shape = Shape::new();
+        shape.vertices = triangle.to_vec();
+        for i in 0..triangle.iter().len() {
+            shape.indices.push(i as u32);
+        }
+        shape
+    }
+
+    pub fn get_vertex_buffer(&self, display: Display<WindowSurface>) -> glium::VertexBuffer<Vertex> {
+        glium::VertexBuffer::new(&display, &self.vertices).unwrap()
+    }
+
+    pub fn get_index_buffer(&self, display: Display<WindowSurface>) -> glium::IndexBuffer<u32> {
+        glium::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList, &self.indices).unwrap()
+    }
+
+    pub fn set_material_from_object_list(&mut self, material_index: usize) {
+        self.material_index = material_index;
+    }
+}
+
+impl Object {
+    pub fn new(name: Option<String>) -> Self {
+        let mut object = Object {
+            name: name.unwrap_or_else(|| String::from("Object")),
+            transform: Transform::new(),
+            shapes: Vec::new(),
+            materials: Vec::new(),
+            bounding_box: None,
+            unique_id: Uuid::new_v4(), //generating unique id for object
+        };
+        object.calculate_bounding_box();
+        object
+    }
+
+    pub fn to_serializer(&self) -> ObjectSerializer {
+        let name = self.name.clone();
+        let transform = self.transform.to_serializer();
+        let shapes = self.shapes.clone();
+        let materials = self.materials.iter().map(|x| x.to_serializer()).collect();
+        let unique_id = self.unique_id.to_string();
+        ObjectSerializer {
+            name,
+            transform,
+            shapes,
+            materials,
+            unique_id,
+        }
+    }
+
+    pub fn from_serializer(serializer: ObjectSerializer, display: Display<WindowSurface>) -> Self {
+        let mut object = Object::new(Some(serializer.name));
+        object.transform = Transform::from_serializer(serializer.transform);
+        object.shapes = serializer.shapes;
+        for mat in serializer.materials {
+            object.add_material(Material::from_serializer(mat, display.clone()));
+        }
+        object.unique_id = uuid::Uuid::parse_str(serializer.unique_id.as_str()).unwrap();
+        object.calculate_bounding_box();
+        object
+    }
+
+    pub fn get_unique_id(&self) -> Uuid {
+        self.unique_id
+    }
+
+    fn calculate_bounding_box(&mut self) -> BoundingBox {
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut min_z = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        let mut max_z = f32::NEG_INFINITY;
+
+        for shape in self.get_shapes().iter() {
+            for vertex in shape.vertices.iter() {
+                min_x = min_x.min(vertex.position[0]);
+                min_y = min_y.min(vertex.position[1]);
+                min_z = min_z.min(vertex.position[2]);
+                max_x = max_x.max(vertex.position[0]);
+                max_y = max_y.max(vertex.position[1]);
+                max_z = max_z.max(vertex.position[2]);
+            }
+        }
+
+        let min_point = Point3::new(min_x, min_y, min_z);
+        let max_point = Point3::new(max_x, max_y, max_z);
+
+        let center = Point3::new(
+            (min_point.x + max_point.x) / 2.0,
+            (min_point.y + max_point.y) / 2.0,
+            (min_point.z + max_point.z) / 2.0,
+        );
+        self.transform.update();
+        let transformed_center = self.transform.matrix.transform_point(&center);
+        let transformed_width = (max_x - min_x) * self.transform.get_scale().x;
+        let transformed_height = (max_y - min_y) * self.transform.get_scale().y;
+        let transformed_depth = (max_z - min_z) * self.transform.get_scale().z;
+
+        let aabb = BoundingBox {
+            center: Vector3::from([transformed_center.x, transformed_center.y, transformed_center.z]),
+            width: transformed_width,
+            height: transformed_height,
+            depth: transformed_depth,
+        };
+        self.bounding_box = Some(aabb);
+        aabb
+    }
+
+    pub fn default() -> Self {
+        let mut object = Object::new(None);
+        object.add_shape(Shape::default());
+        object
+    }
+
+    pub fn update(&mut self) {
+        self.transform.update();
+        self.materials.iter_mut().for_each(|x| x.update());
+    }
+
+    pub fn get_closest_lights(&self, lights: &Vec<crate::light::Light>) -> Vec<crate::light::Light> {
+        let mut closest_lights = Vec::new();
+
+        //collect the four closest lights to the object
+        for light in lights.iter() {
+            let light_pos = light.position;
+            let object_pos = self.transform.get_position();
+            let distance = (Vector3::from(light_pos) - object_pos).magnitude();
+            if closest_lights.len() < 4 {
+                closest_lights.push((light.clone(), distance));
+            } else {
+                let mut max_distance = 0.0;
+                let mut max_index = 0;
+                for (index, (_, distance)) in closest_lights.iter().enumerate() {
+                    if *distance > max_distance {
+                        max_distance = *distance;
+                        max_index = index;
+                    }
+                }
+                if distance < max_distance {
+                    closest_lights[max_index] = (light.clone(), distance.clone());
+                }
+            }
+        }
+        closest_lights.iter().map(|(light, _)| light.clone()).collect()
+    }
+
+    pub fn add_shape(&mut self, shape: Shape) {
+        self.shapes.push(shape);
+    }
+
+    pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
+        let shapes = self.get_shapes();
+        let mut buffer = Vec::new();
+        for shape in shapes.iter() {
+            let material = &self.materials[shape.material_index];
+            let vertex = glium::VertexBuffer::new(&material.display, &shape.vertices).unwrap();
+            buffer.push(vertex);
+        }
+        buffer
+    }
+
+    pub fn get_index_buffers(&self) -> Vec<glium::IndexBuffer<u32>> {
+        let shapes = self.get_shapes();
+        let mut buffer = Vec::new();
+        for shape in shapes.iter() {
+            let material = &self.materials[shape.material_index];
+            let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &shape.indices).unwrap();
+            buffer.push(index);
+        }
+        buffer
+    }
+    pub fn get_bounding_box(&mut self) -> BoundingBox {
+        self.calculate_bounding_box()
+    }
+
+    pub fn get_materials(&self) -> &Vec<Material> {
+        &self.materials
+    }
+
+    pub fn get_materials_mut(&mut self) -> &mut Vec<Material> {
+        &mut self.materials
+    }
+
+    pub fn add_material(&mut self, material: Material) {
+        self.materials.push(material);
+    }
+
+    pub fn get_shapes(&self) -> &Vec<Shape> {
+        &self.shapes
+    }
+
+    pub fn get_shapes_mut(&mut self) -> &mut Vec<Shape> {
+        &mut self.shapes
+    }
+
+    pub fn get_name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    pub fn load_from_obj(path: &str) -> Self {
+        let input = BufReader::new(File::open(path).expect("Failed to open file"));
+        let obj: Obj = load_obj(input).unwrap();
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for vert in obj.vertices.iter() {
+            let vertex = geometry::Vertex { position: vert.position, color: [1.0, 1.0, 1.0], texcoord: [0.0, 0.0], normal: vert.normal };
+            vertices.push(vertex);
+        }
+        for index in obj.indices.iter() {
+            indices.push((*index).into());
+        }
+
+        let shape = Shape::from_vertices_indices(vertices, indices);
+        let mut object = Object::new(obj.name);
+        object.add_shape(shape);
+        object
+    }
+
+    pub fn load_from_gltf_resource(data: &[u8]) -> Self {
+        let (gltf, buffers, _) = gltf::import_slice(data).expect("Failed to import gltf file"); // gltf::import(path).expect("Failed to import gltf file");
+
+        let mut object = Object::new(Some(String::from("INTERNAL ENIGMA RESOURCE")));
+
+        for mesh in gltf.meshes() {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                let positions = reader.read_positions().unwrap();
+                let normals = reader.read_normals().unwrap();
+                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
+                let prim_indices = reader.read_indices().unwrap().into_u32();
+
+                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
+                // flip tex_coords
+                for mut tex_coord in tex_coords.into_iter() {
+                    tex_coord[1] = 1.0 - tex_coord[1];
+                    flipped_tex_coords.push(tex_coord);
+                }
+
+                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
+                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
+                    vertices.push(vertex);
+                }
+
+                prim_indices.for_each(|index| indices.push(index));
+            }
+            let shape = Shape::from_vertices_indices(vertices, indices);
+            object.add_shape(shape);
+        }
+        object
+    }
+
+    pub fn load_from_gltf(path: &str) -> Self {
+        let (gltf, buffers, _) = gltf::import(path).expect("Failed to import gltf file");
+
+        let mut object = Object::new(Some(String::from(path)));
+
+        for mesh in gltf.meshes() {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            for primitive in mesh.primitives() {
+                // Adjust the reader to use the buffers vector correctly
+                let reader = primitive.reader(|buffer| {
+                    // Access the corresponding buffer data using the buffer index
+                    buffers.get(buffer.index()).map(|data| &data[..])
+                });
+                let positions = reader.read_positions().unwrap();
+                let normals = reader.read_normals().unwrap();
+                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
+                let prim_indices = reader.read_indices().unwrap().into_u32();
+
+                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
+                // flip tex_coords
+                for mut tex_coord in tex_coords.into_iter() {
+                    tex_coord[1] = 1.0 - tex_coord[1];
+                    flipped_tex_coords.push(tex_coord);
+                }
+
+                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
+                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
+                    vertices.push(vertex);
+                }
+
+                prim_indices.for_each(|index| indices.push(index));
+            }
+            let shape = Shape::from_vertices_indices(vertices, indices);
+            object.add_shape(shape);
+        }
+        object
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TransformSerializer {
+    position: [f32; 3],
+    rotation: [f32; 3],
+    scale: [f32; 3],
+}
+
+#[derive(Copy, Clone)]
+pub struct Transform {
+    pub position: Vector3<f32>,
+    pub rotation: Vector3<f32>,
+    // radian angles
+    pub scale: Vector3<f32>,
+    pub matrix: Matrix4<f32>,
+}
+
+impl Transform {
+    pub fn new() -> Self {
+        Transform {
+            position: Vector3::new(0.0, 0.0, 0.0),
+            rotation: Vector3::new(0.0, 0.0, 0.0),
+            scale: Vector3::new(1.0, 1.0, 1.0),
+            matrix: Matrix4::identity(),
+        }
+    }
+
+    pub fn forward(&self) -> Vector3<f32> {
+        // return the forward vector of the transform with positive z being forward
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let forward = rotation * Vector3::new(0.0, 0.0, 1.0);
+        normalize(&forward)
+    }
+
+    pub fn left(&self) -> Vector3<f32> {
+        // return the left vector of the transform with positive x being left
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let left = rotation * Vector3::new(-1.0, 0.0, 0.0);
+        normalize(&left)
+    }
+
+    pub fn up(&self) -> Vector3<f32> {
+        // return the up vector of the transform with positive y being up
+        let rotation = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z);
+        let up = rotation * Vector3::new(0.0, 1.0, 0.0);
+        normalize(&up)
+    }
+
+    pub fn from_serializer(serializer: TransformSerializer) -> Self {
+        let mut t = Transform::new();
+        t.set_position(serializer.position);
+        t.set_rotation(serializer.rotation);
+        t.set_scale(serializer.scale);
+        t
+    }
+
+    pub fn to_serializer(&self) -> TransformSerializer {
+        TransformSerializer {
+            position: self.get_position().into(),
+            rotation: self.get_rotation().into(),
+            scale: self.get_scale().into(),
+        }
+    }
+
+    pub fn update(&mut self) {
+        let scale_matrix = Matrix4::new_nonuniform_scaling(&self.scale);
+        let rotation_matrix = UnitQuaternion::from_euler_angles(self.rotation.x, self.rotation.y, self.rotation.z).to_homogeneous();
+        let translation_matrix = Translation3::from(self.position).to_homogeneous();
+        // Scale, then rotate, then translate
+        self.matrix = translation_matrix * rotation_matrix * scale_matrix;
+    }
+
+
+    pub fn set_position(&mut self, position: [f32; 3]) {
+        self.position = Vector3::from(position);
+    }
+
+    pub fn get_position(&self) -> Vector3<f32> {
+        self.position.clone()
+    }
+
+    pub fn set_rotation(&mut self, rotation: [f32; 3]) {
+        let radians = rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
+        self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
+    }
+
+    pub fn rotate(&mut self, rotation: [f32; 3]) {
+        let cur_r = self.get_rotation();
+        let additive_rotation = [cur_r.x + rotation[0], cur_r.y + rotation[1], cur_r.z + rotation[2]];
+        let radians = additive_rotation.iter().map(|x| x.to_radians()).collect::<Vec<f32>>();
+        self.rotation = Vector3::from([radians[0], radians[1], radians[2]]);
+    }
+
+    pub fn move_dir(&mut self, position: [f32; 3]) {
+        let cur_p = self.get_position();
+        let additive_position = [cur_p.x + position[0], cur_p.y + position[1], cur_p.z + position[2]];
+        self.position = Vector3::from(additive_position);
+    }
+
+    pub fn get_rotation(&self) -> Vector3<f32> {
+        let x = self.rotation.x.to_degrees();
+        let y = self.rotation.y.to_degrees();
+        let z = self.rotation.z.to_degrees();
+        Vector3::from([x, y, z])
+    }
+
+    pub fn set_scale(&mut self, scale: [f32; 3]) {
+        self.scale = Vector3::from(scale);
+    }
+
+    pub fn get_scale(&self) -> Vector3<f32> {
+        self.scale.clone()
+    }
+
+    pub fn get_matrix(&mut self) -> [[f32; 4]; 4] {
+        self.update();
+        self.matrix.into()
+    }
+}
+
+/* End of file object.rs */
+
+
+// File: resources.rs
+// Path: ..\src\resources.rs
+/* Start of file resources.rs */
+
+// models
+pub const SUZANNE: &'static [u8] = include_bytes!("res/models/suzanne.glb");
+pub const SKYBOX: &'static [u8] = include_bytes!("res/models/skybox.glb");
+
+// shaders
+//// post processing
+pub const POST_PROCESSING_VERTEX: &str = include_str!("res/shader/post_processing/post_processing_vert.glsl");
+pub const POST_PROCESSING_BLOOM_BLUR_FRAGMENT: &str = include_str!("res/shader/post_processing/bloom/enigma_bloom_blur.glsl");
+pub const POST_PROCESSING_BLOOM_COMBINE_FRAGMENT: &str = include_str!("res/shader/post_processing/bloom/enigma_bloom_combine.glsl");
+pub const POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT: &str = include_str!("res/shader/post_processing/bloom/enigma_bloom_extract.glsl");
+pub const POST_PROCESSING_EDGE_FRAGMENT: &str = include_str!("res/shader/post_processing/edge/enigma_edge_detection.glsl");
+pub const POST_PROCESSING_GRAYSCALE_FRAGMENT: &str = include_str!("res/shader/post_processing/grayscale/enigma_grayscale.glsl");
+
+//// other
+pub const FRAGMENT_SHADER: &str = include_str!("res/shader/enigma_fragment_shader.glsl");
+pub const VERTEX_SHADER: &str = include_str!("res/shader/enigma_vertex_shader.glsl");
+pub const FRAGMENT_UNLIT_SHADER: &str = include_str!("res/shader/enigma_fragment_unlit.glsl");
+
+// textures
+pub const UV_CHECKER: &'static [u8] = include_bytes!("res/textures/uv_checker.png");
+pub const SKYBOX_TEXTURE: &'static [u8] = include_bytes!("res/textures/skybox.png");
+pub const SKYBOX_TEXTURE_HDR: &'static [u8] = include_bytes!("res/textures/skybox.hdr");
+pub const ICON: &'static [u8] = include_bytes!("res/textures/icon.png");
+/* End of file resources.rs */
+
+
+// File: shader.rs
+// Path: ..\src\shader.rs
+/* Start of file shader.rs */
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ShaderSerializer {
+    fragment_shader: String,
+    vertex_shader: String,
+}
+
+pub struct Shader {
+    pub fragment_shader: String,
+    pub vertex_shader: String,
+}
+
+impl Shader {
+    pub fn new() -> Self {
+        Self {
+            fragment_shader: String::from(""),
+            vertex_shader: String::from(""),
+        }
+    }
+
+    pub fn from_serializer(serializer: ShaderSerializer) -> Self {
+        Self {
+            fragment_shader: serializer.fragment_shader,
+            vertex_shader: serializer.vertex_shader,
+        }
+    }
+
+    pub fn to_serializer(&self) -> ShaderSerializer {
+        ShaderSerializer {
+            fragment_shader: self.fragment_shader.clone(),
+            vertex_shader: self.vertex_shader.clone(),
+        }
+    }
+
+    pub fn set_fragment_shader(&mut self, fragment_shader: String) {
+        self.fragment_shader = fragment_shader;
+    }
+    pub fn set_vertex_shader(&mut self, vertex_shader: String) {
+        self.vertex_shader = vertex_shader;
+    }
+    pub fn get_fragment_shader(&self) -> String {
+        self.fragment_shader.clone()
+    }
+    pub fn get_vertex_shader(&self) -> String {
+        self.vertex_shader.clone()
+    }
+
+    pub fn from_files(vertex_shader: &str, fragment_shader: &str) -> Self {
+        let vertex_shader = std::fs::read_to_string(vertex_shader).expect("Unable to read file");
+        let fragment_shader = std::fs::read_to_string(fragment_shader).expect("Unable to read file");
+        Self {
+            fragment_shader,
+            vertex_shader,
+        }
+    }
+
+    pub fn from_strings(vertex_shader: &str, fragment_shader: &str) -> Self {
+        Self {
+            fragment_shader: String::from(fragment_shader),
+            vertex_shader: String::from(vertex_shader),
+        }
+    }
+
+    pub fn log(&self) {
+        println!("Vertex Shader:\n{}", self.vertex_shader);
+        println!("Fragment Shader:\n{}", self.fragment_shader);
+    }
+
+    pub fn default() -> Self {
+        let vertex_shader = r#"
+            #version 140
+            uniform float time;
+            uniform mat4 matrix;
+            in vec3 position;
+            void main() {
+                gl_Position = matrix * vec4(position, 1.0);
+            }
+        "#;
+
+        let fragment_shader = r#"
+            #version 140
+            uniform float time;
+            out vec4 color;
+            void main() {
+                color = vec4(1.0, 0.0, 1.0, 1.0);
+            }
+        "#;
+
+        Self {
+            fragment_shader: String::from(fragment_shader),
+            vertex_shader: String::from(vertex_shader),
+        }
+    }
+}
+
+impl Default for Shader {
+    fn default() -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Display for Shader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+    }
+}
+
+impl std::fmt::Debug for Shader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+    }
+}
+
+impl Clone for Shader {
+    fn clone(&self) -> Self {
+        Self {
+            fragment_shader: self.fragment_shader.clone(),
+            vertex_shader: self.vertex_shader.clone(),
+        }
+    }
+}
+/* End of file shader.rs */
+
+
+// File: texture.rs
+// Path: ..\src\texture.rs
+/* Start of file texture.rs */
+use glium::glutin::surface::WindowSurface;
+use std::path::Path;
+use std::vec::Vec;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TextureSerializer {
+    path: String,
+    width: u32,
+    height: u32,
+    binary_data: Option<Vec<u8>>,
+}
+
+pub struct Texture {
+    pub path: String,
+    pub texture: glium::texture::SrgbTexture2d,
+    pub width: u32,
+    pub height: u32,
+    pub binary_data: Option<Vec<u8>>,
+}
+
+impl Texture {
+    pub fn new(display: &glium::Display<WindowSurface>, path: &str) -> Self {
+        let image = image::open(path).unwrap().to_rgba8();
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        Self {
+            texture,
+            path: String::from(path),
+            width: image_dimensions.0,
+            height: image_dimensions.1,
+            binary_data: None,
+        }
+    }
+
+    pub fn from_serializer(serializer: TextureSerializer, display: &glium::Display<WindowSurface>) -> Self {
+        let path = Path::new(&serializer.path);
+        if !path.is_file() {
+            match &serializer.binary_data {
+                Some(data) => {
+                    return Texture::from_resource(display, data.as_slice());
+                }
+                None => {}
+            }
+        } else {
+            return Texture::new(display, path.to_str().unwrap());
+        }
+        println!("could not create texture from serializer, returned texture is empty");
+        let empty_tex = glium::texture::SrgbTexture2d::empty(display, serializer.width, serializer.height);
+        return Self {
+            texture: empty_tex.expect("Could not create Empty Texture"),
+            path: String::from("RESOURCE"),
+            width: serializer.width,
+            height: serializer.height,
+            binary_data: None,
+        };
+    }
+
+    pub fn to_serializer(&self) -> TextureSerializer {
+        TextureSerializer {
+            path: self.path.clone(),
+            width: self.width,
+            height: self.height,
+            binary_data: self.binary_data.clone(),
+        }
+    }
+
+    pub fn from_resource(display: &glium::Display<WindowSurface>, data: &[u8]) -> Self {
+        let image = image::load_from_memory(data).expect("Failed to load image").to_rgba8();
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        Self {
+            texture,
+            path: String::from("INTERNAL ENIGMA RESOURCE"),
+            width: image_dimensions.0,
+            height: image_dimensions.1,
+            binary_data: Some(data.to_vec()),
+        }
+    }
+
+    pub fn get_texture_clone(&self, display: &glium::Display<WindowSurface>) -> Self {
+        let path_str = self.path.clone();
+        let path = Path::new(&path_str);
+        if !path.is_file() {
+            match &self.binary_data {
+                Some(data) => {
+                    return Texture::from_resource(display, data.as_slice());
+                }
+                None => {
+                    println!("could not clone texture , returned texture is empty");
+                    let empty_tex = glium::texture::SrgbTexture2d::empty(display, self.width, self.height);
+                    return Self {
+                        texture: empty_tex.expect("Could not create Empty Texture"),
+                        path: String::from("RESOURCE"),
+                        width: self.width,
+                        height: self.height,
+                        binary_data: None,
+                    };
+                }
+            }
+        } else {
+            return Texture::new(display, path_str.as_str());
+        }
+    }
+}
+
+
+/* End of file texture.rs */
+
+
+// File: ui.rs
+// Path: ..\src\ui.rs
+/* Start of file ui.rs */
+use std::sync::Arc;
+use crate::AppState;
+pub type GUIDrawFunction = Arc<dyn Fn(&egui::Context, &mut AppState)>;
+
+/* End of file ui.rs */
+
+
+// File: postprocessing\bloom.rs
+// Path: ..\src\postprocessing\bloom.rs
+/* Start of file postprocessing\bloom.rs */
+use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
+use glium::framebuffer::SimpleFrameBuffer;
+use glium::glutin::surface::WindowSurface;
+use glium::texture::DepthTexture2d;
+use crate::geometry::Vertex;
+use crate::postprocessing::PostProcessingEffect;
+use crate::{AppState, postprocessing, resources, shader};
+
+pub struct Bloom {
+    pub threshold: f32,
+    pub iterations: i32,
+    program_extract: glium::Program,
+    program_blur: glium::Program,
+    program_combine: glium::Program,
+    program_copy: glium::Program,
+}
+
+impl Bloom {
+    pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, iterations: i32) -> Self {
+        let extract_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT);
+        let blur_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_BLUR_FRAGMENT);
+        let combine_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_COMBINE_FRAGMENT);
+        let program_extract = glium::Program::from_source(display, &extract_shader.get_vertex_shader(), &extract_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let program_blur = glium::Program::from_source(display, &blur_shader.get_vertex_shader(), &blur_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let program_combine = glium::Program::from_source(display, &combine_shader.get_vertex_shader(), &combine_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let program_copy = postprocessing::get_screen_program(&display);
+
+        Self {
+            program_extract,
+            program_blur,
+            program_combine,
+            program_copy,
+            threshold,
+            iterations,
+        }
+    }
+}
+
+impl PostProcessingEffect for Bloom {
+    fn render(&self, app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d, _depth_texture: &DepthTexture2d, buffer_textures: &Vec<Texture2d>) {
+        // first create a temporary framebuffer to render the scene to and then use it as a texture
+        let mut work_framebuffer_1 = SimpleFrameBuffer::new(app_state.display.as_ref().unwrap(), &buffer_textures[0]).unwrap();
+        let mut work_framebuffer_2 = SimpleFrameBuffer::new(app_state.display.as_ref().unwrap(), &buffer_textures[1]).unwrap();
+        work_framebuffer_1.clear_color(0.0, 0.0, 0.0, 0.0);
+        work_framebuffer_2.clear_color(0.0, 0.0, 0.0, 0.0);
+
+        // creating copies of the incomming scene
+        let uniforms = uniform! {
+            scene: source.sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+        };
+        work_framebuffer_1.draw(vertex_buffer, index_buffer, &self.program_copy, &uniforms, &Default::default()).unwrap();
+        work_framebuffer_2.draw(vertex_buffer, index_buffer, &self.program_copy, &uniforms, &Default::default()).unwrap();
+
+        // extract the bright parts of the scene
+        let uniforms = uniform! {
+            scene: source.sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+            threshold: self.threshold,
+        };
+        work_framebuffer_1.draw(vertex_buffer, index_buffer, &self.program_extract, &uniforms, &Default::default()).unwrap();
+
+        // blur the bright parts of the scene
+        let uniforms = uniform! {
+            scene: buffer_textures[0].sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+            horizontal: true,
+            iterations: self.iterations,
+        };
+        work_framebuffer_2.draw(vertex_buffer, index_buffer, &self.program_blur, &uniforms, &Default::default()).unwrap();
+        work_framebuffer_1.clear_color(0.0, 0.0, 0.0, 0.0);
+
+        let uniforms = uniform! {
+            scene: buffer_textures[1].sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+            horizontal: false,
+            iterations: self.iterations,
+        };
+        work_framebuffer_1.draw(vertex_buffer, index_buffer, &self.program_blur, &uniforms, &Default::default()).unwrap();
+
+        // render to original framebuffer
+        let uniforms = uniform! {
+            scene: source.sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+            bloomBlur: buffer_textures[0].sampled()
+                .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp)
+                .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
+                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
+        };
+        target.draw(vertex_buffer, index_buffer, &self.program_combine, &uniforms, &Default::default()).unwrap();
+    }
+}
+/* End of file postprocessing\bloom.rs */
+
+
+// File: postprocessing\edge.rs
+// Path: ..\src\postprocessing\edge.rs
+/* Start of file postprocessing\edge.rs */
+use glium::glutin::surface::WindowSurface;
+use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
+use glium::framebuffer::SimpleFrameBuffer;
+use glium::texture::DepthTexture2d;
+use crate::postprocessing::PostProcessingEffect;
+use crate::{AppState, resources, shader};
+use crate::geometry::Vertex;
+
+pub struct Edge {
+    pub threshold: f32,
+    pub color: [f32; 3],
+    program: glium::Program,
+}
+
+impl Edge {
+    pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, color: [f32; 3]) -> Self {
+        let edge_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_EDGE_FRAGMENT);
+
+        let program = glium::Program::from_source(display, &edge_shader.get_vertex_shader(), &edge_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+
+        Self {
+            program,
+            threshold,
+            color,
+        }
+    }
+}
+
+impl PostProcessingEffect for Edge {
+    fn render(&self, app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d, depth_source: &DepthTexture2d, _buffer_textures: &Vec<Texture2d>) {
+        let uniforms = uniform! {
+            scene: source,
+            depth: depth_source,
+            threshold: self.threshold,
+            screenSize: [source.width() as f32, source.height() as f32],
+            outlineColor: self.color,
+            near: app_state.camera.unwrap().near,
+            far: app_state.camera.unwrap().far,
+        };
+
+        let params = glium::DrawParameters {
+            blend: glium::Blend::alpha_blending(),
+            depth: glium::Depth {
+                test: glium::DepthTest::IfLess,
+                write: false,
+                .. Default::default()
+            },
+            .. Default::default()
+        };
+
+        target.draw(
+            &*vertex_buffer,
+            &*index_buffer,
+            &self.program,
+            &uniforms,
+            &params,
+        ).unwrap();
+    }
+}
+/* End of file postprocessing\edge.rs */
+
+
+// File: postprocessing\grayscale.rs
+// Path: ..\src\postprocessing\grayscale.rs
+/* Start of file postprocessing\grayscale.rs */
+use glium::framebuffer::SimpleFrameBuffer;
+use glium::glutin::surface::WindowSurface;
+use glium::{IndexBuffer, Surface, Texture2d, uniform, VertexBuffer};
+use glium::texture::DepthTexture2d;
+use crate::geometry::Vertex;
+use crate::{AppState, resources, shader};
+use crate::postprocessing::PostProcessingEffect;
+
+pub struct GrayScale {
+    program: glium::Program,
+}
+
+impl PostProcessingEffect for GrayScale {
+    fn render(&self, _app_state: &AppState, vertex_buffer: &VertexBuffer<Vertex>, index_buffer: &IndexBuffer<u32>, target: &mut SimpleFrameBuffer, source: &Texture2d, _depth_source: &DepthTexture2d, _buffer_textures: &Vec<Texture2d>) {
+        let uniforms = uniform! {
+            scene: source,
+        };
+
+        target.draw(
+            &*vertex_buffer,
+            &*index_buffer,
+            &self.program,
+            &uniforms,
+            &Default::default(),
+        ).unwrap();
+    }
+}
+
+impl GrayScale {
+    pub fn new(display: &glium::Display<WindowSurface>) -> Self {
+        let shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT);
+        let program = glium::Program::from_source(display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        Self {
+            program,
+        }
+    }
+}
+/* End of file postprocessing\grayscale.rs */
+
+
+// File: postprocessing\mod.rs
+// Path: ..\src\postprocessing\mod.rs
+/* Start of file postprocessing\mod.rs */
+use glium::{Display, IndexBuffer, Texture2d, VertexBuffer};
+use glium::framebuffer::SimpleFrameBuffer;
+use glium::glutin::surface::WindowSurface;
+use glium::texture::DepthTexture2d;
+use crate::AppState;
+use crate::geometry::Vertex;
+
+pub mod grayscale;
+pub mod bloom;
+pub mod edge;
+
+pub trait PostProcessingEffect {
+    fn render(&self, _app_state: &AppState, _vertex_buffer: &VertexBuffer<Vertex>, _index_buffer: &IndexBuffer<u32>, _target: &mut SimpleFrameBuffer, _source: &Texture2d, _depth_source: &DepthTexture2d, _buffer_textures: &Vec<Texture2d>) {
+        println!("PostProcessingEffect::render() not implemented. Please implement this method in your postprocessing struct.");
+    }
+}
+
+pub fn get_screen_vert_rect(display: &Display<WindowSurface>) -> glium::VertexBuffer<Vertex> {
+    let vertices = vec![
+        Vertex { position: [-1.0, -1.0, 0.0], texcoord: [0.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+        Vertex { position: [-1.0, 1.0, 0.0], texcoord: [0.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+        Vertex { position: [1.0, 1.0, 0.0], texcoord: [1.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+        Vertex { position: [1.0, -1.0, 0.0], texcoord: [1.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+    ];
+    glium::VertexBuffer::new(display, &vertices).unwrap()
+}
+
+pub fn get_screen_indices_rect(display: &Display<WindowSurface>) -> glium::IndexBuffer<u32> {
+    let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
+    glium::IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap()
+}
+
+pub fn get_screen_program(display: &Display<WindowSurface>) -> glium::Program {
+    let vertex_shader_src = r#"
+        #version 140
+
+        in vec3 position;
+        in vec2 texcoord;
+        in vec3 color;
+        in vec3 normal;
+
+        out vec2 TEXCOORD;
+
+
+        void main() {
+            TEXCOORD = texcoord;
+            gl_Position = vec4(position, 1.0);
+        }
+    "#;
+
+    let fragment_shader_src = r#"
+        #version 140
+
+        in vec2 TEXCOORD;
+
+        out vec4 color;
+
+        uniform sampler2D scene;
+
+        void main() {
+            color = texture(scene, TEXCOORD);
+        }
+    "#;
+
+    glium::Program::from_source(display, vertex_shader_src, fragment_shader_src, None).expect("Failed to compile shader program")
+}
+/* End of file postprocessing\mod.rs */
+
+
+// File: res\shader\enigma_fragment_shader.glsl
+// Path: ..\src\res\shader\enigma_fragment_shader.glsl
+/* Start of file res\shader\enigma_fragment_shader.glsl */
+#version 140
+
+//uniforms
+uniform float time;
+uniform mat4 light_position;
+uniform mat4 light_direction;
+uniform mat4 light_color;
+uniform vec4 light_intensity;
+uniform int light_amount;
+uniform vec3 ambient_light_color;
+uniform float ambient_light_intensity;
+
+//attributes
+in vec3 world_position;
+in vec3 view_direction;
+in vec3 vertex_color;
+in vec3 vertex_normal;
+in vec2 vertex_texcoord;
+
+//material properties
+// material uniforms
+uniform vec3 mat_color;
+uniform sampler2D mat_albedo;
+uniform sampler2D mat_normal;
+uniform float mat_normal_strength;
+uniform sampler2D mat_roughness;
+uniform float mat_roughness_strength;
+uniform sampler2D mat_metallic;
+uniform float mat_metallic_strength;
+uniform sampler2D mat_emissive;
+uniform float mat_emissive_strength;
+uniform float mat_transparency_strength;
+uniform sampler2D skybox;
+
+// fragment outputs
+out vec4 color;
+
+//constants
+const float PI = 3.14159265359;
+
+// Helper Functions for PBR
+vec2 getSphereMapUV(vec3 dir) {
+    float u = atan(dir.z, dir.x) / (2.0 * 3.14159265) + 0.5;
+    float v = asin(dir.y) / 3.14159265 + 0.5;
+    return vec2(u, v);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / max(denom, 0.000001); // Prevent division by zero
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+// Main PBR calculation function
+// PBR calculations including skybox lighting
+vec4 calculatePBRColor(vec3 viewDir) {
+    // Fetch material properties
+    vec4 albedo_texel = texture(mat_albedo, vertex_texcoord);
+    float albedo_alpha = albedo_texel.a;
+    vec3 albedo = albedo_texel.rgb * mat_color;
+    vec3 normal = normalize(vertex_normal + (texture(mat_normal, vertex_texcoord).rgb - 0.5) * mat_normal_strength);
+    float roughness = texture(mat_roughness, vertex_texcoord).r * mat_roughness_strength;
+    float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
+    vec3 emissive = texture(mat_emissive, vertex_texcoord).rgb * mat_emissive_strength;
+
+    // Calculate reflectance at normal incidence
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, albedo, metallic);
+
+    vec3 result = vec3(0.0);
+    for(int i = 0; i < light_amount; i++) {
+        // Light calculations for each active light
+        vec4 lightDirUniform = light_direction[i];
+        vec3 lightDir = normalize(light_position[i].xyz - world_position);
+        if(lightDirUniform.w == 1.0) {
+            lightDir = normalize(lightDirUniform.xyz);
+        }
+        vec3 halfDir = normalize(lightDir + viewDir);
+        float distance = length(light_position[i].xyz - world_position);
+        float attenuation = 1.0 / (distance * distance);
+        vec3 radiance = light_color[i].xyz * light_intensity[i] * attenuation;
+
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(normal, halfDir, roughness);
+        float G = GeometrySmith(normal, viewDir, lightDir, roughness);
+        vec3 F = fresnelSchlick(max(dot(halfDir, viewDir), 0.0), F0);
+
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        float NdotL = max(dot(normal, lightDir), 0.0);
+
+        // Combine terms
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * NdotL + 0.0001;
+        vec3 specular = numerator / denominator;
+
+        // Ambient and diffuse lighting
+        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
+        vec3 diffuse = kD * albedo / PI;
+        vec3 reflection = (diffuse + specular) * radiance * NdotL;
+
+        // Accumulate result from this light
+        result += ambient + reflection;
+    }
+
+    // Calculate reflection vector for environmental lighting
+    vec3 reflectionVector = reflect(-viewDir, normal);
+    vec2 uv = getSphereMapUV(reflectionVector);
+    vec3 envReflection = texture(skybox, uv).rgb;
+
+    // Apply fresnel effect to the environmental reflection
+    vec3 fresnelEffect = fresnelSchlick(max(dot(viewDir, normal), 0.0), F0);
+    vec3 envReflectionWithFresnel = envReflection * fresnelEffect * (1.0 - metallic);
+
+    // Combine PBR lighting with environmental reflection
+    vec3 finalColor = result + emissive + envReflectionWithFresnel;
+
+    return vec4(finalColor, albedo_alpha * mat_transparency_strength);
+}
+
+void main() {
+    color = calculatePBRColor(normalize(view_direction));
+}
+
+/* End of file res\shader\enigma_fragment_shader.glsl */
+
+
+// File: res\shader\enigma_fragment_unlit.glsl
+// Path: ..\src\res\shader\enigma_fragment_unlit.glsl
+/* Start of file res\shader\enigma_fragment_unlit.glsl */
+#version 140
+
+//uniforms
+uniform float time;
+uniform float mat_transparency_strength;
+
+//attributes
+in vec3 world_position;
+in vec3 view_direction;
+in vec3 vertex_color;
+in vec3 vertex_normal;
+in vec2 vertex_texcoord;
+
+//material properties
+// material uniforms
+uniform vec3 mat_color;
+uniform sampler2D mat_albedo;
+
+// fragment outputs
+out vec4 color;
+
+void main() {
+    vec4 tex = texture(mat_albedo, vertex_texcoord);
+    color = vec4(tex.rgb * mat_color * vertex_color, tex.a * mat_transparency_strength);
+}
+
+
+
+/* End of file res\shader\enigma_fragment_unlit.glsl */
+
+
+// File: res\shader\enigma_vertex_shader.glsl
+// Path: ..\src\res\shader\enigma_vertex_shader.glsl
+/* Start of file res\shader\enigma_vertex_shader.glsl */
+#version 150
+
+//uniforms
+uniform float time;
+uniform mat4 matrix;
+uniform mat4 projection_matrix;
+uniform mat4 view_matrix;
+uniform mat4 model_matrix;
+
+//attributes
+in vec3 position;
+in vec2 texcoord;
+in vec3 normal;
+in vec3 color;
+in uint index;
+
+
+out vec3 world_position;
+out vec3 view_direction;
+
+out vec3 vertex_color;
+out vec3 vertex_normal;
+out vec2 vertex_texcoord;
+
+// material uniforms
+uniform vec3 mat_color;
+uniform sampler2D mat_albedo;
+uniform sampler2D mat_normal;
+uniform float mat_normal_strength;
+uniform sampler2D mat_roughness;
+uniform float mat_roughness_strength;
+uniform sampler2D mat_metallic;
+uniform float mat_metallic_strength;
+
+void main() {
+    vec3 pos = position;
+    float movement = 0.2;
+
+    mat4 modelview = view_matrix * model_matrix;
+
+    gl_Position = projection_matrix * modelview * vec4(position, 1.0);
+
+    world_position = (modelview * vec4(position, 1.0)).xyz;
+    vertex_normal = transpose(inverse(mat3(modelview))) * normal;
+    view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
+
+    vertex_color = color;
+    vertex_texcoord = texcoord;
+}
+/* End of file res\shader\enigma_vertex_shader.glsl */
+
+
+// File: res\shader\post_processing\post_processing_vert.glsl
+// Path: ..\src\res\shader\post_processing\post_processing_vert.glsl
+/* Start of file res\shader\post_processing\post_processing_vert.glsl */
+#version 140
+
+in vec3 position;
+in vec2 texcoord;
+in vec3 color;
+in vec3 normal;
+
+out vec2 TEXCOORD;
+
+
+void main() {
+    TEXCOORD = texcoord;
+    gl_Position = vec4(position, 1.0);
+}
+/* End of file res\shader\post_processing\post_processing_vert.glsl */
+
+
+// File: res\shader\post_processing\bloom\enigma_bloom_blur.glsl
+// Path: ..\src\res\shader\post_processing\bloom\enigma_bloom_blur.glsl
+/* Start of file res\shader\post_processing\bloom\enigma_bloom_blur.glsl */
+#version 450 core
+
+in vec2 TEXCOORD;
+out vec4 color;
+
+uniform sampler2D scene;
+uniform bool horizontal;
+uniform int iterations;
+
+void main() {
+    float weight = 1.0/iterations;
+    vec2 tex_offset = 1.0 / textureSize(scene, 0); // gets size of single texel
+    vec3 result = texture(scene, TEXCOORD).rgb * weight; // current fragment's contribution
+    if(horizontal) {
+        for(int i = 1; i < iterations; ++i) {
+            result += texture(scene, TEXCOORD + vec2(tex_offset.x * i, 0.0)).rgb * weight;
+            result += texture(scene, TEXCOORD - vec2(tex_offset.x * i, 0.0)).rgb * weight;
+        }
+    } else {
+        for(int i = 1; i < iterations; ++i) {
+            result += texture(scene, TEXCOORD + vec2(0.0, tex_offset.y * i)).rgb * weight;
+            result += texture(scene, TEXCOORD - vec2(0.0, tex_offset.y * i)).rgb * weight;
+        }
+    }
+
+    color = vec4(result, 1.0);
+}
+/* End of file res\shader\post_processing\bloom\enigma_bloom_blur.glsl */
+
+
+// File: res\shader\post_processing\bloom\enigma_bloom_combine.glsl
+// Path: ..\src\res\shader\post_processing\bloom\enigma_bloom_combine.glsl
+/* Start of file res\shader\post_processing\bloom\enigma_bloom_combine.glsl */
+#version 450 core
+
+in vec2 TEXCOORD;
+
+out vec4 color;
+
+uniform sampler2D scene;
+uniform sampler2D bloomBlur;
+
+void main() {
+    vec4 sceneColor = texture(scene, TEXCOORD);
+    vec4 bloomColor = texture(bloomBlur, TEXCOORD);
+
+    // Combine the scene with the bloom effect
+    color = sceneColor + bloomColor;
+}
+/* End of file res\shader\post_processing\bloom\enigma_bloom_combine.glsl */
+
+
+// File: res\shader\post_processing\bloom\enigma_bloom_extract.glsl
+// Path: ..\src\res\shader\post_processing\bloom\enigma_bloom_extract.glsl
+/* Start of file res\shader\post_processing\bloom\enigma_bloom_extract.glsl */
+#version 450 core
+
+in vec2 TEXCOORD;
+
+out vec4 color;
+
+uniform sampler2D scene;
+uniform float threshold;
+
+void main() {
+    vec4 tex = texture(scene, TEXCOORD);
+    float brightness = dot(tex.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > threshold) { // Threshold for brightness
+        color = tex;
+    } else {
+        color = vec4(0.0);
+    }
+}
+/* End of file res\shader\post_processing\bloom\enigma_bloom_extract.glsl */
+
+
+// File: res\shader\post_processing\edge\enigma_edge_detection.glsl
+// Path: ..\src\res\shader\post_processing\edge\enigma_edge_detection.glsl
+/* Start of file res\shader\post_processing\edge\enigma_edge_detection.glsl */
+#version 450 core
+
+#define MIN_DEPTH 0.995
+
+in vec2 TEXCOORD;
+out vec4 color;
+
+uniform sampler2D scene;
+uniform sampler2D depth;
+uniform float threshold;
+uniform vec2 screenSize;
+uniform vec3 outlineColor;
+uniform float near; // Camera's near plane
+uniform float far;  // Camera's far plane
+
+float linearizeDepth(float depth) {
+    float z = depth * 2.0 - 1.0; // Back to NDC
+    return (2.0 * near * far) / (far + near - z * (far - near));
+}
+
+void main() {
+    float depthValue = texture(depth, TEXCOORD).r;
+    float depthLeft = texture(depth, TEXCOORD + vec2(-1.0 / screenSize.x, 0)).r;
+    float depthRight = texture(depth, TEXCOORD + vec2(1.0 / screenSize.x, 0)).r;
+    float depthUp = texture(depth, TEXCOORD + vec2(0, 1.0 / screenSize.y)).r;
+    float depthDown = texture(depth, TEXCOORD + vec2(0, -1.0 / screenSize.y)).r;
+
+    float linearDepth = linearizeDepth(depthValue);
+    float linearDepthLeft = linearizeDepth(depthLeft);
+    float linearDepthRight = linearizeDepth(depthRight);
+    float linearDepthUp = linearizeDepth(depthUp);
+    float linearDepthDown = linearizeDepth(depthDown);
+    // Scale the depth value for visualization
+    float scaledDepth = (linearDepth - near) / (far - near);
+    float scaledDepthLeft = (linearDepthLeft - near) / (far - near);
+    float scaledDepthRight = (linearDepthRight - near) / (far - near);
+    float scaledDepthUp = (linearDepthUp - near) / (far - near);
+    float scaledDepthDown = (linearDepthDown - near) / (far - near);
+
+    float edge = 0.0;
+    if (abs(scaledDepth - scaledDepthLeft) > threshold || abs(scaledDepth - scaledDepthRight) > threshold ||
+    abs(scaledDepth - scaledDepthUp) > threshold || abs(scaledDepth - scaledDepthDown) > threshold) {
+        edge = 1.0;
+    }
+
+    vec4 c = mix(texture(scene, TEXCOORD), vec4(outlineColor, 1.0), edge);
+
+    color = c;
+}
+/* End of file res\shader\post_processing\edge\enigma_edge_detection.glsl */
+
+
+// File: res\shader\post_processing\grayscale\enigma_grayscale.glsl
+// Path: ..\src\res\shader\post_processing\grayscale\enigma_grayscale.glsl
+/* Start of file res\shader\post_processing\grayscale\enigma_grayscale.glsl */
+#version 140
+
+in vec2 TEXCOORD;
+
+out vec4 color;
+
+uniform sampler2D scene;
+
+void main() {
+    vec4 c = texture(scene, TEXCOORD);
+    float grayscale = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    color = vec4(grayscale, grayscale, grayscale, c.a);
+}
+/* End of file res\shader\post_processing\grayscale\enigma_grayscale.glsl */
+
