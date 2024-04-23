@@ -1,5 +1,5 @@
 enigma is my first attempt to do a little graphics API for Rust.
-Please be aware that I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. That said, I have the following features working.
+Please be aware that I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. That said, I have the following features working:
 
 - Model loading from GLTF and OBJ
 - Opaque and Transparent rendering
@@ -9,7 +9,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - up to 4 point lights per object
 - one ambient light
 - a `Camera`
-- a simple Event system to inject functions and Keyboard presses into the `EventLoop`. Atm events get processed one by one in sequence
+- a simple Event system to inject functions and Keyboard presses and KeyCode modifiers into the `EventLoop`. Atm events get processed one by one in sequence
 - a simple Update system to inject functions into the update loop. Atm, the functions get processes one by one in sequence
 - Screen to World positions, including a selection system
 - Postprocessing
@@ -23,6 +23,8 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
 
 
+For support on how to use the Engine, you can use this GPT-4 if you are subscribed to ChatGPT+: https://chat.openai.com/g/g-omfu2zhKf-enigma-3d-expert
+
 The API is quite straightforward and easy to use; see the example below.
 
 **PBR Bloom postprocess and transparent objects**
@@ -31,6 +33,7 @@ The API is quite straightforward and easy to use; see the example below.
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/75aac3e0-50d9-42cf-b896-b727289189e9)
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/9003a00e-f52c-4692-b7b7-e387b780d456)
+
 
 ***
     // create an enigma event loop and app state
