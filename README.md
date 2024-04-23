@@ -36,57 +36,47 @@ The API is quite straightforward and easy to use; see the example below.
 
 
 ***
-    // create an enigma event loop and app state
-    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window");
+    // create an enigma eventloop and appstate
+    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
     let mut app_state = enigma::AppState::new();
 
-    //Some default event setups like selection
+    // set the icon from the resources
+    event_loop.set_icon_from_resource(resources::ICON);
+
+    // some default event setups like e.g. selection
     enigma::init_default(&mut app_state);
 
-    let mut material = enigma::material::Material::lit_pbr(event_loop.display.clone());
-    material.set_texture_from_file("res/textures/uv_checker.png", enigma::material::TextureType::Albedo);
+    // create a material and assign the UV checker texture from resources
+    let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
 
-    //Create a default object
-    let mut object = Object::load_from_gltf("res/models/suzanne.gltf");
+    // create an object, and load the Suzanne model from resources
+    let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
 
-    // set the material
+    // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material);
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
+    // set the name and position of the object
     object.name = "Suzanne".to_string();
     object.transform.set_position([0.0, 0.0, -2.0]);
 
-    // adding all the objects
+    // adding the object to the app state
     app_state.add_object(object);
 
-    // add lighting
-    let light1 = enigma::light::Light {
-        position: [1.0, 1.0, 5.0],
-        color: [0.0, 1.0, 0.0],
-        intensity: 100.0,
-    };
-    let light2 = enigma::light::Light {
-        position: [5.0, 1.0, 1.0],
-        color: [1.0, 0.0, 0.0],
-        intensity: 100.0,
-    };
-    let light3 = enigma::light::Light {
-        position: [0.0, 1.0, 5.0],
-        color: [0.0, 0.0, 1.0],
-        intensity: 100.0,
-    };
-    let ambient_light = enigma::light::Light {
-        position: [0.0, 0.0, 0.0],
-        color: [1.0, 1.0, 1.0],
-        intensity: 0.10,
-    };
-    app_state.add_light(light1, enigma::light::LightType::Point);
-    app_state.add_light(light2, enigma::light::LightType::Point);
-    app_state.add_light(light3, enigma::light::LightType::Point);
+    // create a bunch of lights
+    let light1 = enigma::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light2 = enigma::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light3 = enigma::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
-    app_state.add_light(ambient_light, enigma::light::LightType::Ambient);
+    // add the lights to the app state
+    app_state.add_light(light1, enigma::light::LightEmissionType::Source);
+    app_state.add_light(light2, enigma::light::LightEmissionType::Source);
+    app_state.add_light(light3, enigma::light::LightEmissionType::Source);
+    app_state.add_light(ambient_light, enigma::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
-    // add a camera
+    // create and add a camera to the app state
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
@@ -94,38 +84,66 @@ The API is quite straightforward and easy to use; see the example below.
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
         Arc::new(rotate_left),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
         Arc::new(rotate_right),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
         Arc::new(rotate_up),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
         Arc::new(rotate_down),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
         Arc::new(roll_right),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
         Arc::new(roll_left),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
+        None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(save_app_state),
+        Some(EventModifiers::new(true, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::O),
+        Arc::new(load_app_state),
+        Some(EventModifiers::new(true, false, false)),
     );
 
-    // add update
+    // add update functions
     app_state.inject_update_function(Arc::new(hopping_objects));
+    app_state.inject_update_function(Arc::new(print_data));
 
-    // add post-processing
-    //app_state.add_post_process(Box::new(GrayScale::new(&event_loop.display.clone())));
-    app_state.add_post_process(Box::new(Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    // add post processing effects
+    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+
+    //add one ui function to the app state. multiple ui functions can be added modularly
+    app_state.inject_gui(Arc::new(enigma_ui_function));
+
+
+    // add some arbitrary state data. This can be used to store any kind of data in the app state
+    // game globals, or other data that needs to be shared between different parts of the application
+    app_state.add_state_data( "intdata", Box::new(10i32));
+    app_state.add_state_data( "stringdata", Box::new("Hello World".to_string() as String));
+    app_state.add_state_data( "booldata", Box::new(true as bool));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
