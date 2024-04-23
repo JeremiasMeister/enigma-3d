@@ -12,6 +12,7 @@ use winit::event_loop::{ControlFlow};
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MousePosition;
 use crate::data::AppStateData;
+use crate::event::EventModifiers;
 use crate::light::{Light, LightEmissionType};
 use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
@@ -41,10 +42,12 @@ pub fn init_default(app_state: &mut AppState) {
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
         Arc::new(default_events::select_object_add),
+        None,
     );
 }
 
@@ -68,7 +71,7 @@ pub struct AppState {
     pub skybox_texture: Option<texture::Texture>,
     pub objects: Vec<object::Object>,
     pub object_selection: Vec<Uuid>,
-    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction)>,
+    pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction, event::EventModifiers)>,
     pub update_injections: Vec<event::EventFunction>,
     pub gui_injections: Vec<ui::GUIDrawFunction>,
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
@@ -84,6 +87,7 @@ pub struct EventLoop {
     pub event_loop: winit::event_loop::EventLoop<()>,
     pub window: Window,
     pub display: Display<WindowSurface>,
+    pub modifiers: EventModifiers,
     gui_renderer: Option<EguiGlium>,
 }
 
@@ -361,8 +365,11 @@ impl AppState {
         self.max_buffers
     }
 
-    pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction) {
-        self.event_injections.push((characteristic, function));
+    pub fn inject_event(&mut self, characteristic: event::EventCharacteristic, function: event::EventFunction, modifiers: Option<event::EventModifiers>) {
+        match modifiers {
+            Some(modifiers) => self.event_injections.push((characteristic, function, modifiers)),
+            None => self.event_injections.push((characteristic, function, event::EventModifiers::default())),
+        }
     }
     pub fn inject_update_function(&mut self, function: event::EventFunction) {
         self.update_injections.push(function);
@@ -392,6 +399,7 @@ impl EventLoop {
             event_loop,
             window,
             display,
+            modifiers: EventModifiers::default(),
             gui_renderer: None,
         }
     }
@@ -516,6 +524,11 @@ impl EventLoop {
                             }
                         }
                     }
+                    WindowEvent::ModifiersChanged(modifiers) => {
+                        self.modifiers.ctrl = modifiers.ctrl();
+                        self.modifiers.shift = modifiers.shift();
+                        self.modifiers.alt = modifiers.alt();
+                    }
                     WindowEvent::CursorMoved { position, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         if !response.consumed {
@@ -525,9 +538,9 @@ impl EventLoop {
                     WindowEvent::MouseInput { state, button, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         if !response.consumed {
-                            for (characteristic, function) in event_injections {
+                            for (characteristic, function, modifiers) in event_injections {
                                 if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
-                                    if state == winit::event::ElementState::Pressed && button == mouse_button {
+                                    if state == winit::event::ElementState::Pressed && button == mouse_button && modifiers == self.modifiers {
                                         function(&mut app_state);
                                     }
                                 }
@@ -537,9 +550,9 @@ impl EventLoop {
                     WindowEvent::KeyboardInput { input, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         if !response.consumed {
-                            for (characteristic, function) in event_injections {
+                            for (characteristic, function, modifiers) in event_injections {
                                 if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
-                                    if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) {
+                                    if input.state == winit::event::ElementState::Pressed && input.virtual_keycode == Some(key_code) && modifiers == self.modifiers {
                                         function(&mut app_state);
                                     }
                                 }

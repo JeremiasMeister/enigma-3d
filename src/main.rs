@@ -3,6 +3,7 @@ use enigma::object::Object;
 use enigma::camera::Camera;
 use enigma::{AppState, event, resources};
 use rand::Rng;
+use enigma::event::EventModifiers;
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.get_selected_objects_mut() {
@@ -80,8 +81,8 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
             ui.label("Enigma 3D Renderer");
             ui.label("Press A, D, W, S, E, Q to rotate the selected object");
             ui.label("Press Space to spawn a new object");
-            ui.label("Press F1 to save the current state");
-            ui.label("Press F2 to load the saved state");
+            ui.label("Press Ctrl + S to save the current state");
+            ui.label("Press Ctrl + O to load the saved state");
         });
 
     egui::Window::new("Scene")
@@ -216,38 +217,47 @@ fn main() {
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
         Arc::new(rotate_left),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
         Arc::new(rotate_right),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
         Arc::new(rotate_up),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
         Arc::new(rotate_down),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
         Arc::new(roll_right),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
         Arc::new(roll_left),
+        None,
     );
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
+        None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::F1),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
         Arc::new(save_app_state),
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::F2),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::O),
         Arc::new(load_app_state),
+        Some(EventModifiers::new(true, false, false)),
     );
 
     // add update functions
