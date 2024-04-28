@@ -511,6 +511,25 @@ impl EventLoop {
             // passing skybox
             let skybox_texture = &skybox_texture;
 
+            // ensuring, we only process not frustum culled objects and have the objects sorted for transparency rendering
+            app_state.objects.sort_by(|a, b| {
+                let distance_a = (camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
+                let distance_b = (camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
+                distance_b.partial_cmp(&distance_a).unwrap()
+            });
+            let visible_indices: Vec<usize> = app_state.get_objects_mut()
+                .iter_mut()
+                .enumerate()
+                .filter_map(|(index, object)| {
+                    let bounding_box = object.get_bounding_box();
+                    if collision_world::in_frustum(&camera.expect("failed to retrieve camera").get_frustum(), &bounding_box) {
+                        Some(index)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
@@ -578,7 +597,8 @@ impl EventLoop {
                         backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
                         ..Default::default()
                     };
-                    for object in app_state.objects.iter_mut() {
+                    for index in &visible_indices {
+                        let object = &mut app_state.get_objects_mut()[*index];
                         let model_matrix = object.transform.get_matrix();
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
@@ -614,16 +634,12 @@ impl EventLoop {
 
 
                     // render objects transparent
-                    app_state.objects.sort_by(|a, b| {
-                        let distance_a = (camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
-                        let distance_b = (camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
-                        distance_b.partial_cmp(&distance_a).unwrap()
-                    });
                     let transparent_rendering_parameter = glium::DrawParameters {
                         blend: glium::Blend::alpha_blending(),
                         ..opaque_rendering_parameter
                     };
-                    for object in app_state.objects.iter_mut() {
+                    for index in &visible_indices {
+                        let object = &mut app_state.get_objects_mut()[*index];
                         let model_matrix = object.transform.get_matrix();
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {

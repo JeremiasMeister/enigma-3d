@@ -1,5 +1,7 @@
+use nalgebra::Matrix4;
 use crate::object::{Transform, TransformSerializer};
 use serde::{Deserialize, Serialize};
+use crate::geometry::Frustum;
 
 #[derive(Serialize, Deserialize)]
 pub struct CameraSerializer {
@@ -11,6 +13,7 @@ pub struct CameraSerializer {
     far: f32,
     view: [[f32; 4]; 4],
     projection: [[f32; 4]; 4],
+    frustum: Frustum
 }
 
 #[derive(Copy, Clone)]
@@ -23,6 +26,7 @@ pub struct Camera {
     pub far: f32,
     pub view: [[f32; 4]; 4],
     pub projection: [[f32; 4]; 4],
+    pub frustum: Frustum
 }
 
 
@@ -49,6 +53,7 @@ impl Camera {
             far: far.unwrap_or_else(|| 1024.0),
             view: [[0.0; 4]; 4],
             projection: [[0.0; 4]; 4],
+            frustum: Frustum::default()
         };
         c.update_matrices();
         c
@@ -64,6 +69,7 @@ impl Camera {
             far: serializer.far,
             view: serializer.view,
             projection: serializer.projection,
+            frustum: serializer.frustum
         }
     }
 
@@ -77,6 +83,7 @@ impl Camera {
             far: self.far,
             view: self.view,
             projection: self.projection,
+            frustum: self.frustum
         }
     }
 
@@ -92,6 +99,14 @@ impl Camera {
             self.near,
             self.far,
         );
+
+        let view = Matrix4::from(self.get_view_matrix());
+        let projection = Matrix4::from(self.get_projection_matrix());
+        self.frustum.update(projection * view);
+    }
+
+    pub fn get_frustum(&self) -> &Frustum {
+        &self.frustum
     }
 
     pub fn calculate_direction_vector(&self) -> [f32; 3] {

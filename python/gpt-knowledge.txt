@@ -1928,7 +1928,7 @@ impl Material {
         emissive: Option<texture::Texture>,
         emissive_strength: Option<f32>,
     ) -> Self {
-        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), shader.get_geometry_shader().as_deref()).expect("Failed to compile shader program");
         let _tex_white = {
             let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
@@ -2010,7 +2010,7 @@ impl Material {
 
     pub fn set_shader(&mut self, shader: shader::Shader) {
         self.shader = shader.clone();
-        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
+        self.program = glium::Program::from_source(&self.display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), shader.get_geometry_shader().as_deref()).expect("Failed to compile shader program");
     }
 
     pub fn set_albedo(&mut self, albedo: texture::Texture) {
@@ -2066,13 +2066,13 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER, None), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER, None), &display);
         mat.set_transparency(transparency);
         mat
     }
@@ -2790,11 +2790,13 @@ use serde::{Deserialize, Serialize};
 pub struct ShaderSerializer {
     fragment_shader: String,
     vertex_shader: String,
+    geometry_shader: Option<String>
 }
 
 pub struct Shader {
     pub fragment_shader: String,
     pub vertex_shader: String,
+    pub geometry_shader: Option<String>
 }
 
 impl Shader {
@@ -2802,6 +2804,7 @@ impl Shader {
         Self {
             fragment_shader: String::from(""),
             vertex_shader: String::from(""),
+            geometry_shader: None,
         }
     }
 
@@ -2809,6 +2812,7 @@ impl Shader {
         Self {
             fragment_shader: serializer.fragment_shader,
             vertex_shader: serializer.vertex_shader,
+            geometry_shader: serializer.geometry_shader,
         }
     }
 
@@ -2816,6 +2820,7 @@ impl Shader {
         ShaderSerializer {
             fragment_shader: self.fragment_shader.clone(),
             vertex_shader: self.vertex_shader.clone(),
+            geometry_shader: self.geometry_shader.clone(),
         }
     }
 
@@ -2825,6 +2830,11 @@ impl Shader {
     pub fn set_vertex_shader(&mut self, vertex_shader: String) {
         self.vertex_shader = vertex_shader;
     }
+
+    pub fn set_geometry_shader(&mut self, geometry_shader: String) {
+        self.geometry_shader = Some(geometry_shader);
+    }
+
     pub fn get_fragment_shader(&self) -> String {
         self.fragment_shader.clone()
     }
@@ -2832,25 +2842,42 @@ impl Shader {
         self.vertex_shader.clone()
     }
 
-    pub fn from_files(vertex_shader: &str, fragment_shader: &str) -> Self {
+    pub fn get_geometry_shader(&self) -> Option<String> {
+        self.geometry_shader.clone()
+    }
+
+    pub fn from_files(vertex_shader: &str, fragment_shader: &str, geometry_shader: Option<&str>) -> Self {
         let vertex_shader = std::fs::read_to_string(vertex_shader).expect("Unable to read file");
         let fragment_shader = std::fs::read_to_string(fragment_shader).expect("Unable to read file");
+        let geometry_shader = match geometry_shader {
+            Some(geometry_shader) => Some(std::fs::read_to_string(geometry_shader).expect("Unable to read file")),
+            None => None,
+        };
         Self {
             fragment_shader,
             vertex_shader,
+            geometry_shader,
         }
     }
 
-    pub fn from_strings(vertex_shader: &str, fragment_shader: &str) -> Self {
+    pub fn from_strings(vertex_shader: &str, fragment_shader: &str, geometry_shader: Option<&str>) -> Self {
         Self {
             fragment_shader: String::from(fragment_shader),
             vertex_shader: String::from(vertex_shader),
+            geometry_shader: match geometry_shader {
+                Some(geometry_shader) => Some(String::from(geometry_shader)),
+                None => None,
+            },
         }
     }
 
     pub fn log(&self) {
         println!("Vertex Shader:\n{}", self.vertex_shader);
         println!("Fragment Shader:\n{}", self.fragment_shader);
+        match &self.geometry_shader {
+            Some(geometry_shader) => println!("Geometry Shader:\n{}", geometry_shader),
+            None => (),
+        }
     }
 
     pub fn default() -> Self {
@@ -2876,6 +2903,7 @@ impl Shader {
         Self {
             fragment_shader: String::from(fragment_shader),
             vertex_shader: String::from(vertex_shader),
+            geometry_shader: None,
         }
     }
 }
@@ -2888,13 +2916,19 @@ impl Default for Shader {
 
 impl std::fmt::Display for Shader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+        write!(f, "{}{}{}", self.vertex_shader, self.fragment_shader, match &self.geometry_shader {
+            Some(geometry_shader) => geometry_shader,
+            None => "",
+        })
     }
 }
 
 impl std::fmt::Debug for Shader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.vertex_shader, self.fragment_shader)
+        write!(f, "{}{}{}", self.vertex_shader, self.fragment_shader, match &self.geometry_shader {
+            Some(geometry_shader) => geometry_shader,
+            None => "",
+        })
     }
 }
 
@@ -2903,6 +2937,10 @@ impl Clone for Shader {
         Self {
             fragment_shader: self.fragment_shader.clone(),
             vertex_shader: self.vertex_shader.clone(),
+            geometry_shader: match &self.geometry_shader {
+                Some(geometry_shader) => Some(geometry_shader.clone()),
+                None => None,
+            },
         }
     }
 }
@@ -3056,9 +3094,9 @@ pub struct Bloom {
 
 impl Bloom {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, iterations: i32) -> Self {
-        let extract_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT);
-        let blur_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_BLUR_FRAGMENT);
-        let combine_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_COMBINE_FRAGMENT);
+        let extract_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT, None);
+        let blur_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_BLUR_FRAGMENT, None);
+        let combine_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_COMBINE_FRAGMENT, None);
         let program_extract = glium::Program::from_source(display, &extract_shader.get_vertex_shader(), &extract_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_blur = glium::Program::from_source(display, &blur_shader.get_vertex_shader(), &blur_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_combine = glium::Program::from_source(display, &combine_shader.get_vertex_shader(), &combine_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
@@ -3161,7 +3199,7 @@ pub struct Edge {
 
 impl Edge {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, color: [f32; 3]) -> Self {
-        let edge_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_EDGE_FRAGMENT);
+        let edge_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_EDGE_FRAGMENT, None);
 
         let program = glium::Program::from_source(display, &edge_shader.get_vertex_shader(), &edge_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
 
@@ -3240,7 +3278,7 @@ impl PostProcessingEffect for GrayScale {
 
 impl GrayScale {
     pub fn new(display: &glium::Display<WindowSurface>) -> Self {
-        let shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT);
+        let shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_GRAYSCALE_FRAGMENT, None);
         let program = glium::Program::from_source(display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         Self {
             program,

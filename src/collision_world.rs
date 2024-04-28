@@ -4,7 +4,7 @@ use crate::AppState;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use uuid::Uuid;
 use crate::camera::Camera;
-use crate::geometry::BoundingBox;
+use crate::geometry::{BoundingBox, Frustum};
 
 pub struct MousePosition {
     pub screen_space: (f64, f64),
@@ -16,6 +16,10 @@ pub struct RayCast {
     direction: Vector3<f32>,
     length: f32,
     intersection_objects: HashMap<Uuid, Vector3<f32>>
+}
+
+pub fn in_frustum(frustum: &Frustum, bounding_box: &BoundingBox) -> bool {
+    frustum.planes.iter().all(|plane| plane.intersects(bounding_box))
 }
 
 pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
