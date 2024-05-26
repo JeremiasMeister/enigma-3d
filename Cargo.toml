@@ -3,8 +3,10 @@ name = "enigma"
 version = "0.2.7"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
+license = "Apache-2.0"
 description = "A 3D Rendering Engine with a focus on simplicity and ease of use."
 build = "build.rs"
+keywords = ["gamedev", "graphics"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
