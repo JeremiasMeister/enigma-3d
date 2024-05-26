@@ -54,9 +54,9 @@ fn spawn_object(app_state: &mut AppState) {
             let rand_bool = rand::thread_rng().gen_bool(0.5);
             let mut material = enigma::material::Material::lit_pbr(d.clone(), rand_bool);
             material.set_transparency_strength(0.2);
-            material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
+            material.set_texture_from_resource(resources::uv_checker(), enigma::material::TextureType::Albedo);
 
-            let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
+            let mut object = Object::load_from_gltf_resource(resources::suzanne());
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
             object.add_material(material);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
@@ -174,17 +174,17 @@ fn main() {
     let mut app_state = enigma::AppState::new();
 
     // set the icon from the resources
-    event_loop.set_icon_from_resource(resources::ICON);
+    event_loop.set_icon_from_resource(resources::icon());
 
     // some default event setups like e.g. selection
     enigma::init_default(&mut app_state);
 
     // create a material and assign the UV checker texture from resources
     let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
+    material.set_texture_from_resource(resources::uv_checker(), enigma::material::TextureType::Albedo);
 
     // create an object, and load the Suzanne model from resources
-    let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
+    let mut object = Object::load_from_gltf_resource(resources::suzanne());
 
     // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material);

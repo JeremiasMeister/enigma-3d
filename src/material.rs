@@ -283,13 +283,13 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_SHADER, None), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::VERTEX_SHADER, resources::FRAGMENT_UNLIT_SHADER, None), &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_unlit_shader(), None), &display);
         mat.set_transparency(transparency);
         mat
     }

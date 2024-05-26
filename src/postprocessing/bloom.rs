@@ -17,9 +17,9 @@ pub struct Bloom {
 
 impl Bloom {
     pub fn new(display: &glium::Display<WindowSurface>, threshold: f32, iterations: i32) -> Self {
-        let extract_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_EXTRACT_FRAGMENT, None);
-        let blur_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_BLUR_FRAGMENT, None);
-        let combine_shader = shader::Shader::from_strings(resources::POST_PROCESSING_VERTEX, resources::POST_PROCESSING_BLOOM_COMBINE_FRAGMENT, None);
+        let extract_shader = shader::Shader::from_strings(resources::post_processing_vertex(), resources::post_processing_bloom_extract_fragment(), None);
+        let blur_shader = shader::Shader::from_strings(resources::post_processing_vertex(), resources::post_processing_bloom_blur_fragment(), None);
+        let combine_shader = shader::Shader::from_strings(resources::post_processing_vertex(), resources::post_processing_bloom_combine_fragment(), None);
         let program_extract = glium::Program::from_source(display, &extract_shader.get_vertex_shader(), &extract_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_blur = glium::Program::from_source(display, &blur_shader.get_vertex_shader(), &blur_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
         let program_combine = glium::Program::from_source(display, &combine_shader.get_vertex_shader(), &combine_shader.get_fragment_shader(), None).expect("Failed to compile shader program");
