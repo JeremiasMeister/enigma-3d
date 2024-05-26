@@ -151,11 +151,11 @@ pub fn print_data(app_state: &mut AppState) {
 fn save_app_state(app_state: &mut AppState) {
     let serialize_app_state = app_state.to_serializer();
     let serialized = serde_json::to_string_pretty(&serialize_app_state).unwrap();
-    std::fs::write("app_state.json", serialized).unwrap();
+    std::fs::write("../app_state.json", serialized).unwrap();
 }
 
 fn load_app_state(app_state: &mut AppState) {
-    let serialized = std::fs::read_to_string("app_state.json").unwrap();
+    let serialized = std::fs::read_to_string("../app_state.json").unwrap();
     match serde_json::from_str(&serialized) {
         Ok(deserialized) => {
             let display = app_state.display.clone().unwrap();
