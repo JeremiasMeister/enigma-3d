@@ -67,17 +67,23 @@ impl Texture {
     }
 
     pub fn from_resource(display: &glium::Display<WindowSurface>, data: &[u8]) -> Self {
-        let image = image::load_from_memory(data).expect("Failed to load image").to_rgba8();
-        let image_dimensions = image.dimensions();
-        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
-        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
-        Self {
-            texture,
-            path: String::from("INTERNAL ENIGMA RESOURCE"),
-            width: image_dimensions.0,
-            height: image_dimensions.1,
-            binary_data: Some(data.to_vec()),
-        }
+        let texture = match image::load_from_memory(data) {
+            Ok(i) => {
+                let image = i.to_rgba8();
+                let image_dimensions = image.dimensions();
+                let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+                let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+                Self {
+                    texture,
+                    path: String::from("INTERNAL ENIGMA RESOURCE"),
+                    width: image_dimensions.0,
+                    height: image_dimensions.1,
+                    binary_data: Some(data.to_vec()),
+                }
+            },
+            Err(_) => Self::pink_texture(display),
+        };
+        texture
     }
 
     pub fn get_texture_clone(&self, display: &glium::Display<WindowSurface>) -> Self {
@@ -104,5 +110,21 @@ impl Texture {
             return Texture::new(display, path_str.as_str());
         }
     }
+
+    pub fn pink_texture(display: &glium::Display<WindowSurface>) -> Self {
+        let image = image::RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 255, 255]));
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        Self {
+            texture,
+            path: String::from("PINK"),
+            width: image_dimensions.0,
+            height: image_dimensions.1,
+            binary_data: None,
+        }
+    }
+
+
 }
 
