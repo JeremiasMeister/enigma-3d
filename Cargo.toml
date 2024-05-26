@@ -1,5 +1,5 @@
 [package]
-name = "enigma"
+name = "enigma-3d"
 version = "0.2.7"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
