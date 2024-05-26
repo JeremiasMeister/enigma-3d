@@ -1,9 +1,9 @@
 use std::sync::Arc;
-use enigma::object::Object;
-use enigma::camera::Camera;
-use enigma::{AppState, event, resources};
+use enigma_3d::object::Object;
+use enigma_3d::camera::Camera;
+use enigma_3d::{AppState, event, resources};
 use rand::Rng;
-use enigma::event::EventModifiers;
+use enigma_3d::event::EventModifiers;
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.get_selected_objects_mut() {
@@ -52,9 +52,9 @@ fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(d) => {
             let rand_bool = rand::thread_rng().gen_bool(0.5);
-            let mut material = enigma::material::Material::lit_pbr(d.clone(), rand_bool);
+            let mut material = enigma_3d::material::Material::lit_pbr(d.clone(), rand_bool);
             material.set_transparency_strength(0.2);
-            material.set_texture_from_resource(resources::uv_checker(), enigma::material::TextureType::Albedo);
+            material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
 
             let mut object = Object::load_from_gltf_resource(resources::suzanne());
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
@@ -170,18 +170,18 @@ fn load_app_state(app_state: &mut AppState) {
 
 fn main() {
     // create an enigma eventloop and appstate
-    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
-    let mut app_state = enigma::AppState::new();
+    let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
+    let mut app_state = enigma_3d::AppState::new();
 
     // set the icon from the resources
     event_loop.set_icon_from_resource(resources::icon());
 
     // some default event setups like e.g. selection
-    enigma::init_default(&mut app_state);
+    enigma_3d::init_default(&mut app_state);
 
     // create a material and assign the UV checker texture from resources
-    let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    material.set_texture_from_resource(resources::uv_checker(), enigma::material::TextureType::Albedo);
+    let mut material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
 
     // create an object, and load the Suzanne model from resources
     let mut object = Object::load_from_gltf_resource(resources::suzanne());
@@ -198,16 +198,16 @@ fn main() {
     app_state.add_object(object);
 
     // create a bunch of lights
-    let light1 = enigma::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
-    let light2 = enigma::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
-    let light3 = enigma::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
-    let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
+    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
     // add the lights to the app state
-    app_state.add_light(light1, enigma::light::LightEmissionType::Source);
-    app_state.add_light(light2, enigma::light::LightEmissionType::Source);
-    app_state.add_light(light3, enigma::light::LightEmissionType::Source);
-    app_state.add_light(ambient_light, enigma::light::LightEmissionType::Ambient); // only one ambient light is supported atm
+    app_state.add_light(light1, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light2, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light3, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
@@ -266,8 +266,8 @@ fn main() {
 
     // add post processing effects
     //app_state.add_post_process(Box::new(enigma::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
-    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
-    app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));

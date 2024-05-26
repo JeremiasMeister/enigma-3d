@@ -1,4 +1,4 @@
-enigma is my first attempt to do a little graphics API for Rust.
+enigma-3d is my first attempt to do a little graphics API for Rust.
 Please be aware that I'm not a professional graphics programmer, so the code is most likely butchering some conventions. I also don't take care of performance at the moment. That said, I have the following features working:
 
 - Model loading from GLTF and OBJ
@@ -22,9 +22,6 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
 
-
-For support on how to use the Engine, you can use this GPT-4 if you are subscribed to ChatGPT+: https://chat.openai.com/g/g-omfu2zhKf-enigma-3d-expert
-
 The API is quite straightforward and easy to use; see the example below.
 
 **PBR Bloom postprocess and transparent objects**
@@ -36,18 +33,18 @@ The API is quite straightforward and easy to use; see the example below.
 
 ```rust
     // create an enigma eventloop and appstate
-    let event_loop = enigma::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
-    let mut app_state = enigma::AppState::new();
+    let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer Window", 1080, 720);
+    let mut app_state = enigma_3d::AppState::new();
 
     // set the icon from the resources
     event_loop.set_icon_from_resource(resources::ICON);
 
     // some default event setups like e.g. selection
-    enigma::init_default(&mut app_state);
+    enigma_3d::init_default(&mut app_state);
 
     // create a material and assign the UV checker texture from resources
-    let mut material = enigma::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    material.set_texture_from_resource(resources::UV_CHECKER, enigma::material::TextureType::Albedo);
+    let mut material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    material.set_texture_from_resource(resources::UV_CHECKER, enigma_3d::material::TextureType::Albedo);
 
     // create an object, and load the Suzanne model from resources
     let mut object = Object::load_from_gltf_resource(resources::SUZANNE);
@@ -64,16 +61,16 @@ The API is quite straightforward and easy to use; see the example below.
     app_state.add_object(object);
 
     // create a bunch of lights
-    let light1 = enigma::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
-    let light2 = enigma::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
-    let light3 = enigma::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
-    let ambient_light = enigma::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
+    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
     // add the lights to the app state
-    app_state.add_light(light1, enigma::light::LightEmissionType::Source);
-    app_state.add_light(light2, enigma::light::LightEmissionType::Source);
-    app_state.add_light(light3, enigma::light::LightEmissionType::Source);
-    app_state.add_light(ambient_light, enigma::light::LightEmissionType::Ambient); // only one ambient light is supported atm
+    app_state.add_light(light1, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light2, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light3, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
@@ -131,8 +128,8 @@ The API is quite straightforward and easy to use; see the example below.
     app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing effects
-    app_state.add_post_process(Box::new(enigma::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
-    app_state.add_post_process(Box::new(enigma::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));
