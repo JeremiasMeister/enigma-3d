@@ -471,6 +471,14 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
+        //prepare directional shadow maps
+        let mut shadow_maps = Vec::new();
+        for light in temp_app_state.get_lights(){
+            if light.cast_shadow && light.is_directional(){
+                shadow_maps.push(glium::texture::DepthTexture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create directional Shadowmap"));
+            }
+        }
+
         //dropping modified appstate
         drop(temp_app_state);
 
@@ -478,6 +486,8 @@ impl EventLoop {
         let screen_vert_rect = postprocessing::get_screen_vert_rect(&self.display);
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
         let screen_program = postprocessing::get_screen_program(&self.display);
+
+
 
         //initializing GUI
         match self.gui_renderer {
@@ -506,6 +516,7 @@ impl EventLoop {
             let texture = &mut texture;
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
+            let shadow_maps = &mut shadow_maps;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
 
             // passing skybox
@@ -567,6 +578,8 @@ impl EventLoop {
                     app_state.time += 0.001;
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
+
+                    // render directional shad
 
                     // render objects opaque
                     let opaque_rendering_parameter = glium::DrawParameters {
