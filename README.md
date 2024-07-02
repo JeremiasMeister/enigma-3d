@@ -24,6 +24,8 @@ A first little game, developed with enigma, can be found here: https://github.co
 
 The API is quite straightforward and easy to use; see the example below.
 
+**The Chessboard Example**
+![image](https://github.com/JeremiasMeister/enigma-3d/assets/19373094/b97c864c-2a85-464d-bd97-22c14159418e)
 **PBR Bloom postprocess and transparent objects**
 ![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
 **Also added an outline postprocess as an example how to handle the depth buffer in postprocessing**
