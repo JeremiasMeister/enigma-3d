@@ -6,8 +6,11 @@ use uuid::Uuid;
 use crate::camera::Camera;
 use crate::geometry::BoundingBox;
 
-pub struct MousePosition {
-    pub screen_space: (f64, f64),
+
+pub struct MouseState {
+    pub current_position: (f64, f64),
+    previous_position: (f64, f64),
+    delta: (f64, f64),
     pub world_space: Vector3<f32>,
 }
 
@@ -39,26 +42,30 @@ pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
     true
 }
 
-impl Debug for MousePosition {
+impl Debug for MouseState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MousePosition")
-            .field("screen_space", &self.screen_space)
+            .field("current_position", &self.current_position)
+            .field("previous_position", &self.previous_position)
+            .field("delta", &self.delta)
             .field("world_space", &self.world_space)
             .finish()
     }
 }
 
-impl MousePosition {
+impl MouseState {
     pub fn new() -> Self {
         Self {
-            screen_space: (0.0, 0.0),
+            current_position: (0.0, 0.0),
+            previous_position: (0.0, 0.0),
+            delta: (0.0,0.0),
             world_space: Vector3::new(0.0, 0.0, 0.0),
         }
     }
 
     pub fn get_world_position(&self, camera: &Camera) -> (Vector3<f32>, Vector3<f32>) {
-        let clip_space_x = (self.screen_space.0 as f32 / camera.width) * 2.0 - 1.0;
-        let clip_space_y = 1.0-(self.screen_space.1 as f32 / camera.height) * 2.0;
+        let clip_space_x = (self.current_position.0 as f32 / camera.width) * 2.0 - 1.0;
+        let clip_space_y = 1.0-(self.current_position.1 as f32 / camera.height) * 2.0;
         let clip_space_z = -1.0;
         let clip_space_coord: Vector4<f32> = Vector4::new(clip_space_x, clip_space_y, clip_space_z, 1.0);
         let view_space_coord = Matrix4::from(camera.get_projection_matrix()).try_inverse().unwrap().transform_point(&Point3::from_homogeneous(clip_space_coord).unwrap());
@@ -70,11 +77,19 @@ impl MousePosition {
     }
 
     pub fn get_screen_position(&self) -> (f64, f64) {
-        self.screen_space
+        self.current_position
     }
 
-    pub fn set_screen_position(&mut self, position: (f64, f64)) {
-        self.screen_space = position;
+    pub fn update_position(&mut self, new_position: (f64, f64)) {
+        self.previous_position = self.current_position;
+        self.current_position = new_position;
+        self.delta = (
+            self.current_position.0 - self.previous_position.0,
+            self.current_position.1 - self.previous_position.1,
+        );
+    }
+    pub fn get_delta(&self) -> (f64, f64) {
+        self.delta
     }
 }
 

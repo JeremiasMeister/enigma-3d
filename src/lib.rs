@@ -10,7 +10,7 @@ use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::camera::{Camera, CameraSerializer};
-use crate::collision_world::MousePosition;
+use crate::collision_world::MouseState;
 use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::light::{Light, LightEmissionType};
@@ -79,7 +79,7 @@ pub struct AppState {
     pub time: f32,
     pub render_scale: u32,
     pub max_buffers: usize,
-    mouse_position: MousePosition,
+    mouse_state: MouseState,
     pub state_data: Vec<AppStateData>,
 }
 
@@ -109,7 +109,7 @@ impl AppState {
             time: 0.0,
             render_scale: 1,
             max_buffers: 3,
-            mouse_position: MousePosition::new(),
+            mouse_state: MouseState::new(),
             gui_injections: Vec::new(),
             state_data: Vec::new(),
         }
@@ -238,12 +238,12 @@ impl AppState {
         &mut self.post_processes
     }
 
-    pub fn get_mouse_position(&self) -> &MousePosition {
-        &self.mouse_position
+    pub fn get_mouse_state(&self) -> &MouseState {
+        &self.mouse_state
     }
 
-    pub fn get_mouse_position_mut(&mut self) -> &mut MousePosition {
-        &mut self.mouse_position
+    pub fn get_mouse_state_mut(&mut self) -> &mut MouseState {
+        &mut self.mouse_state
     }
 
     pub fn convert_to_arc_mutex(self) -> Arc<Mutex<Self>> {
@@ -347,6 +347,10 @@ impl AppState {
 
     pub fn get_camera(&self) -> &Option<camera::Camera> {
         &self.camera
+    }
+
+    pub fn get_camera_mut(&mut self) -> &mut Option<camera::Camera> {
+        &mut self.camera
     }
 
     pub fn set_renderscale(&mut self, scale: u32) {
@@ -532,7 +536,7 @@ impl EventLoop {
                     WindowEvent::CursorMoved { position, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         if !response.consumed {
-                            app_state.get_mouse_position_mut().set_screen_position((position.x, position.y));
+                            app_state.get_mouse_state_mut().update_position((position.x, position.y));
                         }
                     }
                     WindowEvent::MouseInput { state, button, .. } => {

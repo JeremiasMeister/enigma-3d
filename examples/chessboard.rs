@@ -2,7 +2,64 @@ use std::sync::Arc;
 use egui::ScrollArea;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, EventLoop, resources};
+use enigma_3d::{AppState, event, EventLoop, resources};
+use enigma_3d::event::EventModifiers;
+
+fn camera_fly_forward(app_state: &mut AppState) {
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.forward() * -0.15;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+fn camera_fly_backward(app_state: &mut AppState) {
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.forward() * 0.15;  // Note: positive here
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+fn camera_fly_left(app_state: &mut AppState) {
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.left() * 0.15;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+fn camera_fly_right(app_state: &mut AppState) {
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.left() * -0.15;  // Note: negative here
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+fn camera_rotate(app_state: &mut AppState) {
+    let mouse_delta = app_state.get_mouse_state().get_delta();
+    if let Some(camera) = app_state.get_camera_mut() {
+        // Convert delta to radians and apply a sensitivity factor
+        let sensitivity = 0.01; // Adjust this value to change rotation speed
+        let (delta_yaw, delta_pitch) = (
+            mouse_delta.0 as f32 * sensitivity,
+            mouse_delta.1 as f32 * sensitivity
+        );
+
+        // Update camera rotation
+        let mut rotation = camera.transform.rotation;
+
+        // Yaw rotation (around Y-axis)
+        rotation.y -= delta_yaw;
+
+        // Pitch rotation (around X-axis)
+        rotation.x -= delta_pitch;
+
+        // Clamp pitch to prevent camera flipping
+        rotation.x = rotation.x.clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
+
+        // Apply the new rotation
+        camera.transform.rotation = rotation;
+    }
+}
+
 
 fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
     egui::Window::new("Enigma - Chessboard Example")
@@ -175,7 +232,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_knight_black_1.add_material(figures_black_material.clone());
     obj_knight_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_knight_black_1.transform.set_position([2.5, -1.15, -9.4]);
-    obj_knight_black_1.transform.set_rotation([0.0,-90.0, 0.0]);
+    obj_knight_black_1.transform.set_rotation([0.0, 90.0, 0.0]);
     let mut obj_knight_black_2 = obj_knight_black_1.clone();
     obj_knight_black_2.set_name("obj_knight_black_2".to_string());
     obj_knight_black_2.transform.set_position([-2.5, -1.15, -9.4]);
@@ -247,32 +304,63 @@ fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer - Chessboard", 1080, 720);
     let mut app_state = enigma_3d::AppState::new();
-
     // set the icon from the resources
     event_loop.set_icon_from_resource(resources::icon());
-
     // some default event setups like e.g. selection
     enigma_3d::init_default(&mut app_state);
-
-
     //initialize board
     initialize_board(&mut app_state, &event_loop);
-
     // create a bunch of lights
-    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
     let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+
+    let light4 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
+    let light5 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light6 = enigma_3d::light::Light::new([-5.0, 2.0, -8.0], [0.0, 0.0, 1.0], 100.0, None, false);
+
     let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
     // add the lights to the app state
     app_state.add_light(light1, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light2, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light3, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light4, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light5, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light6, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
     let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
+
+    //event functions for moving the camera
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        Arc::new(camera_fly_forward),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        Arc::new(camera_fly_left),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(camera_fly_backward),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        Arc::new(camera_fly_right),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
+        Arc::new(camera_rotate),
+        Some(EventModifiers::new(true, false, false)),
+    );
+
 
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));

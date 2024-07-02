@@ -14,7 +14,7 @@ pub fn select_object_add(app_state: &mut AppState){
 fn select_object_single(app_state: &mut AppState) {
     match app_state.camera {
         Some(camera) => {
-            let world_space_mouse_position = app_state.get_mouse_position().get_world_position(&camera);
+            let world_space_mouse_position = app_state.get_mouse_state().get_world_position(&camera);
             let mut raycast = RayCast::new(
                 world_space_mouse_position.0,
                 world_space_mouse_position.1,
