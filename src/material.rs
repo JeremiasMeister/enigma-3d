@@ -60,6 +60,59 @@ pub enum TextureType {
     Emissive,
 }
 
+impl Clone for Material {
+    fn clone(&self) -> Self {
+        let mut material = Material::default(self.shader.clone(), &self.display);
+        let _tex_white = {
+            let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&self.display, raw).unwrap()
+        };
+        let _tex_black = {
+            let raw = Material::tex_raw_from_array([0.0, 0.0, 0.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&self.display, raw).unwrap()
+        };
+        let _tex_gray = {
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 0.5, 1.0]);
+            glium::texture::SrgbTexture2d::new(&self.display, raw).unwrap()
+        };
+        let _tex_normal = {
+            let raw = Material::tex_raw_from_array([0.5, 0.5, 1.0, 1.0]);
+            glium::texture::SrgbTexture2d::new(&self.display, raw).unwrap()
+        };
+        material.name = self.name.clone();
+        material.color = self.color.clone();
+        material.albedo = match &self.albedo {
+            Some(tex) => Some(tex.get_texture_clone(&self.display)),
+            None => None
+        };
+        material.transparency = self.transparency.clone();
+        material.normal = match &self.normal {
+            Some(tex) => Some(tex.get_texture_clone(&self.display)),
+            None => None
+        };
+        material.normal_strength = self.normal_strength.clone();
+        material.roughness = match &self.roughness {
+            Some(tex) => Some(tex.get_texture_clone(&self.display)),
+            None => None
+        };
+        material.roughness_strength = self.roughness_strength.clone();
+        material.metallic = match &self.metallic {
+            Some(tex) => Some(tex.get_texture_clone(&self.display)),
+            None => None
+        };
+        material.metallic_strength = self.metallic_strength.clone();
+        material.emissive = match &self.emissive {
+            Some(tex) => Some(tex.get_texture_clone(&self.display)),
+            None => None
+        };
+        material.emissive_strength = self.emissive_strength.clone();
+        material.matrix = self.matrix.clone();
+        material.time = self.time.clone();
+        material.render_transparent = self.render_transparent.clone();
+        material
+    }
+}
+
 impl Material {
     pub fn default(shader: shader::Shader, display: &glium::Display<WindowSurface>) -> Self {
         Material::new(shader, display.clone(), None, None, None, None, None, None, None, None, None, None)

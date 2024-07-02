@@ -62,3 +62,66 @@ pub fn skybox_texture_hdr() -> &'static [u8] {
 pub fn icon() -> &'static [u8] {
     include_bytes!("res/textures/icon.png")
 }
+
+
+// chessboard example
+//models
+pub fn chess_bishop_gltf() -> &'static [u8] {
+    include_bytes!("res/models/bishop.glb")
+}
+
+pub fn chess_board_gltf() -> &'static [u8] {
+    include_bytes!("res/models/board.glb")
+}
+
+pub fn chess_king_gltf() -> &'static [u8] {
+    include_bytes!("res/models/king.glb")
+}
+
+pub fn chess_knight_gltf() -> &'static [u8] {
+    include_bytes!("res/models/knight.glb")
+}
+
+pub fn chess_pawn_gltf() -> &'static [u8] {
+    include_bytes!("res/models/pawn.glb")
+}
+
+pub fn chess_queen_gltf() -> &'static [u8] {
+    include_bytes!("res/models/queen.glb")
+}
+
+pub fn chess_rook_gltf() -> &'static [u8] {
+    include_bytes!("res/models/rook.glb")
+}
+
+// textures
+pub fn chess_figures_black_albedo() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_Black_basecolor.png")
+}
+pub fn chess_figures_white_albedo() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_White_basecolor.png")
+}
+pub fn chess_figures_metallic() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_metallic.png")
+}
+pub fn chess_figures_normal() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_normal.png")
+}
+pub fn chess_figures_black_roughness() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_Black_roughness.png")
+}
+pub fn chess_figures_white_roughness() -> &'static [u8] {
+    include_bytes!("res/textures/Figures_White_roughness.png")
+}
+pub fn chess_board_albedo() -> &'static [u8] {
+    include_bytes!("res/textures/Board_basecolor.png")
+}
+pub fn chess_board_normal() -> &'static [u8] {
+    include_bytes!("res/textures/Board_normal.png")
+}
+pub fn chess_board_metallic() -> &'static [u8] {
+    include_bytes!("res/textures/Board_metallic.png")
+}
+pub fn chess_board_roughness() -> &'static [u8] {
+    include_bytes!("res/textures/Board_roughness.png")
+}
