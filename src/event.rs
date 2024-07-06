@@ -6,7 +6,7 @@ pub enum EventCharacteristic {
     KeyPress(winit::event::VirtualKeyCode),
     //KeyDown(winit::event::VirtualKeyCode),
     MousePress(winit::event::MouseButton),
-    //MouseDown(winit::event::MouseButton),
+    MouseDown(winit::event::MouseButton),
     MouseScroll(winit::event::MouseScrollDelta),
     //TODO: impl more events
 }

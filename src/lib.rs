@@ -80,6 +80,8 @@ pub struct AppState {
     pub render_scale: u32,
     pub max_buffers: usize,
     mouse_state: MouseState,
+    last_event_time: Instant,
+    is_mouse_down: bool,
     pub state_data: Vec<AppStateData>,
 }
 
@@ -112,6 +114,8 @@ impl AppState {
             mouse_state: MouseState::new(),
             gui_injections: Vec::new(),
             state_data: Vec::new(),
+            last_event_time: Instant::now(),
+            is_mouse_down: false,
         }
     }
 
@@ -491,7 +495,6 @@ impl EventLoop {
                 self.gui_renderer = Some(egui_glium);
             }
         }
-
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
             // unpacking appstate
@@ -540,15 +543,27 @@ impl EventLoop {
                         }
                     }
                     WindowEvent::MouseInput { state, button, .. } => {
-                        let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        let mut response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         if !response.consumed {
-                            for (characteristic, function, modifiers) in event_injections {
-                                if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
-                                    if state == winit::event::ElementState::Pressed && button == mouse_button && modifiers == self.modifiers {
+                            for (characteristic, function, modifiers) in &event_injections {
+                                if let event::EventCharacteristic::MouseDown(mouse_button) = characteristic {
+                                    if button == *mouse_button && modifiers == &self.modifiers {
+                                        if state == winit::event::ElementState::Pressed {
+                                            app_state.is_mouse_down = true;
+                                            app_state.last_event_time = Instant::now();
+                                            function(&mut app_state);
+                                        } else {
+                                            app_state.is_mouse_down = false;
+                                        }
+                                    }
+                                } else if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                    if modifiers == &self.modifiers {
                                         function(&mut app_state);
+                                        response.consumed = true;
                                     }
                                 }
-                            };
+                            }
+
                         }
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
@@ -669,6 +684,19 @@ impl EventLoop {
                     screen_target.finish().expect("Failed to swap buffers");
                 }
                 Event::MainEventsCleared => {
+
+                    // executing mouse down events
+                    if app_state.is_mouse_down && app_state.last_event_time.elapsed() >= Duration::from_millis(100) {
+                        for (characteristic, function, modifiers) in &event_injections {
+                            if let event::EventCharacteristic::MouseDown(mouse_button) = characteristic {
+                                if modifiers == &self.modifiers {
+                                    function(&mut app_state);
+                                    app_state.last_event_time = Instant::now();
+                                }
+                            }
+                        }
+                    }
+
                     // executing update functions
                     for function in update_injections {
                         function(&mut app_state);

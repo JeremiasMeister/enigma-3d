@@ -356,7 +356,7 @@ fn main() {
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
+        event::EventCharacteristic::MouseDown(winit::event::MouseButton::Right),
         Arc::new(camera_rotate),
         Some(EventModifiers::new(true, false, false)),
     );
