@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use crate::AppState;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
@@ -18,7 +17,7 @@ pub struct RayCast {
     origin: Vector3<f32>,
     direction: Vector3<f32>,
     length: f32,
-    intersection_objects: HashMap<Uuid, Vector3<f32>>
+    intersection_objects: indexmap::IndexMap<Uuid, Vector3<f32>>
 }
 
 pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
@@ -99,11 +98,11 @@ impl RayCast {
             origin,
             direction,
             length,
-            intersection_objects: HashMap::new(),
+            intersection_objects: indexmap::IndexMap::new(),
         }
     }
 
-    pub fn get_intersection_map(&self) -> &HashMap<Uuid, Vector3<f32>> {
+    pub fn get_intersection_map(&self) -> &indexmap::IndexMap<Uuid, Vector3<f32>> {
         &self.intersection_objects
     }
 

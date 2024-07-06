@@ -30,6 +30,7 @@ rayon = "1.10.0"
 parking_lot = "0.12.1"
 once_cell = "1.18.0"
 lru = "0.12.3"
+indexmap = "2.2.6"
 
 [package.metadata.bundle]
 name = "Enigma 3D"

@@ -21,18 +21,23 @@ fn select_object_single(app_state: &mut AppState) {
                 100.0,
             );
             raycast.cast(app_state);
-            for (id, _) in raycast.get_intersection_map().iter() {
-                let mut ids: Vec<Uuid> = app_state.object_selection.clone();
-                for object in app_state.get_objects_mut() {
-                    if object.get_unique_id() == *id {
-                        if !ids.contains(&object.get_unique_id()) {
-                            ids.push(object.get_unique_id());
+            let intersection_map = raycast.get_intersection_map();
+            match intersection_map.last() {
+                Some((id, _)) => {
+                    let mut ids: Vec<Uuid> = app_state.object_selection.clone();
+                    for object in app_state.get_objects_mut() {
+                        if object.get_unique_id() == *id {
+                            if !ids.contains(&object.get_unique_id()) {
+                                ids.push(object.get_unique_id());
+                                break;
+                            }
                         }
                     }
+                    app_state.object_selection = ids;
+                    println!("Selected Objects: {:?}", app_state.object_selection)
                 }
-                app_state.object_selection = ids;
+                None => ()
             }
-            println!("Selected object(s): {:?}", app_state.object_selection);
         },
         None => {
             println!("No camera found to cast from, could not select object");
