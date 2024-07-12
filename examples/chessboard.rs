@@ -363,7 +363,7 @@ fn main() {
 
 
     // add post processing effects
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 5)));
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));

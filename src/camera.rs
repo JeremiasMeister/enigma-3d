@@ -102,7 +102,7 @@ impl Camera {
         let y = pitch.sin();
         let z = yaw.cos() * pitch.cos();
 
-        [-x, -y, -z] // Pointing down negative Z-axis
+        [-x, y, -z] // Pointing down negative Z-axis
     }
 
 
