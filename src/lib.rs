@@ -5,6 +5,7 @@ use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
+use nalgebra::Matrix;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
@@ -586,7 +587,7 @@ impl EventLoop {
                     app_state.time += 0.001;
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
-
+                    let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
                     // render objects opaque
                     let opaque_rendering_parameter = glium::DrawParameters {
                         depth: glium::Depth {
@@ -597,14 +598,15 @@ impl EventLoop {
                         backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
                         ..Default::default()
                     };
-                    for object in app_state.objects.iter_mut() {
-                        let model_matrix = object.transform.get_matrix();
+
+                    for object in app_state.objects.iter() {
+                        let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             if material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
                             render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                         }
                     }
@@ -619,12 +621,18 @@ impl EventLoop {
                         backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
                         ..Default::default()
                     };
-                    match app_state.get_skybox_mut() {
+
+                    //First get the matrix outside of the closure
+                    let skybox_model_matrix = match app_state.get_skybox_mut(){
+                        Some(obj) => Some(obj.transform.get_matrix().clone()),
+                        None => None
+                    };
+
+                    match app_state.get_skybox() {
                         Some(skybox) => {
-                            let model_matrix = skybox.transform.get_matrix();
                             let closest_lights = skybox.get_closest_lights(&light);
                             for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
-                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_model_matrix.as_ref(), skybox_texture);
                                 render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                             }
                         }
@@ -642,14 +650,14 @@ impl EventLoop {
                         blend: glium::Blend::alpha_blending(),
                         ..opaque_rendering_parameter
                     };
-                    for object in app_state.objects.iter_mut() {
-                        let model_matrix = object.transform.get_matrix();
+                    for object in app_state.objects.iter() {
+                        let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
                         for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
                             if !material.render_transparent {
                                 continue;
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, Some(model_matrix), skybox_texture);
+                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
                             render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                         }
                     }
