@@ -251,6 +251,12 @@ fn main() {
     );
 
     app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(save_app_state),
+        Some(EventModifiers::new(true, false, false)),
+    );
+
+    app_state.inject_event(
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::O),
         Arc::new(load_app_state),
         Some(EventModifiers::new(true, false, false)),
