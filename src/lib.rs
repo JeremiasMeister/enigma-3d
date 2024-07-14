@@ -5,7 +5,6 @@ use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
-use nalgebra::Matrix;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
@@ -557,7 +556,7 @@ impl EventLoop {
                                             app_state.is_mouse_down = false;
                                         }
                                     }
-                                } else if let event::EventCharacteristic::MousePress(mouse_button) = characteristic {
+                                } else if let event::EventCharacteristic::MousePress(_) = characteristic {
                                     if modifiers == &self.modifiers {
                                         function(&mut app_state);
                                         response.consumed = true;
@@ -696,7 +695,7 @@ impl EventLoop {
                     // executing mouse down events
                     if app_state.is_mouse_down && app_state.last_event_time.elapsed() >= Duration::from_millis(100) {
                         for (characteristic, function, modifiers) in &event_injections {
-                            if let event::EventCharacteristic::MouseDown(mouse_button) = characteristic {
+                            if let event::EventCharacteristic::MouseDown(_) = characteristic {
                                 if modifiers == &self.modifiers {
                                     function(&mut app_state);
                                     app_state.last_event_time = Instant::now();

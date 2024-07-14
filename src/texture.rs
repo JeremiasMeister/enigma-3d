@@ -4,15 +4,11 @@ use std::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use std::cell::RefCell;
-use std::time::Instant;
-use image::{ImageFormat, DynamicImage, RgbaImage};
+use image::{DynamicImage, RgbaImage};
 use glium::Display;
-use glium::backend::glutin::DisplayCreationError;
 use glium::texture::{RawImage2d, SrgbTexture2d, MipmapsOption};
-use glium::uniforms::SamplerWrapFunction;
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use rayon::prelude::*;
 
 thread_local! {
     static IMAGE_CACHE: RefCell<LruCache<Vec<u8>, RgbaImage>> = RefCell::new(LruCache::new(NonZeroUsize::new(20).unwrap()));
