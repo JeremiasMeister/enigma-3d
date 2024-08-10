@@ -135,14 +135,14 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
 fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     // setup materials
     let mut board_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    board_material.name = Some("mat_board".to_string());
+    board_material.set_name("mat_board");
     board_material.set_texture_from_resource(resources::chess_board_albedo(), enigma_3d::material::TextureType::Albedo);
     board_material.set_texture_from_resource(resources::chess_board_normal(), enigma_3d::material::TextureType::Normal);
     board_material.set_texture_from_resource(resources::chess_board_metallic(), enigma_3d::material::TextureType::Metallic);
     board_material.set_texture_from_resource(resources::chess_board_roughness(), enigma_3d::material::TextureType::Roughness);
 
     let mut figures_white_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    figures_white_material.name = Some("mat_figures_white".to_string());
+    figures_white_material.set_name("mat_figures_white");
     figures_white_material.set_texture_from_resource(resources::chess_figures_white_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_white_material.set_texture_from_resource(resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
     figures_white_material.set_texture_from_resource(resources::chess_figures_metallic(), enigma_3d::material::TextureType::Metallic);
@@ -150,7 +150,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
 
 
     let mut figures_black_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    figures_black_material.name = Some("mat_figures_black".to_string());
+    figures_black_material.set_name("mat_figures_black");
     figures_black_material.set_texture_from_resource(resources::chess_figures_black_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_black_material.set_texture_from_resource(resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
     figures_black_material.set_texture_from_resource(resources::chess_figures_metallic(), enigma_3d::material::TextureType::Metallic);

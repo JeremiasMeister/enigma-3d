@@ -9,7 +9,7 @@ use crate::light::{Light, LightBlock};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MaterialSerializer {
-    name : Option<String>,
+    name : String,
     color: [f32; 3],
     albedo: Option<texture::TextureSerializer>,
     transparency: f32,
@@ -27,9 +27,8 @@ pub struct MaterialSerializer {
     uuid: String
 }
 
-
 pub struct Material {
-    pub name: Option<String>,
+    pub name: String,
     pub color: [f32; 3],
     pub albedo: Option<texture::Texture>,
     pub transparency: f32,
@@ -223,7 +222,7 @@ impl Material {
         };
 
         Self {
-            name: None,
+            name: "New Material".to_string(),
             shader,
             display,
             color: color.unwrap_or_else(|| [1.0, 1.0, 1.0]),
@@ -267,6 +266,10 @@ impl Material {
             render_transparent: false,
             uuid: Uuid::new_v4()
         }
+    }
+
+    pub fn set_name(&mut self, name: &str){
+        self.name = name.to_string()
     }
 
     pub fn set_transparency(&mut self, transparent: bool) {
