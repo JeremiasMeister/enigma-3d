@@ -2,6 +2,7 @@ use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use crate::{resources, shader, texture};
 use crate::camera::Camera;
 use crate::light::{Light, LightBlock};
@@ -23,6 +24,7 @@ pub struct MaterialSerializer {
     shader: shader::ShaderSerializer,
     matrix: [[f32;4]; 4],
     render_transparent: bool,
+    uuid: String
 }
 
 
@@ -50,6 +52,7 @@ pub struct Material {
     pub time: f32,
     pub matrix: [[f32; 4]; 4],
     pub render_transparent: bool,
+    uuid: Uuid
 }
 
 pub enum TextureType {
@@ -109,6 +112,7 @@ impl Clone for Material {
         material.matrix = self.matrix.clone();
         material.time = self.time.clone();
         material.render_transparent = self.render_transparent.clone();
+        material.uuid = self.uuid.clone();
         material
     }
 }
@@ -146,6 +150,7 @@ impl Material {
         mat.matrix = serializer.matrix;
         mat.set_transparency_strength(serializer.transparency);
         mat.set_transparency(serializer.render_transparent);
+        mat.uuid = Uuid::parse_str(serializer.uuid.as_str()).expect("Failed parsing Uuid");
         mat
     }
 
@@ -181,6 +186,7 @@ impl Material {
             shader: self.shader.to_serializer(),
             matrix: self.matrix,
             render_transparent: self.render_transparent,
+            uuid: self.uuid.to_string()
         }
     }
 
@@ -259,6 +265,7 @@ impl Material {
                 [0.0, 0.0, 0.0, 1.0f32],
             ],
             render_transparent: false,
+            uuid: Uuid::new_v4()
         }
     }
 
