@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use egui::ScrollArea;
+use nalgebra::Vector3;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, event, EventLoop, resources};
@@ -30,6 +31,18 @@ fn camera_fly_right(app_state: &mut AppState) {
     if let Some(camera) = app_state.get_camera_mut() {
         let direction = camera.transform.left() * -0.15;  // Note: negative here
         camera.transform.move_dir_vector(direction);
+    }
+}
+
+fn camera_up(app_state: &mut AppState){
+    if let Some(camera) = app_state.get_camera_mut() {
+        camera.transform.move_dir_vector(Vector3::new(0.0,0.15,0.0));
+    }
+}
+
+fn camera_down(app_state: &mut AppState){
+    if let Some(camera) = app_state.get_camera_mut() {
+        camera.transform.move_dir_vector(Vector3::new(0.0,-0.15,0.0));
     }
 }
 
@@ -354,6 +367,16 @@ fn main() {
         event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
         Arc::new(camera_fly_right),
         Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(camera_up),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(camera_down),
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
         event::EventCharacteristic::MouseDown(winit::event::MouseButton::Right),
