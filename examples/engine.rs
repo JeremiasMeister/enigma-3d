@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use egui::ScrollArea;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, event, resources};
@@ -85,23 +86,27 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
             ui.label("Press Space to spawn a new object");
             ui.label("Press Ctrl + S to save the current state");
             ui.label("Press Ctrl + O to load the saved state");
+            ui.label("Press Ctrl + N to reset the scene to the original state");
         });
 
     egui::Window::new("Scene")
         .default_width(200.0)
         .default_height(200.0)
         .show(ctx, |ui| {
-            ui.label("Scene Objects");
-            for object in app_state.objects.iter() {
-                if ui.button(object.name.clone()).clicked() {
-                    let uuid = object.get_unique_id();
-                    if !app_state.object_selection.contains(&uuid) {
-                        app_state.object_selection.push(uuid);
-                    } else {
-                        app_state.object_selection.remove(app_state.object_selection.iter().position(|x| *x == uuid).unwrap());
+            ui.label("Scene Objects: ");
+            ui.label(app_state.objects.len().to_string());
+            ScrollArea::vertical().show(ui, |ui| {
+                for object in app_state.objects.iter() {
+                    if ui.button(object.name.clone()).clicked() {
+                        let uuid = object.get_unique_id();
+                        if !app_state.object_selection.contains(&uuid) {
+                            app_state.object_selection.push(uuid);
+                        } else {
+                            app_state.object_selection.remove(app_state.object_selection.iter().position(|x| *x == uuid).unwrap());
+                        }
                     }
                 }
-            }
+            });
         });
     egui::Window::new("Transform Edit")
         .default_width(200.0)
