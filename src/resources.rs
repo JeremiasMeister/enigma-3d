@@ -13,6 +13,10 @@ pub fn post_processing_vertex() -> &'static str {
     include_str!("res/shader/post_processing/post_processing_vert.glsl")
 }
 
+pub fn post_processing_depth_fog_fragment() -> &'static str {
+    include_str!("res/shader/post_processing/depth_fog/depth_fog.glsl")
+}
+
 pub fn post_processing_bloom_blur_fragment() -> &'static str {
     include_str!("res/shader/post_processing/bloom/enigma_bloom_blur.glsl")
 }
