@@ -4,6 +4,7 @@ version = "0.2.8"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/JeremiasMeister/enigma-3d.git"
 description = "A 3D Rendering Engine with a focus on simplicity and ease of use. Far from feature complete and not recommended for production use."
 build = "build.rs"
 keywords = ["gamedev", "graphics"]
