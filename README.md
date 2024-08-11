@@ -31,10 +31,10 @@ Cargo should take care of all the dependencies for you.
 
 **The Chessboard Example**
 ![image](https://github.com/JeremiasMeister/enigma-3d/assets/19373094/b97c864c-2a85-464d-bd97-22c14159418e)
+**The Chessboard Example with a Fog Postprocess**
+![image](https://github.com/user-attachments/assets/8c259860-b34f-4f49-8dec-57ebbc566206)
 **PBR Bloom postprocess and transparent objects**
 ![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
-**Also added an outline postprocess as an example how to handle the depth buffer in postprocessing**
-![image](https://github.com/JeremiasMeister/enigma/assets/19373094/75aac3e0-50d9-42cf-b896-b727289189e9)
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/9003a00e-f52c-4692-b7b7-e387b780d456)
 
