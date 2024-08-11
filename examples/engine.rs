@@ -169,6 +169,27 @@ fn load_app_state(app_state: &mut AppState) {
     }
 }
 
+fn reset(app_state: &mut AppState) {
+    let indices_to_remove: Vec<usize> = app_state.objects
+        .iter()
+        .enumerate()
+        .filter(|(_, obj)| obj.name != "Suzanne")
+        .map(|(i, _)| i)
+        .collect();
+
+    for i in indices_to_remove.into_iter().rev() {
+        app_state.objects.remove(i);
+    }
+
+    match app_state.get_object_mut("Suzanne") {
+        Some(object) => {
+            object.transform.set_position([0.0, 0.0, -2.0]);
+            object.transform.set_rotation([0.0, 0.0, 0.0]);
+        }
+        None => ()
+    }
+}
+
 
 fn main() {
     // create an enigma eventloop and appstate
@@ -211,7 +232,7 @@ fn main() {
     app_state.add_material(transparent_material);
 
     // create a bunch of lights
-    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
+    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0, 0.0, 0.0]), false);
     let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
     let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
     let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
@@ -275,6 +296,12 @@ fn main() {
         Some(EventModifiers::new(true, false, false)),
     );
 
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::N),
+        Arc::new(reset),
+        Some(EventModifiers::new(true, false, false)),
+    );
+
     // add update functions
     app_state.inject_update_function(Arc::new(hopping_objects));
     app_state.inject_update_function(Arc::new(print_data));
@@ -290,9 +317,9 @@ fn main() {
 
     // add some arbitrary state data. This can be used to store any kind of data in the app state
     // game globals, or other data that needs to be shared between different parts of the application
-    app_state.add_state_data( "intdata", Box::new(10i32));
-    app_state.add_state_data( "stringdata", Box::new("Hello World".to_string() as String));
-    app_state.add_state_data( "booldata", Box::new(true as bool));
+    app_state.add_state_data("intdata", Box::new(10i32));
+    app_state.add_state_data("stringdata", Box::new("Hello World".to_string() as String));
+    app_state.add_state_data("booldata", Box::new(true as bool));
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
