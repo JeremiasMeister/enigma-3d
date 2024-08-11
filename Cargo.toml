@@ -45,6 +45,13 @@ indexmap = "2.2.6"
 name = "Enigma 3D"
 identifier = "io.github.JeremiasMeister.enigma"
 
+[features]
+default = []
+publish = []
+
+[package.metadata.docs.rs]
+features = ["publish"]
+
 [package.metadata.includedir]
 include = ["src/res/**/*"]
 

@@ -34,6 +34,8 @@ pub mod postprocessing;
 pub mod ui;
 pub mod resources;
 pub mod data;
+
+#[cfg(not(feature = "publish"))]
 pub mod example_resources;
 
 pub fn init_default(app_state: &mut AppState) {
