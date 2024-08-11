@@ -14,6 +14,7 @@ use crate::collision_world::MouseState;
 use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::light::{Light, LightEmissionType};
+use crate::material::Material;
 use crate::object::Object;
 use crate::postprocessing::PostProcessingEffect;
 use crate::texture::Texture;
@@ -57,6 +58,7 @@ pub struct AppStateSerializer {
     pub light: Vec<light::LightSerializer>,
     pub ambient_light: Option<light::LightSerializer>,
     pub skybox: Option<object::ObjectSerializer>,
+    pub materials: Vec<material::MaterialSerializer>,
     pub skybox_texture: Option<texture::TextureSerializer>,
     pub objects: Vec<object::ObjectSerializer>,
     pub object_selection: Vec<String>,
@@ -70,6 +72,7 @@ pub struct AppState {
     pub skybox: Option<object::Object>,
     pub skybox_texture: Option<texture::Texture>,
     pub objects: Vec<object::Object>,
+    pub materials: Vec<material::Material>,
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction, event::EventModifiers)>,
     pub update_injections: Vec<event::EventFunction>,
@@ -101,6 +104,7 @@ impl AppState {
             skybox: None,
             skybox_texture: None,
             objects: Vec::new(),
+            materials: Vec::new(),
             object_selection: Vec::new(),
             light: Vec::new(),
             ambient_light: None,
@@ -139,6 +143,7 @@ impl AppState {
             None => None,
         };
         let objects = self.objects.iter().map(|o| o.to_serializer()).collect();
+        let materials = self.materials.iter().map(|o| o.to_serializer()).collect();
         let object_selection = self.object_selection.iter().map(|o| o.to_string()).collect();
         AppStateSerializer {
             camera,
@@ -147,6 +152,7 @@ impl AppState {
             skybox,
             skybox_texture,
             objects,
+            materials,
             object_selection,
         }
     }
@@ -159,8 +165,8 @@ impl AppState {
         match serializer.ambient_light {
             Some(light) => {
                 self.add_light(Light::from_serializer(light), LightEmissionType::Ambient);
-            },
-            None => {},
+            }
+            None => {}
         };
         self.skybox = match serializer.skybox {
             Some(skybox) => Some(Object::from_serializer(skybox, display.clone())),
@@ -189,6 +195,28 @@ impl AppState {
 
     pub fn add_state_data(&mut self, name: &str, data: Box<dyn Any>) {
         self.state_data.push(AppStateData::new(name, data));
+    }
+
+    pub fn add_material(&mut self, material: Material) {
+        self.materials.push(material);
+    }
+
+    pub fn get_material(&self, uuid: &Uuid) -> Option<&Material> {
+        for material in &self.materials {
+            if &material.uuid == uuid {
+                return Some(&material);
+            }
+        }
+        None
+    }
+
+    pub fn get_material_by_name(&self, name: &str) -> Option<&Material> {
+        for material in &self.materials {
+            if &material.name == name {
+                return Some(&material);
+            }
+        }
+        None
     }
 
     pub fn get_state_data_value<T: 'static>(&self, name: &str) -> Option<&T> {
@@ -419,21 +447,23 @@ impl EventLoop {
         &self.display
     }
 
-    pub fn spawn_skybox(&self) -> (crate::object::Object, texture::Texture) {
+    pub fn spawn_skybox(&mut self, app_state: &mut AppState) -> (crate::object::Object, texture::Texture) {
         let mut material = crate::material::Material::unlit(self.display.clone(), false);
+        material.set_name("INTERNAL::SkyBox");
         material.set_texture_from_resource(resources::skybox_texture(), crate::material::TextureType::Albedo);
 
         // create a default object
         let mut object = Object::load_from_gltf_resource(resources::skybox());
 
         // set the material
-        object.add_material(material);
+        object.add_material(material.uuid);
         object.get_shapes_mut()[0].set_material_from_object_list(0);
 
         object.name = "Skybox".to_string();
 
         object.transform.set_scale([1.0, 1.0, 1.0]);
 
+        app_state.add_material(material);
         // skybox texture
         let skybox_texture = texture::Texture::from_resource(&self.display, resources::skybox_texture());
 
@@ -462,7 +492,7 @@ impl EventLoop {
         temp_app_state.display = Some(self.display.clone());
 
         //spawning skybox
-        let (skybox, skybox_texture) = self.spawn_skybox();
+        let (skybox, skybox_texture) = self.spawn_skybox(&mut temp_app_state);
         temp_app_state.set_skybox(skybox);
 
 
@@ -563,7 +593,6 @@ impl EventLoop {
                                     }
                                 }
                             }
-
                         }
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
@@ -584,6 +613,11 @@ impl EventLoop {
                 }
                 Event::RedrawRequested(_) => {
                     app_state.time += 0.001;
+                    // updating materials
+                    for material in app_state.materials.iter_mut() {
+                        material.update();
+                    }
+
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
@@ -601,12 +635,17 @@ impl EventLoop {
                     for object in app_state.objects.iter() {
                         let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
-                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            if material.render_transparent {
-                                continue;
+                        for (buffer, (mat_uuid, indices)) in object.get_vertex_buffers(&self.display).iter().zip(object.get_materials().iter().zip(object.get_index_buffers(&self.display).iter())) {
+                            match app_state.get_material(mat_uuid) {
+                                Some(material) => {
+                                    if material.render_transparent {
+                                        continue;
+                                    }
+                                    let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
+                                    render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
+                                }
+                                None => ()
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
-                            render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                         }
                     }
 
@@ -622,7 +661,7 @@ impl EventLoop {
                     };
 
                     //First get the matrix outside of the closure
-                    let skybox_model_matrix = match app_state.get_skybox_mut(){
+                    let skybox_model_matrix = match app_state.get_skybox_mut() {
                         Some(obj) => Some(obj.transform.get_matrix().clone()),
                         None => None
                     };
@@ -630,9 +669,14 @@ impl EventLoop {
                     match app_state.get_skybox() {
                         Some(skybox) => {
                             let closest_lights = skybox.get_closest_lights(&light);
-                            for (buffer, (material, indices)) in skybox.get_vertex_buffers().iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers().iter())) {
-                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_model_matrix.as_ref(), skybox_texture);
-                                render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
+                            for (buffer, (mat_uuid, indices)) in skybox.get_vertex_buffers(&self.display).iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers(&self.display).iter())) {
+                                match app_state.get_material(mat_uuid) {
+                                    Some(material) => {
+                                        let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_model_matrix.as_ref(), skybox_texture);
+                                        render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
+                                    }
+                                    None => ()
+                                }
                             }
                         }
                         None => {}
@@ -652,12 +696,17 @@ impl EventLoop {
                     for object in app_state.objects.iter() {
                         let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
-                        for (buffer, (material, indices)) in object.get_vertex_buffers().iter().zip(object.get_materials().iter().zip(object.get_index_buffers().iter())) {
-                            if !material.render_transparent {
-                                continue;
+                        for (buffer, (mat_uuid, indices)) in object.get_vertex_buffers(&self.display).iter().zip(object.get_materials().iter().zip(object.get_index_buffers(&self.display).iter())) {
+                            match app_state.get_material(mat_uuid) {
+                                Some(material) => {
+                                    if !material.render_transparent {
+                                        continue;
+                                    }
+                                    let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
+                                    render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
+                                }
+                                None => ()
                             }
-                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
-                            render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                         }
                     }
 

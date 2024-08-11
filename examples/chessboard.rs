@@ -159,13 +159,13 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     // setup models
     let mut obj_board = Object::load_from_gltf_resource(resources::chess_board_gltf());
     obj_board.set_name("obj_board".to_string());
-    obj_board.add_material(board_material);
+    obj_board.add_material(board_material.uuid);
     obj_board.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_board.transform.set_position([0.0, -1.5, -6.0]);
 
     let mut obj_bishop_white_1 = Object::load_from_gltf_resource(resources::chess_bishop_gltf());
     obj_bishop_white_1.set_name("obj_bishop_white_1".to_string());
-    obj_bishop_white_1.add_material(figures_white_material.clone());
+    obj_bishop_white_1.add_material(figures_white_material.uuid);
     obj_bishop_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_bishop_white_1.transform.set_position([-1.45, -1.15, -2.4]);
     obj_bishop_white_1.transform.set_rotation([0.0,-45.0, 0.0]);
@@ -175,17 +175,17 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_bishop_white_2.transform.set_rotation([0.0,45.0, 0.0]);
     let mut obj_king_white = Object::load_from_gltf_resource(resources::chess_king_gltf());
     obj_king_white.set_name("obj_king_white".to_string());
-    obj_king_white.add_material(figures_white_material.clone());
+    obj_king_white.add_material(figures_white_material.uuid);
     obj_king_white.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_king_white.transform.set_position([0.5, -1.15, -2.4]);
     let mut obj_queen_white = Object::load_from_gltf_resource(resources::chess_queen_gltf());
     obj_queen_white.set_name("obj_queen_white".to_string());
-    obj_queen_white.add_material(figures_white_material.clone());
+    obj_queen_white.add_material(figures_white_material.uuid);
     obj_queen_white.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_queen_white.transform.set_position([-0.5, -1.15, -2.4]);
     let mut obj_knight_white_1 = Object::load_from_gltf_resource(resources::chess_knight_gltf());
     obj_knight_white_1.set_name("obj_knight_white_1".to_string());
-    obj_knight_white_1.add_material(figures_white_material.clone());
+    obj_knight_white_1.add_material(figures_white_material.uuid);
     obj_knight_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_knight_white_1.transform.set_position([2.5, -1.15, -2.4]);
     obj_knight_white_1.transform.set_rotation([0.0,-90.0, 0.0]);
@@ -194,7 +194,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_knight_white_2.transform.set_position([-2.5, -1.15, -2.4]);
     let mut obj_rook_white_1 = Object::load_from_gltf_resource(resources::chess_rook_gltf());
     obj_rook_white_1.set_name("obj_rook_white_1".to_string());
-    obj_rook_white_1.add_material(figures_white_material.clone());
+    obj_rook_white_1.add_material(figures_white_material.uuid);
     obj_rook_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_rook_white_1.transform.set_position([3.5, -1.15, -2.4]);
     let mut obj_rook_white_2 = obj_rook_white_1.clone();
@@ -202,7 +202,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_rook_white_2.transform.set_position([-3.5, -1.15, -2.4]);
     let mut obj_pawn_white_1 = Object::load_from_gltf_resource(resources::chess_pawn_gltf());
     obj_pawn_white_1.set_name("obj_pawn_white_1".to_string());
-    obj_pawn_white_1.add_material(figures_white_material.clone());
+    obj_pawn_white_1.add_material(figures_white_material.uuid);
     obj_pawn_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_pawn_white_1.transform.set_position([-3.5, -1.15, -3.5]);
     let mut obj_pawn_white_2 = obj_pawn_white_1.clone();
@@ -222,7 +222,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
 
     let mut obj_bishop_black_1 = Object::load_from_gltf_resource(resources::chess_bishop_gltf());
     obj_bishop_black_1.set_name("obj_bishop_black_1".to_string());
-    obj_bishop_black_1.add_material(figures_black_material.clone());
+    obj_bishop_black_1.add_material(figures_black_material.uuid);
     obj_bishop_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_bishop_black_1.transform.set_position([-1.45, -1.15, -9.4]);
     obj_bishop_black_1.transform.set_rotation([0.0,-45.0, 0.0]);
@@ -232,17 +232,17 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_bishop_black_2.transform.set_rotation([0.0,45.0, 0.0]);
     let mut obj_king_black = Object::load_from_gltf_resource(resources::chess_king_gltf());
     obj_king_black.set_name("obj_king_black".to_string());
-    obj_king_black.add_material(figures_black_material.clone());
+    obj_king_black.add_material(figures_black_material.uuid);
     obj_king_black.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_king_black.transform.set_position([-0.5, -1.15, -9.4]);
     let mut obj_queen_black = Object::load_from_gltf_resource(resources::chess_queen_gltf());
     obj_queen_black.set_name("obj_queen_black".to_string());
-    obj_queen_black.add_material(figures_black_material.clone());
+    obj_queen_black.add_material(figures_black_material.uuid);
     obj_queen_black.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_queen_black.transform.set_position([0.5, -1.15, -9.4]);
     let mut obj_knight_black_1 = Object::load_from_gltf_resource(resources::chess_knight_gltf());
     obj_knight_black_1.set_name("obj_knight_black_1".to_string());
-    obj_knight_black_1.add_material(figures_black_material.clone());
+    obj_knight_black_1.add_material(figures_black_material.uuid);
     obj_knight_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_knight_black_1.transform.set_position([2.5, -1.15, -9.4]);
     obj_knight_black_1.transform.set_rotation([0.0, 90.0, 0.0]);
@@ -251,7 +251,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_knight_black_2.transform.set_position([-2.5, -1.15, -9.4]);
     let mut obj_rook_black_1 = Object::load_from_gltf_resource(resources::chess_rook_gltf());
     obj_rook_black_1.set_name("obj_rook_black_1".to_string());
-    obj_rook_black_1.add_material(figures_black_material.clone());
+    obj_rook_black_1.add_material(figures_black_material.uuid);
     obj_rook_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_rook_black_1.transform.set_position([3.5, -1.15, -9.4]);
     let mut obj_rook_black_2 = obj_rook_black_1.clone();
@@ -259,7 +259,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_rook_black_2.transform.set_position([-3.5, -1.15, -9.4]);
     let mut obj_pawn_black_1 = Object::load_from_gltf_resource(resources::chess_pawn_gltf());
     obj_pawn_black_1.set_name("obj_pawn_black_1".to_string());
-    obj_pawn_black_1.add_material(figures_black_material.clone());
+    obj_pawn_black_1.add_material(figures_black_material.uuid);
     obj_pawn_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_pawn_black_1.transform.set_position([-3.5, -1.15, -8.5]);
     let mut obj_pawn_black_2 = obj_pawn_black_1.clone();
@@ -277,7 +277,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     let mut obj_pawn_black_8 = obj_pawn_black_1.clone();
     obj_pawn_black_8.transform.set_position([3.5, -1.15, -8.5]);
 
-    // adding to app_state
+    // adding objects to app_state
     app_state.add_object(obj_board);
     app_state.add_object(obj_king_white);
     app_state.add_object(obj_queen_white);
@@ -311,6 +311,11 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     app_state.add_object(obj_pawn_black_6);
     app_state.add_object(obj_pawn_black_7);
     app_state.add_object(obj_pawn_black_8);
+
+    // adding materials to appstate
+    app_state.add_material(board_material);
+    app_state.add_material(figures_white_material);
+    app_state.add_material(figures_black_material);
 }
 
 fn main() {

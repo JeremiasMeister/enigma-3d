@@ -51,7 +51,7 @@ pub struct Material {
     pub time: f32,
     pub matrix: [[f32; 4]; 4],
     pub render_transparent: bool,
-    uuid: Uuid
+    pub uuid: Uuid
 }
 
 pub enum TextureType {
