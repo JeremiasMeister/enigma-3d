@@ -20,7 +20,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - adding and carrying an arbitrary amount of data within the `AppState`
 - serialize currently loaded `AppState` to json and inject serialized `AppState` into running one.
 - Optimization: Textures are cached
-- Optimization: Materials are shared in between Objects and managed via the `ÀppState`
+- Optimization: Materials are shared in between Objects and managed via the `AppState`
 
 ### How to Install and Run:
 Installing the Library in its latest release is quite straight forward, you should be able to just run `cargo add enigma-3d`. from there, you have access to the library for your codebase.
@@ -32,6 +32,7 @@ Cargo should take care of all the dependencies for you.
 ### Example Game:
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
 keep in mind, it was originally developed with an older version of enigma-3d and will most likely not compile anymore. But you can always checkout the built release for windows
+![image](https://github.com/JeremiasMeister/enigma-flappy-bird/assets/19373094/aa3b35e7-d6c5-442a-a23d-db20a552a8a5)
 
 **The Chessboard Example**
 ![image](https://github.com/JeremiasMeister/enigma-3d/assets/19373094/b97c864c-2a85-464d-bd97-22c14159418e)
