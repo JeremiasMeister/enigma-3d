@@ -50,7 +50,7 @@ fn hopping_objects(app_state: &mut AppState) {
 
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
-        Some(d) => {
+        Some(_) => {
             let material_name = if rand::random() {
                 "transparent_mat"
             } else {

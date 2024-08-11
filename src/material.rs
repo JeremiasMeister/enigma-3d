@@ -121,7 +121,7 @@ impl Material {
         Material::new(shader, display.clone(), None, None, None, None, None, None, None, None, None, None)
     }
 
-    pub fn from_serializer(serializer: MaterialSerializer, display: glium::Display<WindowSurface>) -> Self {
+    pub fn from_serializer(serializer: MaterialSerializer, display: &glium::Display<WindowSurface>) -> Self {
         let shader = shader::Shader::from_serializer(serializer.shader);
         let albedo = match serializer.albedo {
             Some(albedo) => Some(texture::Texture::from_serializer(albedo, &display)),
@@ -144,7 +144,7 @@ impl Material {
             None => None,
         };
 
-        let mut mat = Material::new(shader, display, Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength));
+        let mut mat = Material::new(shader, display.clone(), Some(serializer.color), albedo, normal, Some(serializer.normal_strength), roughness, Some(serializer.roughness_strength), metallic, Some(serializer.metallic_strength), emissive, Some(serializer.emissive_strength));
         mat.name = serializer.name;
         mat.matrix = serializer.matrix;
         mat.set_transparency_strength(serializer.transparency);

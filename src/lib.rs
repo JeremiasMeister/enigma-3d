@@ -169,11 +169,11 @@ impl AppState {
             None => {}
         };
         self.skybox = match serializer.skybox {
-            Some(skybox) => Some(Object::from_serializer(skybox, display.clone())),
+            Some(skybox) => Some(Object::from_serializer(skybox)),
             None => None,
         };
         self.skybox_texture = match serializer.skybox_texture {
-            Some(texture) => Some(Texture::from_serializer(texture, &display.clone())),
+            Some(texture) => Some(Texture::from_serializer(texture, &display)),
             None => None,
         };
 
@@ -186,7 +186,10 @@ impl AppState {
             self.add_light(Light::from_serializer(l), LightEmissionType::Source);
         }
         for o in serializer.objects {
-            self.add_object(Object::from_serializer(o, display.clone()));
+            self.add_object(Object::from_serializer(o));
+        }
+        for m in serializer.materials{
+            self.add_material(Material::from_serializer(m, &display));
         }
         for o in serializer.object_selection {
             self.object_selection.push(Uuid::parse_str(&o).unwrap());

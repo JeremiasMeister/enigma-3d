@@ -2,7 +2,6 @@ use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoundingBox, Vertex};
-use crate::material::{Material, MaterialSerializer};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 use uuid::Uuid;
@@ -146,7 +145,7 @@ impl Object {
         }
     }
 
-    pub fn from_serializer(serializer: ObjectSerializer, display: Display<WindowSurface>) -> Self {
+    pub fn from_serializer(serializer: ObjectSerializer) -> Self {
         let mut object = Object::new(Some(serializer.name));
         object.transform = Transform::from_serializer(serializer.transform);
         object.shapes = serializer.shapes;
