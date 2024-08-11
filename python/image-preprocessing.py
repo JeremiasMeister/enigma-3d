@@ -40,5 +40,8 @@ excluded_textures = ["skybox.png", "skybox.hdr"]
 image_max_size = 512
 
 preprocess_images(
-    input_directory, output_directory, max_size=image_max_size, exclude_list=excluded_textures
+    input_directory,
+    output_directory,
+    max_size=image_max_size,
+    exclude_list=excluded_textures,
 )

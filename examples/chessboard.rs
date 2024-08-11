@@ -3,8 +3,9 @@ use egui::ScrollArea;
 use nalgebra::Vector3;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, event, EventLoop, resources};
+use enigma_3d::{AppState, event, EventLoop, resources, shader};
 use enigma_3d::event::EventModifiers;
+use enigma_3d::material::Material;
 
 fn camera_fly_forward(app_state: &mut AppState) {
     if let Some(camera) = app_state.get_camera_mut() {
@@ -141,7 +142,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     board_material.set_texture_from_resource(resources::chess_board_metallic(), enigma_3d::material::TextureType::Metallic);
     board_material.set_texture_from_resource(resources::chess_board_roughness(), enigma_3d::material::TextureType::Roughness);
 
-    let mut figures_white_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    let mut figures_white_material = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     figures_white_material.set_name("mat_figures_white");
     figures_white_material.set_texture_from_resource(resources::chess_figures_white_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_white_material.set_texture_from_resource(resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
@@ -149,7 +150,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     figures_white_material.set_texture_from_resource(resources::chess_figures_white_roughness(), enigma_3d::material::TextureType::Roughness);
 
 
-    let mut figures_black_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    let mut figures_black_material = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     figures_black_material.set_name("mat_figures_black");
     figures_black_material.set_texture_from_resource(resources::chess_figures_black_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_black_material.set_texture_from_resource(resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
@@ -392,7 +393,7 @@ fn main() {
 
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 5)));
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,2.0, 13.0, 500.0,[0.3,0.3,0.75], 1.0)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.0, 15.0, 500.0,[0.3,0.3,0.75], 1.0)));
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));

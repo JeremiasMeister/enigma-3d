@@ -46,6 +46,10 @@ pub fn vertex_shader() -> &'static str {
     include_str!("res/shader/enigma_vertex_shader.glsl")
 }
 
+pub fn vertex_wind_shader() -> &'static str {
+    include_str!("res/shader/enigma_vertex_wind_shader.glsl")
+}
+
 pub fn fragment_unlit_shader() -> &'static str {
     include_str!("res/shader/enigma_fragment_unlit.glsl")
 }
@@ -98,6 +102,10 @@ pub fn chess_rook_gltf() -> &'static [u8] {
     include_bytes!("res/models/rook.glb")
 }
 
+pub fn terrain() -> &'static [u8] {
+    include_bytes!("res/models/terrain.glb")
+}
+
 // textures
 pub fn chess_figures_black_albedo() -> &'static [u8] {
     include_bytes!("res/textures/Figures_Black_basecolor.png")
@@ -128,4 +136,20 @@ pub fn chess_board_metallic() -> &'static [u8] {
 }
 pub fn chess_board_roughness() -> &'static [u8] {
     include_bytes!("res/textures/Board_roughness.png")
+}
+
+pub fn terrain_albedo() -> &'static [u8] {
+    include_bytes!("res/textures/Terrain_basecolor.png")
+}
+
+pub fn terrain_normal() -> &'static [u8] {
+    include_bytes!("res/textures/Terrain_normal.png")
+}
+
+pub fn terrain_metallic() -> &'static [u8] {
+    include_bytes!("res/textures/Terrain_metallic.png")
+}
+
+pub fn terrain_roughness() -> &'static [u8] {
+    include_bytes!("res/textures/Terrain_roughness.png")
 }
