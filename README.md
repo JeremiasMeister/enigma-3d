@@ -29,11 +29,6 @@ The current release should include most of the base features, but it might be a 
 When it comes to running the examples, after cloning the repository onto your machine, running `cargo run --example=engine` or `cargo run --example=chessboard` should to the trick.
 Cargo should take care of all the dependencies for you.
 
-### Example Game:
-A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
-keep in mind, it was originally developed with an older version of enigma-3d and will most likely not compile anymore. But you can always checkout the built release for windows
-![image](https://github.com/JeremiasMeister/enigma-flappy-bird/assets/19373094/aa3b35e7-d6c5-442a-a23d-db20a552a8a5)
-
 **The Chessboard Example**
 ![image](https://github.com/JeremiasMeister/enigma-3d/assets/19373094/b97c864c-2a85-464d-bd97-22c14159418e)
 **PBR Bloom postprocess and transparent objects**
@@ -42,6 +37,11 @@ keep in mind, it was originally developed with an older version of enigma-3d and
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/75aac3e0-50d9-42cf-b896-b727289189e9)
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/9003a00e-f52c-4692-b7b7-e387b780d456)
+
+### Example Game:
+A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
+keep in mind, it was originally developed with an older version of enigma-3d and will most likely not compile anymore. But you can always checkout the built release for windows
+![image](https://github.com/JeremiasMeister/enigma-flappy-bird/assets/19373094/aa3b35e7-d6c5-442a-a23d-db20a552a8a5)
 
 ### engine.rs example, main function:
 The API is quite straightforward and easy to use; see the example below.
