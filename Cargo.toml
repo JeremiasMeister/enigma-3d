@@ -1,6 +1,6 @@
 [package]
 name = "enigma-3d"
-version = "0.2.8"
+version = "0.2.9"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
 license = "Apache-2.0"
