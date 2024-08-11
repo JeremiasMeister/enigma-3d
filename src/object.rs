@@ -2,7 +2,6 @@ use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoundingBox, Vertex};
-use crate::material::{Material, MaterialSerializer};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{debug_geo, geometry};
 use uuid::Uuid;
@@ -19,7 +18,7 @@ pub struct ObjectSerializer {
     pub name: String,
     pub transform: TransformSerializer,
     shapes: Vec<Shape>,
-    materials: Vec<MaterialSerializer>,
+    materials: Vec<String>,
     unique_id: String,
 }
 
@@ -27,7 +26,7 @@ pub struct Object {
     pub name: String,
     pub transform: Transform,
     shapes: Vec<Shape>,
-    materials: Vec<Material>,
+    materials: Vec<Uuid>,
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
 }
@@ -52,41 +51,7 @@ impl Clone for Object {
         }
 
         //cloning materials
-        for material in self.materials.iter() {
-            let mut new_material = Material::default(material.shader.clone(), &material.display);
-
-            //coloring
-            new_material.set_color(material.color);
-            if let Some(texture) = &material.albedo {
-                let new_texture = texture.get_texture_clone(&new_material.display);
-                new_material.set_albedo(new_texture);
-            }
-            new_material.set_transparency_strength(material.transparency);
-            if let Some(texture) = &material.normal {
-                let new_texture = texture.get_texture_clone(&new_material.display);
-                new_material.set_normal(new_texture);
-            }
-            new_material.set_normal_strength(material.normal_strength);
-            if let Some(texture) = &material.roughness {
-                let new_texture = texture.get_texture_clone(&new_material.display);
-                new_material.set_roughness(new_texture);
-            }
-            new_material.set_roughness_strength(material.roughness_strength);
-            if let Some(texture) = &material.metallic {
-                let new_texture = texture.get_texture_clone(&new_material.display);
-                new_material.set_metallic(new_texture);
-            }
-            new_material.set_metallic_strength(material.metallic_strength);
-            if let Some(texture) = &material.emissive {
-                let new_texture = texture.get_texture_clone(&new_material.display);
-                new_material.set_emissive(new_texture);
-            }
-            new_material.set_emissive_strength(material.emissive_strength);
-            new_material.set_transparency(material.render_transparent);
-            new_material.time = material.time;
-
-            new_object.add_material(new_material);
-        }
+        new_object.materials = self.materials.clone();
 
         new_object.bounding_box = self.bounding_box.clone();
         new_object.unique_id = Uuid::new_v4();
@@ -169,7 +134,7 @@ impl Object {
         let name = self.name.clone();
         let transform = self.transform.to_serializer();
         let shapes = self.shapes.clone();
-        let materials = self.materials.iter().map(|x| x.to_serializer()).collect();
+        let materials = self.materials.iter().map(|x| x.to_string()).collect();
         let unique_id = self.unique_id.to_string();
         ObjectSerializer {
             name,
@@ -180,12 +145,12 @@ impl Object {
         }
     }
 
-    pub fn from_serializer(serializer: ObjectSerializer, display: Display<WindowSurface>) -> Self {
+    pub fn from_serializer(serializer: ObjectSerializer) -> Self {
         let mut object = Object::new(Some(serializer.name));
         object.transform = Transform::from_serializer(serializer.transform);
         object.shapes = serializer.shapes;
         for mat in serializer.materials {
-            object.add_material(Material::from_serializer(mat, display.clone()));
+            object.add_material(Uuid::parse_str(mat.as_str()).expect("failed to parse material uuid"));
         }
         object.unique_id = uuid::Uuid::parse_str(serializer.unique_id.as_str()).unwrap();
         object.calculate_bounding_box();
@@ -247,7 +212,6 @@ impl Object {
 
     pub fn update(&mut self) {
         self.transform.update();
-        self.materials.iter_mut().for_each(|x| x.update());
     }
 
     pub fn get_closest_lights(&self, lights: &Vec<crate::light::Light>) -> Vec<crate::light::Light> {
@@ -281,23 +245,21 @@ impl Object {
         self.shapes.push(shape);
     }
 
-    pub fn get_vertex_buffers(&self) -> Vec<glium::VertexBuffer<Vertex>> {
+    pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<glium::VertexBuffer<Vertex>> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for shape in shapes.iter() {
-            let material = &self.materials[shape.material_index];
-            let vertex = glium::VertexBuffer::new(&material.display, &shape.vertices).unwrap();
+            let vertex = glium::VertexBuffer::new(display, &shape.vertices).unwrap();
             buffer.push(vertex);
         }
         buffer
     }
 
-    pub fn get_index_buffers(&self) -> Vec<glium::IndexBuffer<u32>> {
+    pub fn get_index_buffers(&self, display: &Display<WindowSurface>) -> Vec<glium::IndexBuffer<u32>> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for shape in shapes.iter() {
-            let material = &self.materials[shape.material_index];
-            let index = glium::IndexBuffer::new(&material.display, glium::index::PrimitiveType::TrianglesList, &shape.indices).unwrap();
+            let index = glium::IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &shape.indices).unwrap();
             buffer.push(index);
         }
         buffer
@@ -306,15 +268,15 @@ impl Object {
         self.calculate_bounding_box()
     }
 
-    pub fn get_materials(&self) -> &Vec<Material> {
+    pub fn get_materials(&self) -> &Vec<Uuid> {
         &self.materials
     }
 
-    pub fn get_materials_mut(&mut self) -> &mut Vec<Material> {
+    pub fn get_materials_mut(&mut self) -> &mut Vec<Uuid> {
         &mut self.materials
     }
 
-    pub fn add_material(&mut self, material: Material) {
+    pub fn add_material(&mut self, material: Uuid) {
         self.materials.push(material);
     }
 

@@ -50,15 +50,17 @@ fn hopping_objects(app_state: &mut AppState) {
 
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
-        Some(d) => {
-            let rand_bool = rand::thread_rng().gen_bool(0.5);
-            let mut material = enigma_3d::material::Material::lit_pbr(d.clone(), rand_bool);
-            material.set_transparency_strength(0.2);
-            material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+        Some(_) => {
+            let material_name = if rand::random() {
+                "transparent_mat"
+            } else {
+                "opaque_mat"
+            };
+            let material = app_state.get_material_by_name(material_name).expect("we explicitly added the material when starting the application");
 
             let mut object = Object::load_from_gltf_resource(resources::suzanne());
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
-            object.add_material(material);
+            object.add_material(material.uuid);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
             let random_z = rand::thread_rng().gen_range(-4.0..-1.0);
 
@@ -182,12 +184,19 @@ fn main() {
     // create a material and assign the UV checker texture from resources
     let mut material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
     material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    material.set_name("opaque_mat");
+
+    let mut transparent_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), true);
+    transparent_material.set_transparency_strength(0.2);
+    transparent_material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    transparent_material.set_name("transparent_mat");
+
 
     // create an object, and load the Suzanne model from resources
     let mut object = Object::load_from_gltf_resource(resources::suzanne());
 
     // set the material to the suzan object to the first shape (submesh) slot
-    object.add_material(material);
+    object.add_material(material.uuid);
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     // set the name and position of the object
@@ -196,6 +205,10 @@ fn main() {
 
     // adding the object to the app state
     app_state.add_object(object);
+
+    //also add materials to appstate
+    app_state.add_material(material);
+    app_state.add_material(transparent_material);
 
     // create a bunch of lights
     let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, Some([1.0,0.0,0.0]), false);
