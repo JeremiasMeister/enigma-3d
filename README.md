@@ -26,7 +26,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 Installing the Library in its latest release is quite straight forward, you should be able to just run `cargo add enigma-3d`. from there, you have access to the library for your codebase.
 The current release should include most of the base features, but it might be a little outdated regarding optimization. I have enough for another release soon.
 
-When it comes to running the examples, after cloning the repository onto your machine, running `cargo run --example=engine` or `cargo run --example=chessboard` should to the trick.
+When it comes to running the examples they are hidden behind a feature flag due to its size, which would bloat the package. After cloning the repository onto your machine, running `cargo run --example=engine --features=example` or `cargo run --example=chessboard --features=example` should to the trick.
 Cargo should take care of all the dependencies for you.
 
 **The Chessboard Example**
