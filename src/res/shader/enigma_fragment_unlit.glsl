@@ -7,6 +7,7 @@ uniform float mat_transparency_strength;
 //attributes
 in vec3 world_position;
 in vec3 view_direction;
+in vec3 object_position;
 in vec3 vertex_color;
 in vec3 vertex_normal;
 in vec2 vertex_texcoord;

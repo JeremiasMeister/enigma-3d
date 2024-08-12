@@ -17,6 +17,7 @@ in uint index;
 
 out vec3 world_position;
 out vec3 view_direction;
+out vec3 object_position;
 
 out vec3 vertex_color;
 out vec3 vertex_normal;
@@ -43,6 +44,7 @@ void main() {
     world_position = (modelview * vec4(position, 1.0)).xyz;
     vertex_normal = transpose(inverse(mat3(modelview))) * normal;
     view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
+    object_position = vec3(model_matrix[3]);
 
     vertex_color = color;
     vertex_texcoord = texcoord;

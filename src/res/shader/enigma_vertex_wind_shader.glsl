@@ -21,6 +21,7 @@ out vec3 view_direction;
 out vec3 vertex_color;
 out vec3 vertex_normal;
 out vec2 vertex_texcoord;
+out vec3 object_position;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -36,10 +37,18 @@ uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0); // Default to blowing along x
 uniform float wind_strength = 0.15;
 uniform float wind_speed = 25.0;
 
+// Pseudo-random function
+float random(vec3 pos) {
+    return fract(sin(dot(pos, vec3(12.9898, 78.233, 45.5432))) * 43758.5453);
+}
+
 void main() {
+    object_position = vec3(model_matrix[3]);
+    float random_offset = random(object_position) * 1000.0;
+
     // Calculate wind effect
     float height_factor = position.y; // Assuming Y is up
-    float wind_effect = sin(time * wind_speed + position.x * 0.5 + position.z * 0.5) * wind_strength * height_factor;
+    float wind_effect = sin(time * wind_speed + position.x * 0.5 + position.z * 0.5 + random_offset) * wind_strength * height_factor;
 
     // Apply wind to position
     vec3 wind_offset = wind_direction * wind_effect;
@@ -50,7 +59,6 @@ void main() {
     world_position = (modelview * vec4(position, 1.0)).xyz;
     vertex_normal = transpose(inverse(mat3(modelview))) * normal;
     view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
-
     vertex_color = color;
     vertex_texcoord = texcoord;
 }
