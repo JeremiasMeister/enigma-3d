@@ -1,6 +1,6 @@
 [package]
 name = "enigma-3d"
-version = "0.2.9"
+version = "0.2.10"
 authors = ["Jeremias Meister <contact@cg-jm.com>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -11,7 +11,6 @@ keywords = ["gamedev", "graphics"]
 
 include = [
     "src/**/*.rs",
-    "!src/example_resources.rs",
     "Cargo.toml",
     "build.rs",
     "README.md",
@@ -52,10 +51,10 @@ identifier = "io.github.JeremiasMeister.enigma"
 
 [features]
 default = []
-publish = []
+examples = []
 
 [package.metadata.docs.rs]
-features = ["publish"]
+features = ["default"]
 
 [package.metadata.includedir]
 include = [
