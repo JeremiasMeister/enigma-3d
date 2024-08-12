@@ -14,7 +14,8 @@ exclude = [
     "examples/*",
     "src/res/models/chessboard/*",
     "src/res/texures/chessboard/*",
-    "src/example_resources.rs"
+    "src/example_resources.rs",
+    "app_state.json"
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -53,5 +54,12 @@ publish = []
 features = ["publish"]
 
 [package.metadata.includedir]
-include = ["src/res/**/*"]
+include = [
+    "src/res/models/skybox.glb",
+    "src/res/models/suzanne.glb",
+    "src/res/shader/**/*",
+    "src/res/textures/skybox.png",
+    "src/res/textures/uv_checker.png",
+    "src/res/textures/icon.png"
+]
 
