@@ -1,8 +1,4 @@
 // models
-pub fn suzanne() -> &'static [u8] {
-    include_bytes!("res/models/suzanne.glb")
-}
-
 pub fn skybox() -> &'static [u8] {
     include_bytes!("res/models/skybox.glb")
 }
@@ -55,16 +51,8 @@ pub fn fragment_unlit_shader() -> &'static str {
 }
 
 // textures
-pub fn uv_checker() -> &'static [u8] {
-    include_bytes!("res/textures/uv_checker.png")
-}
-
 pub fn skybox_texture() -> &'static [u8] {
     include_bytes!("res/textures/skybox.png")
-}
-
-pub fn skybox_texture_hdr() -> &'static [u8] {
-    include_bytes!("res/textures/skybox.hdr")
 }
 
 pub fn icon() -> &'static [u8] {

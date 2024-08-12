@@ -79,3 +79,16 @@ pub fn terrain_metallic() -> &'static [u8] {
 pub fn terrain_roughness() -> &'static [u8] {
     include_bytes!("res/textures/chessboard/Terrain_roughness.png")
 }
+
+//engine example
+pub fn suzanne() -> &'static [u8] {
+    include_bytes!("res/models/engine/suzanne.glb")
+}
+
+pub fn skybox_texture_hdr() -> &'static [u8] {
+    include_bytes!("res/textures/skybox.hdr")
+}
+
+pub fn uv_checker() -> &'static [u8] {
+    include_bytes!("res/textures/uv_checker.png")
+}

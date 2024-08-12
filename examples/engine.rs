@@ -2,7 +2,10 @@ use std::sync::Arc;
 use egui::ScrollArea;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, event, resources};
+use enigma_3d::resources;
+use enigma_3d::event;
+use enigma_3d::AppState;
+use enigma_3d::example_resources;
 use rand::Rng;
 use enigma_3d::event::EventModifiers;
 
@@ -59,7 +62,7 @@ fn spawn_object(app_state: &mut AppState) {
             };
             let material = app_state.get_material_by_name(material_name).expect("we explicitly added the material when starting the application");
 
-            let mut object = Object::load_from_gltf_resource(resources::suzanne());
+            let mut object = Object::load_from_gltf_resource(example_resources::suzanne());
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
             object.add_material(material.uuid);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
@@ -209,17 +212,17 @@ fn main() {
 
     // create a material and assign the UV checker texture from resources
     let mut material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    material.set_texture_from_resource(example_resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
     material.set_name("opaque_mat");
 
     let mut transparent_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), true);
     transparent_material.set_transparency_strength(0.2);
-    transparent_material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    transparent_material.set_texture_from_resource(example_resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
     transparent_material.set_name("transparent_mat");
 
 
     // create an object, and load the Suzanne model from resources
-    let mut object = Object::load_from_gltf_resource(resources::suzanne());
+    let mut object = Object::load_from_gltf_resource(example_resources::suzanne());
 
     // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material.uuid);
