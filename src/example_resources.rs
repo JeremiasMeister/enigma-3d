@@ -86,9 +86,9 @@ pub fn suzanne() -> &'static [u8] {
 }
 
 pub fn skybox_texture_hdr() -> &'static [u8] {
-    include_bytes!("res/textures/skybox.hdr")
+    include_bytes!("res/textures/engine/skybox.hdr")
 }
 
 pub fn uv_checker() -> &'static [u8] {
-    include_bytes!("res/textures/uv_checker.png")
+    include_bytes!("res/textures/engine/uv_checker.png")
 }
