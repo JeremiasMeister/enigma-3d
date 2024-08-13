@@ -319,6 +319,10 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     app_state.add_material(figures_black_material);
 }
 
+fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
+
+}
+
 fn main() {
     // create an enigma eventloop and appstate
     let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer - Chessboard", 1080, 720);
@@ -327,16 +331,18 @@ fn main() {
     event_loop.set_icon_from_resource(resources::icon());
     // some default event setups like e.g. selection
     enigma_3d::init_default(&mut app_state);
-    //initialize board
+    //initialize board and landscape
     initialize_board(&mut app_state, &event_loop);
+    initialize_landscape(&mut app_state, &event_loop);
     // create a bunch of lights
     let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
     let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let light4 = enigma_3d::light::Light::new([-2.5, 0.0, -9.5], [1.0, 0.0, 0.0], 300.0, None, false);
 
-    let light4 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
-    let light5 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
-    let light6 = enigma_3d::light::Light::new([-5.0, 2.0, -8.0], [0.0, 0.0, 1.0], 100.0, None, false);
+    let light5 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
+    let light6 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
+    let light7 = enigma_3d::light::Light::new([-5.0, 2.0, -8.0], [0.0, 0.0, 1.0], 100.0, None, false);
 
     let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
@@ -347,6 +353,7 @@ fn main() {
     app_state.add_light(light4, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light5, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light6, enigma_3d::light::LightEmissionType::Source);
+    app_state.add_light(light7, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
@@ -394,8 +401,9 @@ fn main() {
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 5)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.0, 15.0, 500.0,[0.3,0.3,0.75], 1.0)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
 
-    //add one ui function to the app state. multiple ui functions can be added modularly
+    //add one ui function to the app state. multiple ui functions can be added modular
     app_state.inject_gui(Arc::new(enigma_ui_function));
 
     // run the event loop

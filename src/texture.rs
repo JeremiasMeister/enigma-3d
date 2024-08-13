@@ -19,6 +19,7 @@ pub struct TextureSerializer {
     path: String,
     width: u32,
     height: u32,
+    tileable: bool,
     binary_data: Option<Vec<u8>>,
 }
 
@@ -27,6 +28,7 @@ pub struct Texture {
     pub texture: glium::texture::SrgbTexture2d,
     pub width: u32,
     pub height: u32,
+    pub tileable: bool,
     pub binary_data: Option<Vec<u8>>,
 }
 
@@ -42,7 +44,12 @@ impl Texture {
             width: image_dimensions.0,
             height: image_dimensions.1,
             binary_data: None,
+            tileable: false
         }
+    }
+
+    pub fn set_tileable(&mut self, tileable: bool){
+        self.tileable = tileable;
     }
 
     pub fn from_serializer(serializer: TextureSerializer, display: &glium::Display<WindowSurface>) -> Self {
@@ -65,6 +72,7 @@ impl Texture {
             width: serializer.width,
             height: serializer.height,
             binary_data: None,
+            tileable: serializer.tileable
         };
     }
 
@@ -74,6 +82,7 @@ impl Texture {
             width: self.width,
             height: self.height,
             binary_data: self.binary_data.clone(),
+            tileable: self.tileable
         }
     }
 
@@ -99,6 +108,7 @@ impl Texture {
             width: dimensions.0,
             height: dimensions.1,
             binary_data: Some(data.to_vec()),
+            tileable: false
         }
     }
 
@@ -119,6 +129,7 @@ impl Texture {
                         width: self.width,
                         height: self.height,
                         binary_data: None,
+                        tileable: self.tileable,
                     };
                 }
             }
@@ -138,6 +149,7 @@ impl Texture {
             width: image_dimensions.0,
             height: image_dimensions.1,
             binary_data: None,
+            tileable: false
         }
     }
 

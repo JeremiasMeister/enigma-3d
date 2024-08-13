@@ -1,6 +1,7 @@
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
+use glium::uniforms::SamplerWrapFunction;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::{resources, shader, texture};
@@ -421,27 +422,58 @@ impl Material {
             },
             mat_color: self.color,
             mat_albedo: match &self.albedo {
-                Some(albedo) => &albedo.texture,
-                None => &self._tex_white
+                Some(albedo) => {
+                    if albedo.tileable{
+                        albedo.texture.sampled().wrap_function(SamplerWrapFunction::Repeat)
+                    } else{
+                        albedo.texture.sampled()
+                    }
+                },
+                None => self._tex_white.sampled()
             },
             mat_normal: match &self.normal {
-                Some(normal) => &normal.texture,
-                None => &self._tex_normal,
+                Some(normal) => {
+                    if normal.tileable {
+                        normal.texture.sampled().wrap_function(SamplerWrapFunction::Repeat)
+                    } else {
+                        normal.texture.sampled()
+                    }
+
+                },
+                None => self._tex_normal.sampled(),
             },
             mat_normal_strength: self.normal_strength,
             mat_roughness: match &self.roughness {
-                Some(roughness) => &roughness.texture,
-                None => &self._tex_gray
+                Some(roughness) => {
+                    if roughness.tileable {
+                        roughness.texture.sampled().wrap_function(SamplerWrapFunction::Repeat)
+                    } else {
+                        roughness.texture.sampled()
+                    }
+                },
+                None => self._tex_gray.sampled()
             },
             mat_roughness_strength: self.roughness_strength,
             mat_metallic: match &self.metallic {
-                Some(metallic) => &metallic.texture,
-                None => &self._tex_black
+                Some(metallic) => {
+                    if metallic.tileable{
+                        metallic.texture.sampled().wrap_function(SamplerWrapFunction::Repeat)
+                    } else {
+                        metallic.texture.sampled()
+                    }
+                }
+                None => self._tex_black.sampled()
             },
             mat_metallic_strength: self.metallic_strength,
             mat_emissive: match &self.emissive {
-                Some(emissive) => &emissive.texture,
-                None => &self._tex_black
+                Some(emissive) => {
+                    if emissive.tileable{
+                        emissive.texture.sampled().wrap_function(SamplerWrapFunction::Repeat)
+                    } else {
+                        emissive.texture.sampled()
+                    }
+                },
+                None => self._tex_black.sampled()
             },
             mat_emissive_strength: self.emissive_strength,
             mat_transparency_strength: self.transparency,
@@ -453,7 +485,7 @@ impl Material {
             ambient_light_color: light_block.ambient_color,
             ambient_light_intensity: light_block.ambient_intensity,
             model_matrix: match model_matrix {
-                Some(mat) => mat.clone(),
+                Some(matrix) => matrix.clone(),
                 None => self.matrix
             },
             skybox: &skybox.texture,
