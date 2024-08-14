@@ -46,6 +46,14 @@ pub fn vertex_wind_shader() -> &'static str {
     include_str!("res/shader/enigma_vertex_wind_shader.glsl")
 }
 
+pub fn geometry_grass_shader() -> &'static str {
+    include_str!("res/shader/enigma_geometry_grass_shader.glsl")
+}
+
+pub fn geometry_shader() -> &'static str {
+    include_str!("res/shader/enigma_geometry_shader.glsl")
+}
+
 pub fn fragment_unlit_shader() -> &'static str {
     include_str!("res/shader/enigma_fragment_unlit.glsl")
 }

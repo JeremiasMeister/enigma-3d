@@ -1,4 +1,4 @@
-#version 150
+#version 330 core
 
 //uniforms
 uniform float time;
@@ -15,13 +15,12 @@ in vec3 color;
 in uint index;
 
 
-out vec3 world_position;
-out vec3 view_direction;
-
-out vec3 vertex_color;
-out vec3 vertex_normal;
-out vec2 vertex_texcoord;
-out vec3 object_position;
+out vec3 v_world_position;
+out vec3 v_view_direction;
+out vec3 v_vertex_color;
+out vec3 v_vertex_normal;
+out vec2 v_vertex_texcoord;
+out vec3 v_object_position;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -43,8 +42,8 @@ float random(vec3 pos) {
 }
 
 void main() {
-    object_position = vec3(model_matrix[3]);
-    float random_offset = random(object_position) * 1000.0;
+    v_object_position = vec3(model_matrix[3]);
+    float random_offset = random(v_object_position) * 1000.0;
 
     // Calculate wind effect
     float height_factor = position.y; // Assuming Y is up
@@ -56,9 +55,9 @@ void main() {
     mat4 modelview = view_matrix * model_matrix;
 
     gl_Position = projection_matrix * modelview * vec4(wind_pos, 1.0);
-    world_position = (modelview * vec4(position, 1.0)).xyz;
-    vertex_normal = transpose(inverse(mat3(modelview))) * normal;
-    view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - world_position;
-    vertex_color = color;
-    vertex_texcoord = texcoord;
+    v_world_position = (modelview * vec4(position, 1.0)).xyz;
+    v_vertex_normal = transpose(inverse(mat3(modelview))) * normal;
+    v_view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - v_world_position;
+    v_vertex_color = color;
+    v_vertex_texcoord = texcoord;
 }

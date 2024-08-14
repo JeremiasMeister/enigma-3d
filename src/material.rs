@@ -204,7 +204,12 @@ impl Material {
         emissive: Option<texture::Texture>,
         emissive_strength: Option<f32>,
     ) -> Self {
-        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), shader.get_geometry_shader().as_deref()).expect("Failed to compile shader program");
+        let geometry_shader = match &shader.geometry_shader {
+            Some(shader) => Some(shader.as_str()),
+            None => Some(resources::geometry_shader())
+        };
+
+        let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), geometry_shader).expect("Failed to compile shader program");
         let _tex_white = {
             let raw = Material::tex_raw_from_array([1.0, 1.0, 1.0, 1.0]);
             glium::texture::SrgbTexture2d::new(&display, raw).unwrap()
