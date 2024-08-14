@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 pub struct ObjectSerializer {
     pub name: String,
     pub transform: TransformSerializer,
+    collision: bool,
     shapes: Vec<Shape>,
     materials: Vec<String>,
     unique_id: String,
@@ -25,6 +26,7 @@ pub struct ObjectSerializer {
 pub struct Object {
     pub name: String,
     pub transform: Transform,
+    collision: bool,
     shapes: Vec<Shape>,
     materials: Vec<Uuid>,
     bounding_box: Option<geometry::BoundingBox>,
@@ -125,6 +127,7 @@ impl Object {
             materials: Vec::new(),
             bounding_box: None,
             unique_id: Uuid::new_v4(), //generating unique id for object
+            collision: true
         };
         object.calculate_bounding_box();
         object
@@ -142,6 +145,7 @@ impl Object {
             shapes,
             materials,
             unique_id,
+            collision: self.collision
         }
     }
 
@@ -153,8 +157,17 @@ impl Object {
             object.add_material(Uuid::parse_str(mat.as_str()).expect("failed to parse material uuid"));
         }
         object.unique_id = uuid::Uuid::parse_str(serializer.unique_id.as_str()).unwrap();
+        object.collision = serializer.collision;
         object.calculate_bounding_box();
         object
+    }
+
+    pub fn set_collision(&mut self, collision: bool){
+        self.collision = collision;
+    }
+
+    pub fn get_collision(&self) -> &bool {
+        &self.collision
     }
 
     pub fn get_unique_id(&self) -> Uuid {

@@ -124,6 +124,9 @@ impl RayCast {
 
     pub fn cast(&mut self, app_state: &mut AppState) {
         for object in app_state.objects.iter_mut() {
+            if object.get_collision() == &false{
+                continue
+            }
             let aabb = object.get_bounding_box();
             match self.intersects_bounding_box(&aabb) {
                 Some(intersection_point) => {
