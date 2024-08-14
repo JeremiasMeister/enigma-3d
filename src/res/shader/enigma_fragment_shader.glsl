@@ -101,7 +101,7 @@ vec4 calculatePBRColor(vec3 viewDir) {
     vec3 result = vec3(0.0);
     for(int i = 0; i < light_amount; i++) {
         // Light calculations for each active light
-        vec4 lightDirUniform = light_direction[i];
+        vec4 lightDirUniform = vec4(light_direction[i]);
         vec3 lightDir = normalize(light_position[i].xyz - world_position);
         if(lightDirUniform.w == 1.0) {
             lightDir = normalize(lightDirUniform.xyz);
