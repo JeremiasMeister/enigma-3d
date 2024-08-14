@@ -85,6 +85,18 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
             ui.label("and effective use of cached textures");
         });
 
+    egui::Window::new("Camera")
+        .default_width(200.0)
+        .default_height(200.0)
+        .show(ctx, |ui| {
+            let pos = app_state.camera.unwrap().transform.get_position();
+            let rot = app_state.camera.unwrap().transform.get_rotation();
+            let position = format!("Position: {}, {}, {}", pos.x, pos.y, pos.z);
+            let rotation = format!("Rotation: {}, {}, {}", rot.x, rot.y, rot.z);
+            ui.label(position);
+            ui.label(rotation);
+        });
+
     egui::Window::new("Scene")
         .default_width(200.0)
         .default_height(200.0)
@@ -353,6 +365,7 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
     obj_terrain.set_name("obj_terrain".to_string());
     obj_terrain.add_material(ground_material.uuid);
     obj_terrain.transform.set_position([0.0, -1.5, -6.0]);
+    obj_terrain.transform.set_rotation([0.0, -70.0, 0.0]);
 
     let mut obj_tree = object::Object::load_from_gltf_resource(example_resources::tree());
     obj_tree.set_name("obj_tree".to_string());
@@ -407,7 +420,7 @@ fn main() {
     app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
-    let camera = Camera::new(Some([0.0, 1.0, 1.0]), Some([20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
+    let camera = Camera::new(Some([-4.3, 3.0, 1.8]), Some([-9.3, -14.01, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
     //event functions for moving the camera
