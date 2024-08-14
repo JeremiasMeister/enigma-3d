@@ -34,8 +34,8 @@ uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0); // Default to blowing along x-axis
-uniform float wind_strength = 0.15;
-uniform float wind_speed = 25.0;
+uniform float wind_strength = 0.01;
+uniform float wind_speed = 50.0;
 
 // Pseudo-random function
 float random(vec3 pos) {

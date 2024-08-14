@@ -3,7 +3,7 @@ use egui::ScrollArea;
 use nalgebra::Vector3;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, event, EventLoop, resources, example_resources, shader};
+use enigma_3d::{AppState, event, EventLoop, resources, example_resources, shader, material, object, texture};
 use enigma_3d::event::EventModifiers;
 use enigma_3d::material::Material;
 
@@ -142,7 +142,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     board_material.set_texture_from_resource(example_resources::chess_board_metallic(), enigma_3d::material::TextureType::Metallic);
     board_material.set_texture_from_resource(example_resources::chess_board_roughness(), enigma_3d::material::TextureType::Roughness);
 
-    let mut figures_white_material = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
+    let mut figures_white_material = Material::lit_pbr(event_loop.get_display_clone(), false);
     figures_white_material.set_name("mat_figures_white");
     figures_white_material.set_texture_from_resource(example_resources::chess_figures_white_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_white_material.set_texture_from_resource(example_resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
@@ -150,7 +150,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     figures_white_material.set_texture_from_resource(example_resources::chess_figures_white_roughness(), enigma_3d::material::TextureType::Roughness);
 
 
-    let mut figures_black_material = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
+    let mut figures_black_material = Material::lit_pbr(event_loop.get_display_clone(), false);
     figures_black_material.set_name("mat_figures_black");
     figures_black_material.set_texture_from_resource(example_resources::chess_figures_black_albedo(), enigma_3d::material::TextureType::Albedo);
     figures_black_material.set_texture_from_resource(example_resources::chess_figures_normal(), enigma_3d::material::TextureType::Normal);
@@ -320,7 +320,59 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
 }
 
 fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
+    let mut ground_material = material::Material::lit_pbr(event_loop.get_display_clone(), false);
+    let mut tree_material_opaque = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
+    let mut tree_material_transparent = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
+    tree_material_transparent.set_transparency(true);
+    tree_material_transparent.set_name("mat_tree_transparent");
+    ground_material.set_name("mat_terrain");
+    tree_material_opaque.set_name("mat_tree_opaque");
 
+    let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
+    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
+    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
+    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
+    tex_ground_albedo.set_tileable(true);
+    tex_ground_normal.set_tileable(true);
+    tex_ground_metallic.set_tileable(true);
+    tex_ground_roughness.set_tileable(true);
+    ground_material.set_texture(tex_ground_albedo, enigma_3d::material::TextureType::Albedo);
+    ground_material.set_texture(tex_ground_normal, enigma_3d::material::TextureType::Normal);
+    ground_material.set_texture(tex_ground_metallic, enigma_3d::material::TextureType::Metallic);
+    ground_material.set_texture(tex_ground_roughness, enigma_3d::material::TextureType::Roughness);
+
+    tree_material_opaque.set_texture_from_resource(example_resources::tree_albedo(), material::TextureType::Albedo);
+    tree_material_opaque.set_texture_from_resource(example_resources::tree_normal(), material::TextureType::Normal);
+    tree_material_opaque.set_texture_from_resource(example_resources::tree_roughness(), material::TextureType::Roughness);
+
+    tree_material_transparent.set_texture_from_resource(example_resources::tree_albedo(), material::TextureType::Albedo);
+    tree_material_transparent.set_texture_from_resource(example_resources::tree_normal(), material::TextureType::Normal);
+    tree_material_transparent.set_texture_from_resource(example_resources::tree_roughness(), material::TextureType::Roughness);
+
+    let mut obj_terrain = object::Object::load_from_gltf_resource(example_resources::terrain());
+    obj_terrain.set_name("obj_terrain".to_string());
+    obj_terrain.add_material(ground_material.uuid);
+    obj_terrain.transform.set_position([0.0, -1.5, -6.0]);
+
+    let mut obj_tree = object::Object::load_from_gltf_resource(example_resources::tree());
+    obj_tree.set_name("obj_tree".to_string());
+    // we add both, the transparent and the opaque material uuid to the object
+    obj_tree.add_material(tree_material_opaque.uuid);
+    obj_tree.add_material(tree_material_transparent.uuid);
+    obj_tree.transform.set_position([-5.0, -1.5, -10.0]);
+    obj_tree.transform.set_rotation([0.0, 25.0, 0.0]);
+    obj_tree.transform.set_scale([2.5, 2.5, 2.5]);
+
+    // we assign the materials to the individual shapes of the object. we need to know how many shapes an object has
+    // in this case, the tree object has 2 shapes one for the bark and one for the leafs
+    obj_tree.get_shapes_mut()[0].set_material_from_object_list(1);
+    obj_tree.get_shapes_mut()[1].set_material_from_object_list(0);
+
+    app_state.add_material(ground_material);
+    app_state.add_material(tree_material_opaque);
+    app_state.add_material(tree_material_transparent);
+    app_state.add_object(obj_terrain);
+    app_state.add_object(obj_tree);
 }
 
 fn main() {
@@ -342,7 +394,6 @@ fn main() {
 
     let light5 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light6 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
-    let light7 = enigma_3d::light::Light::new([-5.0, 2.0, -8.0], [0.0, 0.0, 1.0], 100.0, None, false);
 
     let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
 
@@ -353,7 +404,6 @@ fn main() {
     app_state.add_light(light4, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light5, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(light6, enigma_3d::light::LightEmissionType::Source);
-    app_state.add_light(light7, enigma_3d::light::LightEmissionType::Source);
     app_state.add_light(ambient_light, enigma_3d::light::LightEmissionType::Ambient); // only one ambient light is supported atm
 
     // create and add a camera to the app state
@@ -400,8 +450,8 @@ fn main() {
 
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 5)));
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.0, 15.0, 500.0,[0.3,0.3,0.75], 1.0)));
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.2, 60.0, 500.0,[0.3,0.3,0.75], 1.0)));
+    //app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
 
     //add one ui function to the app state. multiple ui functions can be added modular
     app_state.inject_gui(Arc::new(enigma_ui_function));

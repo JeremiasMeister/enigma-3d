@@ -41,6 +41,11 @@ pub fn terrain() -> &'static [u8] {
     include_bytes!("res/models/chessboard/terrain.glb")
 }
 
+#[cfg(feature = "examples")]
+pub fn tree() -> &'static [u8] {
+    include_bytes!("res/models/chessboard/tree.glb")
+}
+
 // textures
 #[cfg(feature = "examples")]
 pub fn chess_figures_black_albedo() -> &'static [u8] {
@@ -108,6 +113,21 @@ pub fn terrain_metallic() -> &'static [u8] {
 #[cfg(feature = "examples")]
 pub fn terrain_roughness() -> &'static [u8] {
     include_bytes!("res/textures/chessboard/Terrain_roughness.png")
+}
+
+#[cfg(feature = "examples")]
+pub fn tree_albedo() -> &'static [u8] {
+    include_bytes!("res/textures/chessboard/Tree_basecolor.png")
+}
+
+#[cfg(feature = "examples")]
+pub fn tree_normal() -> &'static [u8] {
+    include_bytes!("res/textures/chessboard/Tree_normal.png")
+}
+
+#[cfg(feature = "examples")]
+pub fn tree_roughness() -> &'static [u8] {
+    include_bytes!("res/textures/chessboard/Tree_roughness.png")
 }
 
 //engine example

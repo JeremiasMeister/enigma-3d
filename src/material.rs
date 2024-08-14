@@ -346,6 +346,16 @@ impl Material {
         }
     }
 
+    pub fn set_texture(&mut self, texture: texture::Texture, texture_type: TextureType){
+        match texture_type {
+            TextureType::Albedo => self.albedo = Some(texture),
+            TextureType::Normal => self.normal = Some(texture),
+            TextureType::Roughness => self.roughness = Some(texture),
+            TextureType::Metallic => self.metallic = Some(texture),
+            TextureType::Emissive => self.emissive = Some(texture),
+        }
+    }
+
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
         let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None), &display);
         mat.set_transparency(transparency);
