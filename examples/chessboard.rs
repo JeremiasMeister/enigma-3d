@@ -410,7 +410,7 @@ fn main() {
     let light5 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light6 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
 
-    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.1, None, false);
+    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.2, None, false);
 
     // add the lights to the app state
     app_state.add_light(light1, enigma_3d::light::LightEmissionType::Source);

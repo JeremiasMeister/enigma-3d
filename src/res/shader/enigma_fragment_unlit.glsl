@@ -2,6 +2,7 @@
 
 //uniforms
 uniform float time;
+uniform vec3 camera_position;
 uniform float mat_transparency_strength;
 
 //attributes

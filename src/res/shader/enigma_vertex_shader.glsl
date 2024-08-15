@@ -2,6 +2,7 @@
 
 //uniforms
 uniform float time;
+uniform vec3 camera_position;
 uniform mat4 matrix;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
@@ -21,6 +22,7 @@ out vec3 v_object_position;
 out vec3 v_vertex_color;
 out vec3 v_vertex_normal;
 out vec2 v_vertex_texcoord;
+out vec3 v_position;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -39,8 +41,8 @@ void main() {
     mat4 modelview = view_matrix * model_matrix;
 
     gl_Position = projection_matrix * modelview * vec4(position, 1.0);
-
-    v_world_position = (modelview * vec4(position, 1.0)).xyz;
+    v_position = position;
+    v_world_position = (model_matrix * vec4(position, 1.0)).xyz;
     v_vertex_normal = transpose(inverse(mat3(modelview))) * normal;
     v_view_direction = (view_matrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz - v_world_position;
     v_object_position = vec3(model_matrix[3]);

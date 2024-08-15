@@ -427,6 +427,13 @@ impl Material {
         glium::uniform! {
             time: self.time,
             matrix: self.matrix,
+            camera_position: match camera {
+                Some(camera) => {
+                    let pos = camera.transform.get_position();
+                    [pos.x, pos.y, pos.z]
+                }
+                None => [0.0,0.0,0.0],
+            },
             projection_matrix: match camera {
                 Some(camera) => camera.get_projection_matrix(),
                 None => Camera::new(None, None, None, None, None, None).get_projection_matrix(),
