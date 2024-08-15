@@ -14,6 +14,7 @@ uniform float ambient_light_intensity;
 //attributes
 in vec3 world_position;
 in vec3 view_direction;
+in vec3 modelView_pos;
 in vec3 object_position;
 in vec3 vertex_color;
 in vec3 vertex_normal;
@@ -140,18 +141,18 @@ vec4 calculatePBRColor(vec3 viewDir) {
     // Calculate reflection vector for environmental lighting
     vec3 reflectionVector = reflect(-viewDir, normal);
     vec2 uv = getSphereMapUV(reflectionVector);
-    vec3 envReflection = texture(skybox, uv).rgb;
+    vec3 envReflection = textureLod(skybox, uv, roughness).rgb;
 
     // Apply fresnel effect to the environmental reflection
-    vec3 fresnelEffect = fresnelSchlick(max(dot(viewDir, normal), 0.0), F0);
+    vec3 fresnelEffect = fresnelSchlick(max(dot(normal, viewDir), 0.1), F0);
     vec3 envReflectionWithFresnel = envReflection * fresnelEffect * (1.0 - metallic);
 
     // Combine PBR lighting with environmental reflection
-    vec3 finalColor = result + emissive + envReflectionWithFresnel * roughness;
+    vec3 finalColor = result + emissive + envReflectionWithFresnel;
 
     return vec4(finalColor, albedo_alpha * mat_transparency_strength);
 }
 
 void main() {
-    color = calculatePBRColor(normalize(view_direction));
+    color = calculatePBRColor(normalize(modelView_pos));
 }
