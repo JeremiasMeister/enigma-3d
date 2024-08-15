@@ -336,9 +336,9 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
     let mut tree_material_opaque = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     let mut tree_material_transparent = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     tree_material_transparent.set_transparency(true);
+    tree_material_opaque.set_name("mat_tree_opaque");
     tree_material_transparent.set_name("mat_tree_transparent");
     ground_material.set_name("mat_terrain");
-    tree_material_opaque.set_name("mat_tree_opaque");
 
     let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
     let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
@@ -378,16 +378,19 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
     obj_tree.transform.set_rotation([0.0, 25.0, 0.0]);
     obj_tree.transform.set_scale([2.5, 2.5, 2.5]);
 
-    // we assign the materials to the individual shapes of the object. we need to know how many shapes an object has
-    // in this case, the tree object has 2 shapes one for the bark and one for the leafs
-    obj_tree.get_shapes_mut()[0].set_material_from_object_list(1);
-    obj_tree.get_shapes_mut()[1].set_material_from_object_list(0);
-
     app_state.add_material(ground_material);
     app_state.add_material(tree_material_opaque);
     app_state.add_material(tree_material_transparent);
+
+    // we assign the materials to the individual shapes of the object. we need to know how many shapes an object has
+    // in this case, the tree object has 2 shapes one for the bark and one for the leafs. the leafs are shape 0
+    obj_tree.get_shapes_mut()[0].set_material_from_object_list(1);
+    obj_tree.get_shapes_mut()[1].set_material_from_object_list(0);
+
     app_state.add_object(obj_terrain);
     app_state.add_object(obj_tree);
+
+
 }
 
 fn main() {

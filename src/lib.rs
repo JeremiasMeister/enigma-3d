@@ -639,7 +639,8 @@ impl EventLoop {
                     for object in app_state.objects.iter() {
                         let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
-                        for (buffer, (mat_uuid, indices)) in object.get_vertex_buffers(&self.display).iter().zip(object.get_materials().iter().zip(object.get_index_buffers(&self.display).iter())) {
+                        for ((buffer, mat_index), indices) in object.get_vertex_buffers(&self.display).iter().zip(object.get_index_buffers(&self.display).iter()) {
+                            let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
                             match app_state.get_material(mat_uuid) {
                                 Some(material) => {
                                     if material.render_transparent {
@@ -673,7 +674,8 @@ impl EventLoop {
                     match app_state.get_skybox() {
                         Some(skybox) => {
                             let closest_lights = skybox.get_closest_lights(&light);
-                            for (buffer, (mat_uuid, indices)) in skybox.get_vertex_buffers(&self.display).iter().zip(skybox.get_materials().iter().zip(skybox.get_index_buffers(&self.display).iter())) {
+                            for ((buffer, mat_index), indices) in skybox.get_vertex_buffers(&self.display).iter().zip(skybox.get_index_buffers(&self.display).iter()) {
+                                let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
                                 match app_state.get_material(mat_uuid) {
                                     Some(material) => {
                                         let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_model_matrix.as_ref(), skybox_texture);
@@ -700,7 +702,8 @@ impl EventLoop {
                     for object in app_state.objects.iter() {
                         let model_matrix = model_matrices.get(&object.get_unique_id());
                         let closest_lights = object.get_closest_lights(&light);
-                        for (buffer, (mat_uuid, indices)) in object.get_vertex_buffers(&self.display).iter().zip(object.get_materials().iter().zip(object.get_index_buffers(&self.display).iter())) {
+                        for ((buffer, mat_index), indices) in object.get_vertex_buffers(&self.display).iter().zip(object.get_index_buffers(&self.display).iter()) {
+                            let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
                             match app_state.get_material(mat_uuid) {
                                 Some(material) => {
                                     if !material.render_transparent {

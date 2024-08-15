@@ -258,12 +258,12 @@ impl Object {
         self.shapes.push(shape);
     }
 
-    pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<glium::VertexBuffer<Vertex>> {
+    pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<(glium::VertexBuffer<Vertex>, usize)> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for shape in shapes.iter() {
             let vertex = glium::VertexBuffer::new(display, &shape.vertices).unwrap();
-            buffer.push(vertex);
+            buffer.push((vertex, shape.material_index));
         }
         buffer
     }
