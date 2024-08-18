@@ -1,6 +1,13 @@
 use std::fmt::Debug;
+use glium::implement_vertex;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone)]
+pub struct InstanceAttribute {
+    pub model_matrix: [[f32; 4]; 4],
+}
+implement_vertex!(InstanceAttribute, model_matrix);
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Vertex {
@@ -9,6 +16,8 @@ pub struct Vertex {
     pub color: [f32; 3],
     pub normal: [f32; 3],
 }
+
+glium::implement_vertex!(Vertex, position, texcoord, color, normal);
 
 #[derive(Serialize, Deserialize)]
 pub struct BoundingBoxSerializer {
@@ -32,8 +41,6 @@ pub struct BoundingBoxMesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 }
-
-glium::implement_vertex!(Vertex, position, texcoord, color, normal);
 
 impl Debug for Vertex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

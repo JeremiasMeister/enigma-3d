@@ -6,7 +6,6 @@ uniform vec3 camera_position;
 uniform mat4 matrix;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
-uniform mat4 model_matrix;
 
 //attributes
 in vec3 position;
@@ -14,6 +13,7 @@ in vec2 texcoord;
 in vec3 normal;
 in vec3 color;
 in uint index;
+in mat4 model_matrix; // per instance attribute
 
 
 out vec3 v_world_position;
@@ -24,6 +24,7 @@ out vec3 v_vertex_normal;
 out vec2 v_vertex_texcoord;
 out vec3 v_object_position;
 out vec3 v_position;
+out mat4 v_model_matrix;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -64,5 +65,6 @@ void main() {
     v_modelView_pos = -(modelview * vec4(position, 1.0)).xyz;
     v_vertex_color = color;
     v_position = position;
+    v_model_matrix = model_matrix;
     v_vertex_texcoord = texcoord;
 }

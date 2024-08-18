@@ -420,7 +420,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, model_matrix: Option<&[[f32; 4]; 4]>, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
 
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 
@@ -506,10 +506,6 @@ impl Material {
             light_amount: light_block.amount,
             ambient_light_color: light_block.ambient_color,
             ambient_light_intensity: light_block.ambient_intensity,
-            model_matrix: match model_matrix {
-                Some(matrix) => matrix.clone(),
-                None => self.matrix
-            },
             skybox: &skybox.texture,
         }
     }

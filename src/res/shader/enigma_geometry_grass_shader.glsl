@@ -12,6 +12,7 @@ in vec3 v_object_position[];
 in vec3 v_vertex_color[];
 in vec3 v_vertex_normal[];
 in vec2 v_vertex_texcoord[];
+in mat4 v_model_matrix[];
 
 // Output to fragment shader
 out vec3 world_position;
@@ -26,7 +27,6 @@ uniform float time;
 uniform vec3 camera_position;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
-uniform mat4 model_matrix;
 
 const float BLADE_HEIGHT = 0.5;
 const float BLADE_HEIGHT_RANDOM = 0.9;
@@ -55,7 +55,7 @@ void emitGrassBlade(vec3 base_pos, vec3 normal, vec3 direction) {
     vec3 blade_forward = normalize(vec3(cross(direction, blade_up)));
     vec3 blade_right = normalize(cross(blade_up, blade_forward));
 
-    mat4 modelview = view_matrix * model_matrix;
+    mat4 modelview = view_matrix * v_model_matrix[0];
     float height_random = 1 + random_vec(base_pos) * BLADE_HEIGHT_RANDOM;
     for (int i = 0; i <= BLADE_SEGMENTS; i++) {
         float t = float(i) / float(BLADE_SEGMENTS);
@@ -112,7 +112,7 @@ void main() {
         vec2 rand = vec2(random(center.xy + float(i), SPREAD), random(center.yz + float(i), SPREAD));
         vec3 offset = vec3(rand.x, 0, rand.y) * MAX_OFFSET;
         vec3 base_pos = center + offset;
-        vec3 world_pos = (model_matrix * vec4(base_pos, 1.0)).xyz;
+        vec3 world_pos = (v_model_matrix[0] * vec4(base_pos, 1.0)).xyz;
         vec3 blade_direction = normalize(world_pos - camera_position);
         blade_direction = vec3(blade_direction.x, base_pos.y, blade_direction.z);
         emitGrassBlade(base_pos, normal, blade_direction);
