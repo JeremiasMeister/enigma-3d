@@ -6,7 +6,6 @@ uniform vec3 camera_position;
 uniform mat4 matrix;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
-uniform mat4 model_matrix;
 
 //attributes
 in vec3 position;
@@ -14,6 +13,7 @@ in vec2 texcoord;
 in vec3 normal;
 in vec3 color;
 in uint index;
+in mat4 model_matrix; // per instance attribute
 
 
 out vec3 v_world_position;

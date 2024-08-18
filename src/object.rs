@@ -13,6 +13,13 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 
+pub struct ObjectInstance {
+    pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
+    pub index_buffers: Vec<glium::IndexBuffer<u32>>,
+    pub instance_matrices: Vec<[[f32; 4]; 4]>,
+    pub instance_attributes: glium::VertexBuffer<geometry::InstanceAttribute>,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ObjectSerializer {
     pub name: String,
@@ -21,6 +28,7 @@ pub struct ObjectSerializer {
     shapes: Vec<Shape>,
     materials: Vec<String>,
     unique_id: String,
+    cloned_id: String,
 }
 
 pub struct Object {
@@ -31,6 +39,7 @@ pub struct Object {
     materials: Vec<Uuid>,
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
+    cloned_id: Uuid,
 }
 
 impl Clone for Object {
@@ -57,6 +66,7 @@ impl Clone for Object {
 
         new_object.bounding_box = self.bounding_box.clone();
         new_object.unique_id = Uuid::new_v4();
+        new_object.cloned_id = self.unique_id;
         new_object
     }
 }
@@ -118,16 +128,41 @@ impl Shape {
     }
 }
 
+impl ObjectInstance {
+    pub fn new(display: &Display<WindowSurface>) -> Self {
+        Self {
+            vertex_buffers: Vec::new(),
+            index_buffers: Vec::new(),
+            instance_matrices: Vec::new(),
+            instance_attributes: glium::vertex::VertexBuffer::dynamic(display, &Vec::new()).expect("Building ObjectInstance, Per Instance Attribute could not be created")
+        }
+    }
+
+    pub fn set_vertex_buffers(&mut self, buffers: Vec<(glium::vertex::VertexBufferAny, usize)>) {
+        self.vertex_buffers = buffers;
+    }
+
+    pub fn set_index_buffers(&mut self, buffers: Vec<glium::IndexBuffer<u32>>) {
+        self.index_buffers = buffers;
+    }
+
+    pub fn add_instance(&mut self, instance: [[f32; 4]; 4]) {
+        self.instance_matrices.push(instance);
+    }
+}
+
 impl Object {
     pub fn new(name: Option<String>) -> Self {
+        let uuid = Uuid::new_v4();
         let mut object = Object {
             name: name.unwrap_or_else(|| String::from("Object")),
             transform: Transform::new(),
             shapes: Vec::new(),
             materials: Vec::new(),
             bounding_box: None,
-            unique_id: Uuid::new_v4(), //generating unique id for object
-            collision: true
+            unique_id: uuid,
+            cloned_id: uuid,
+            collision: true,
         };
         object.calculate_bounding_box();
         object
@@ -139,13 +174,15 @@ impl Object {
         let shapes = self.shapes.clone();
         let materials = self.materials.iter().map(|x| x.to_string()).collect();
         let unique_id = self.unique_id.to_string();
+        let cloned_id = self.cloned_id.to_string();
         ObjectSerializer {
             name,
             transform,
             shapes,
             materials,
             unique_id,
-            collision: self.collision
+            cloned_id,
+            collision: self.collision,
         }
     }
 
@@ -157,12 +194,13 @@ impl Object {
             object.add_material(Uuid::parse_str(mat.as_str()).expect("failed to parse material uuid"));
         }
         object.unique_id = uuid::Uuid::parse_str(serializer.unique_id.as_str()).unwrap();
+        object.cloned_id = uuid::Uuid::parse_str(serializer.cloned_id.as_str()).unwrap();
         object.collision = serializer.collision;
         object.calculate_bounding_box();
         object
     }
 
-    pub fn set_collision(&mut self, collision: bool){
+    pub fn set_collision(&mut self, collision: bool) {
         self.collision = collision;
     }
 
@@ -172,6 +210,10 @@ impl Object {
 
     pub fn get_unique_id(&self) -> Uuid {
         self.unique_id
+    }
+
+    pub fn get_instance_id(&self) -> Uuid {
+        self.cloned_id
     }
 
     fn calculate_bounding_box(&mut self) -> BoundingBox {
@@ -258,11 +300,11 @@ impl Object {
         self.shapes.push(shape);
     }
 
-    pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<(glium::VertexBuffer<Vertex>, usize)> {
+    pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<(glium::vertex::VertexBufferAny, usize)> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
         for shape in shapes.iter() {
-            let vertex = glium::VertexBuffer::new(display, &shape.vertices).unwrap();
+            let vertex: glium::vertex::VertexBufferAny = glium::VertexBuffer::new(display, &shape.vertices).unwrap().into();
             buffer.push((vertex, shape.material_index));
         }
         buffer

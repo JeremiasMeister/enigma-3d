@@ -1,10 +1,12 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
+use nalgebra::Matrix;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
@@ -15,7 +17,7 @@ use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::light::{Light, LightEmissionType};
 use crate::material::Material;
-use crate::object::Object;
+use crate::object::{Object, ObjectInstance};
 use crate::postprocessing::PostProcessingEffect;
 use crate::texture::Texture;
 
@@ -124,6 +126,64 @@ impl AppState {
         }
     }
 
+    fn setup_skybox_instance(&self, display: &Display<WindowSurface>, sky_box_matrix: &Option<[[f32; 4]; 4]>) -> Option<(Uuid, object::ObjectInstance)> {
+        match &self.skybox {
+            Some(skybox) => {
+                let mut instance = ObjectInstance::new(display);
+                let model_matrix = sky_box_matrix.unwrap_or_else(|| {
+                    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+                });
+                instance.set_vertex_buffers(skybox.get_vertex_buffers(display));
+                instance.set_index_buffers(skybox.get_index_buffers(display));
+                instance.instance_matrices.push(model_matrix);
+                let data = instance.instance_matrices
+                    .iter()
+                    .map(|i| geometry::InstanceAttribute {
+                        model_matrix: *i,
+                    })
+                    .collect::<Vec<_>>();
+                instance.instance_attributes = glium::vertex::VertexBuffer::dynamic(display, &data).unwrap();
+                Some((skybox.get_unique_id(), instance))
+
+            }
+            None => None
+        }
+    }
+
+    fn setup_instances(&self, display: &Display<WindowSurface>, model_matrices: &HashMap<Uuid, [[f32; 4]; 4]>) -> HashMap<Uuid, object::ObjectInstance> {
+        let mut instances = HashMap::new();
+        for object in self.objects.iter() {
+            let instance_id = object.get_instance_id();
+            let model_matrix = model_matrices.get(&object.get_unique_id()).unwrap_or_else(|| {
+                &[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+            });
+            if !instances.contains_key(&instance_id){
+                let mut object_instance = ObjectInstance::new(display);
+                object_instance.set_vertex_buffers(object.get_vertex_buffers(display));
+                object_instance.set_index_buffers(object.get_index_buffers(display));
+                instances.insert(instance_id, object_instance);
+            }
+            instances.get_mut(&instance_id).expect("No instance of this uuid found. which is weird, because we just added it above").add_instance(*model_matrix);
+
+
+            //updating instance attributes
+            match instances.get_mut(&instance_id){
+                Some(instance) => {
+                    let data = instance.instance_matrices
+                        .iter()
+                        .map(|i| geometry::InstanceAttribute {
+                            model_matrix: *i,
+                        })
+                        .collect::<Vec<_>>();
+                    instance.instance_attributes = glium::vertex::VertexBuffer::dynamic(display, &data).unwrap();
+                }
+                None => panic!("Something went wrong, when adding the instance")
+            }
+
+        }
+        instances
+    }
+
     pub fn to_serializer(&self) -> AppStateSerializer {
         println!("WARNING: an AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!");
         let camera = match self.camera {
@@ -189,7 +249,7 @@ impl AppState {
         for o in serializer.objects {
             self.add_object(Object::from_serializer(o));
         }
-        for m in serializer.materials{
+        for m in serializer.materials {
             self.add_material(Material::from_serializer(m, &display));
         }
         for o in serializer.object_selection {
@@ -312,9 +372,9 @@ impl AppState {
         None
     }
 
-    pub fn get_object_by_uuid(&self, uuid: Uuid) -> Option<&object::Object> {
+    pub fn get_object_by_uuid(&self, uuid: &Uuid) -> Option<&object::Object> {
         for object in self.objects.iter() {
-            if object.get_unique_id() == uuid {
+            if &object.get_unique_id() == uuid {
                 return Some(object);
             }
         }
@@ -625,6 +685,7 @@ impl EventLoop {
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
+                    let object_instances = app_state.setup_instances(&self.display, &model_matrices);
                     // render objects opaque
                     let opaque_rendering_parameter = glium::DrawParameters {
                         depth: glium::Depth {
@@ -636,21 +697,26 @@ impl EventLoop {
                         ..Default::default()
                     };
 
-                    for object in app_state.objects.iter() {
-                        let model_matrix = model_matrices.get(&object.get_unique_id());
-                        let closest_lights = object.get_closest_lights(&light);
-                        for ((buffer, mat_index), indices) in object.get_vertex_buffers(&self.display).iter().zip(object.get_index_buffers(&self.display).iter()) {
-                            let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
-                            match app_state.get_material(mat_uuid) {
-                                Some(material) => {
-                                    if material.render_transparent {
-                                        continue;
+                    for (instance_id, object_instance) in object_instances.iter() {
+                        let object_option = app_state.get_object_by_uuid(&instance_id);
+                        match object_option {
+                            Some(object) => {
+                                let closest_lights = object.get_closest_lights(&light);
+                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()){
+                                    let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
+                                    match app_state.get_material(mat_uuid) {
+                                        Some(material) => {
+                                            if material.render_transparent {
+                                                continue;
+                                            }
+                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                            render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in opaque draw")), indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
+                                        }
+                                        None => ()
                                     }
-                                    let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
-                                    render_target.draw(buffer, indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                                 }
-                                None => ()
                             }
+                            None => println!("Error, instancing the Object Instance with the instance id {}, because no Object with that Id could be found", instance_id)
                         }
                     }
 
@@ -670,24 +736,32 @@ impl EventLoop {
                         Some(obj) => Some(obj.transform.get_matrix().clone()),
                         None => None
                     };
+                    let skybox_instance = app_state.setup_skybox_instance(&self.display, &skybox_model_matrix);
 
-                    match app_state.get_skybox() {
-                        Some(skybox) => {
-                            let closest_lights = skybox.get_closest_lights(&light);
-                            for ((buffer, mat_index), indices) in skybox.get_vertex_buffers(&self.display).iter().zip(skybox.get_index_buffers(&self.display).iter()) {
-                                let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
-                                match app_state.get_material(mat_uuid) {
-                                    Some(material) => {
-                                        let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_model_matrix.as_ref(), skybox_texture);
-                                        render_target.draw(buffer, indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
+                    match skybox_instance {
+                        Some((skybox_id, instance)) => {
+                            let object_option = app_state.get_skybox();
+                            match object_option {
+                                Some(skybox) => {
+                                    let closest_lights = skybox.get_closest_lights(&light);
+                                    for ((buffer, mat_index), indices) in instance.vertex_buffers.iter().zip(instance.index_buffers.iter()){
+                                        let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
+                                        match app_state.get_material(mat_uuid) {
+                                            Some(material) => {
+                                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                                render_target.draw((buffer, instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in skybox draw")), indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
+                                            }
+                                            None => ()
+                                        }
                                     }
-                                    None => ()
                                 }
+                                None => println!("Error, instancing the Skybox Instance with the instance id {}, because no Object with that Id could be found", skybox_id)
                             }
                         }
                         None => {}
                     }
 
+                    /*
 
                     // render objects transparent
                     app_state.objects.sort_by(|a, b| {
@@ -716,7 +790,7 @@ impl EventLoop {
                             }
                         }
                     }
-
+*/
 
                     // execute post processing#
                     for process in app_state.get_post_processes() {

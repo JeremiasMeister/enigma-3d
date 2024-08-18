@@ -403,7 +403,7 @@ fn main() {
     enigma_3d::init_default(&mut app_state);
     //initialize board and landscape
     initialize_board(&mut app_state, &event_loop);
-    initialize_landscape(&mut app_state, &event_loop);
+    //initialize_landscape(&mut app_state, &event_loop);
     // create a bunch of lights
     let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
