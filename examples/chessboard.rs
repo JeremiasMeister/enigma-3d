@@ -332,7 +332,12 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
 }
 
 fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
-    let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
+    // ground_material with geometry grass shader
+    //let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
+
+    // ground_material without geometry shader - way faster, since geometry shader are a very slow feature
+    let mut ground_material = Material::lit_pbr(event_loop.get_display_clone(), false);
+
     let mut tree_material_opaque = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     let mut tree_material_transparent = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     tree_material_transparent.set_transparency(true);
