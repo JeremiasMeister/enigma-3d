@@ -6,6 +6,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Opaque and Transparent rendering
 - `Material`, `Shader`, `Shape`, `Object` Abstractions
 - PBR Shading
+- 3 step customizable Render pipeline: Vertex -> Geometry -> Fragment 
 - Texturing, Normals and Vertex Colors
 - up to 4 point lights per object
 - one ambient light
@@ -21,6 +22,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - serialize currently loaded `AppState` to json and inject serialized `AppState` into running one.
 - Optimization: Textures are cached
 - Optimization: Materials are shared in between Objects and managed via the `AppState`
+- Optimisation: Cloned Objects are batched into one Draw Call via GPU Instancing 
 
 ### How to Install and Run:
 Installing the Library in its latest release is quite straight forward, you should be able to just run `cargo add enigma-3d`. from there, you have access to the library for your codebase.
