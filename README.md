@@ -32,9 +32,9 @@ When it comes to running the examples they are hidden behind a feature flag due 
 Cargo should take care of all the dependencies for you.
 
 **The Chessboard Example**
-![image](https://github.com/JeremiasMeister/enigma-3d/assets/19373094/b97c864c-2a85-464d-bd97-22c14159418e)
-**The Chessboard Example with a Fog Postprocess**
-![image](https://github.com/user-attachments/assets/8c259860-b34f-4f49-8dec-57ebbc566206)
+![image](https://github.com/user-attachments/assets/59d69fc6-e6ba-4854-a7bd-d266bd52855e)
+**The Chessboard Example with a Geometry Grass shader for the ground and a Tree wind shader**
+![image](https://github.com/user-attachments/assets/908f0264-b90c-42cf-8f99-f29317c8ee05)
 **PBR Bloom postprocess and transparent objects**
 ![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
