@@ -6,7 +6,6 @@ use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
-use nalgebra::Matrix;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
@@ -150,8 +149,16 @@ impl AppState {
         }
     }
 
-    fn setup_instances(&self, display: &Display<WindowSurface>, model_matrices: &HashMap<Uuid, [[f32; 4]; 4]>) -> HashMap<Uuid, object::ObjectInstance> {
+    fn setup_instances(&mut self, display: &Display<WindowSurface>, model_matrices: &HashMap<Uuid, [[f32; 4]; 4]>) -> HashMap<Uuid, object::ObjectInstance> {
         let mut instances = HashMap::new();
+        // sort objects for transparent rendering
+        self.objects.sort_by(|a, b| {
+            let distance_a = (self.camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
+            let distance_b = (self.camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
+            distance_b.partial_cmp(&distance_a).unwrap()
+        });
+
+        // iterating over the objects, making instances
         for object in self.objects.iter() {
             let instance_id = object.get_instance_id();
             let model_matrix = model_matrices.get(&object.get_unique_id()).unwrap_or_else(|| {
@@ -761,36 +768,33 @@ impl EventLoop {
                         None => {}
                     }
 
-                    /*
-
                     // render objects transparent
-                    app_state.objects.sort_by(|a, b| {
-                        let distance_a = (camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
-                        let distance_b = (camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
-                        distance_b.partial_cmp(&distance_a).unwrap()
-                    });
                     let transparent_rendering_parameter = glium::DrawParameters {
                         blend: glium::Blend::alpha_blending(),
                         ..opaque_rendering_parameter
                     };
-                    for object in app_state.objects.iter() {
-                        let model_matrix = model_matrices.get(&object.get_unique_id());
-                        let closest_lights = object.get_closest_lights(&light);
-                        for ((buffer, mat_index), indices) in object.get_vertex_buffers(&self.display).iter().zip(object.get_index_buffers(&self.display).iter()) {
-                            let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
-                            match app_state.get_material(mat_uuid) {
-                                Some(material) => {
-                                    if !material.render_transparent {
-                                        continue;
+                    for (instance_id, object_instance) in object_instances.iter() {
+                        let object_option = app_state.get_object_by_uuid(&instance_id);
+                        match object_option {
+                            Some(object) => {
+                                let closest_lights = object.get_closest_lights(&light);
+                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()){
+                                    let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
+                                    match app_state.get_material(mat_uuid) {
+                                        Some(material) => {
+                                            if !material.render_transparent {
+                                                continue;
+                                            }
+                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                            render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in transparent draw")), indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
+                                        }
+                                        None => ()
                                     }
-                                    let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, model_matrix, skybox_texture);
-                                    render_target.draw(buffer, indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                                 }
-                                None => ()
                             }
+                            None => println!("Error, instancing the Transparent Object Instance with the instance id {}, because no Object with that Id could be found", instance_id)
                         }
                     }
-*/
 
                     // execute post processing#
                     for process in app_state.get_post_processes() {

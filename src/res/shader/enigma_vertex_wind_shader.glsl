@@ -24,6 +24,7 @@ out vec3 v_vertex_normal;
 out vec2 v_vertex_texcoord;
 out vec3 v_object_position;
 out vec3 v_position;
+out mat4 v_model_matrix;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -64,5 +65,6 @@ void main() {
     v_modelView_pos = -(modelview * vec4(position, 1.0)).xyz;
     v_vertex_color = color;
     v_position = position;
+    v_model_matrix = model_matrix;
     v_vertex_texcoord = texcoord;
 }

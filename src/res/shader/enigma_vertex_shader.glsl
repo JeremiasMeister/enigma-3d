@@ -24,6 +24,7 @@ out vec3 v_vertex_color;
 out vec3 v_vertex_normal;
 out vec2 v_vertex_texcoord;
 out vec3 v_position;
+out mat4 v_model_matrix;
 
 // material uniforms
 uniform vec3 mat_color;
@@ -41,6 +42,7 @@ void main() {
     mat4 modelview = view_matrix * model_matrix;
 
     gl_Position = projection_matrix * modelview * vec4(position, 1.0);
+    v_model_matrix = model_matrix;
     v_position = position;
     v_world_position = (model_matrix * vec4(position, 1.0)).xyz;
     v_vertex_normal = transpose(inverse(mat3(modelview))) * normal;
