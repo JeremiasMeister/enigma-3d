@@ -220,18 +220,25 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_pawn_white_1.transform.set_position([-3.5, -1.15, -3.5]);
     let mut obj_pawn_white_2 = obj_pawn_white_1.clone();
     obj_pawn_white_2.transform.set_position([-2.5, -1.15, -3.5]);
+    obj_pawn_white_2.set_name("obj_pawn_white_2".to_string());
     let mut obj_pawn_white_3 = obj_pawn_white_1.clone();
     obj_pawn_white_3.transform.set_position([-1.5, -1.15, -3.5]);
+    obj_pawn_white_3.set_name("obj_pawn_white_3".to_string());
     let mut obj_pawn_white_4 = obj_pawn_white_1.clone();
     obj_pawn_white_4.transform.set_position([-0.5, -1.15, -3.5]);
+    obj_pawn_white_4.set_name("obj_pawn_white_4".to_string());
     let mut obj_pawn_white_5 = obj_pawn_white_1.clone();
     obj_pawn_white_5.transform.set_position([0.5, -1.15, -3.5]);
+    obj_pawn_white_5.set_name("obj_pawn_white_5".to_string());
     let mut obj_pawn_white_6 = obj_pawn_white_1.clone();
     obj_pawn_white_6.transform.set_position([1.5, -1.15, -3.5]);
+    obj_pawn_white_6.set_name("obj_pawn_white_6".to_string());
     let mut obj_pawn_white_7 = obj_pawn_white_1.clone();
     obj_pawn_white_7.transform.set_position([2.5, -1.15, -3.5]);
+    obj_pawn_white_7.set_name("obj_pawn_white_7".to_string());
     let mut obj_pawn_white_8 = obj_pawn_white_1.clone();
     obj_pawn_white_8.transform.set_position([3.5, -1.15, -3.5]);
+    obj_pawn_white_8.set_name("obj_pawn_white_8".to_string());
 
     let mut obj_bishop_black_1 = Object::load_from_gltf_resource(example_resources::chess_bishop_gltf());
     obj_bishop_black_1.set_name("obj_bishop_black_1".to_string());
@@ -277,18 +284,25 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_pawn_black_1.transform.set_position([-3.5, -1.15, -8.5]);
     let mut obj_pawn_black_2 = obj_pawn_black_1.clone();
     obj_pawn_black_2.transform.set_position([-2.5, -1.15, -8.5]);
+    obj_pawn_black_2.set_name("obj_pawn_black_2".to_string());
     let mut obj_pawn_black_3 = obj_pawn_black_1.clone();
     obj_pawn_black_3.transform.set_position([-1.5, -1.15, -8.5]);
+    obj_pawn_black_3.set_name("obj_pawn_black_3".to_string());
     let mut obj_pawn_black_4 = obj_pawn_black_1.clone();
     obj_pawn_black_4.transform.set_position([-0.5, -1.15, -8.5]);
+    obj_pawn_black_4.set_name("obj_pawn_black_4".to_string());
     let mut obj_pawn_black_5 = obj_pawn_black_1.clone();
     obj_pawn_black_5.transform.set_position([0.5, -1.15, -8.5]);
+    obj_pawn_black_5.set_name("obj_pawn_black_5".to_string());
     let mut obj_pawn_black_6 = obj_pawn_black_1.clone();
     obj_pawn_black_6.transform.set_position([1.5, -1.15, -8.5]);
+    obj_pawn_black_6.set_name("obj_pawn_black_6".to_string());
     let mut obj_pawn_black_7 = obj_pawn_black_1.clone();
     obj_pawn_black_7.transform.set_position([2.5, -1.15, -8.5]);
+    obj_pawn_black_7.set_name("obj_pawn_black_7".to_string());
     let mut obj_pawn_black_8 = obj_pawn_black_1.clone();
     obj_pawn_black_8.transform.set_position([3.5, -1.15, -8.5]);
+    obj_pawn_black_8.set_name("obj_pawn_black_8".to_string());
 
     // adding objects to app_state
     app_state.add_object(obj_board);
