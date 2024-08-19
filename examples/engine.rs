@@ -55,16 +55,8 @@ fn hopping_objects(app_state: &mut AppState) {
 fn spawn_object(app_state: &mut AppState) {
     match &app_state.display {
         Some(_) => {
-            let material_name = if rand::random() {
-                "transparent_mat"
-            } else {
-                "opaque_mat"
-            };
-            let material = app_state.get_material_by_name(material_name).expect("we explicitly added the material when starting the application");
-
-            let mut object = Object::load_from_gltf_resource(example_resources::suzanne());
+            let mut object = app_state.objects[0].clone();
             object.name = format!("Suzanne_{}", rand::thread_rng().gen_range(0..1000));
-            object.add_material(material.uuid);
             let random_x = rand::thread_rng().gen_range(-4.0..4.0);
             let random_z = rand::thread_rng().gen_range(-4.0..-1.0);
 
