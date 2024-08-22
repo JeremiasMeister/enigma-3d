@@ -9,8 +9,8 @@ use enigma_3d::material::Material;
 
 fn camera_fly_forward(app_state: &mut AppState) {
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = camera.transform.forward() * -speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -18,8 +18,8 @@ fn camera_fly_forward(app_state: &mut AppState) {
 
 fn camera_fly_backward(app_state: &mut AppState) {
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = camera.transform.forward() * speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -27,8 +27,8 @@ fn camera_fly_backward(app_state: &mut AppState) {
 
 fn camera_fly_left(app_state: &mut AppState) {
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = camera.transform.left() * speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -36,8 +36,8 @@ fn camera_fly_left(app_state: &mut AppState) {
 
 fn camera_fly_right(app_state: &mut AppState) {
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = camera.transform.left() * -speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -45,8 +45,8 @@ fn camera_fly_right(app_state: &mut AppState) {
 
 fn camera_up(app_state: &mut AppState){
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = Vector3::new(0.0,1.0,0.0) * speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -54,8 +54,8 @@ fn camera_up(app_state: &mut AppState){
 
 fn camera_down(app_state: &mut AppState){
     let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
     if let Some(camera) = app_state.get_camera_mut() {
-        let speed = 5.0; // Units per second
         let direction = Vector3::new(0.0,1.0,0.0) * -speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
@@ -63,12 +63,12 @@ fn camera_down(app_state: &mut AppState){
 
 fn camera_rotate(app_state: &mut AppState) {
     let mouse_delta = app_state.get_mouse_state().get_delta();
-    let delta_time = app_state.delta_time;
+    let sensitivity = *app_state.get_state_data_value::<f32>("camera_rotate_speed").expect("failed to get camera rotate speed from state data") * app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
         // Convert delta to radians and apply a sensitivity factor
         let (delta_yaw, delta_pitch) = (
-            mouse_delta.0 as f32 * delta_time,
-            mouse_delta.1 as f32 * delta_time
+            mouse_delta.0 as f32 * sensitivity,
+            mouse_delta.1 as f32 * sensitivity
         );
 
         // Update camera rotation
@@ -460,6 +460,11 @@ fn main() {
     // create and add a camera to the app state
     let camera = Camera::new(Some([-4.3, 3.0, 1.8]), Some([-9.3, -14.01, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
+
+    // adding the camera move and rotation speed as a state data entry. this allows us to retrieve it in all camera related functions while having
+    // a unique place to control it. See, that we need to pass the value in with explicit type declaration, this is so enigma can properly use it
+    app_state.add_state_data("camera_move_speed", Box::new(10.0f32));
+    app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
 
     //event functions for moving the camera
     app_state.inject_event(
