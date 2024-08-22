@@ -8,53 +8,67 @@ use enigma_3d::event::EventModifiers;
 use enigma_3d::material::Material;
 
 fn camera_fly_forward(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.forward() * -0.15;
+        let speed = 5.0; // Units per second
+        let direction = camera.transform.forward() * -speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_fly_backward(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.forward() * 0.15;  // Note: positive here
+        let speed = 5.0; // Units per second
+        let direction = camera.transform.forward() * speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_fly_left(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.left() * 0.15;
+        let speed = 5.0; // Units per second
+        let direction = camera.transform.left() * speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_fly_right(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.left() * -0.15;  // Note: negative here
+        let speed = 5.0; // Units per second
+        let direction = camera.transform.left() * -speed * delta_time;
         camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_up(app_state: &mut AppState){
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        camera.transform.move_dir_vector(Vector3::new(0.0,0.15,0.0));
+        let speed = 5.0; // Units per second
+        let direction = Vector3::new(0.0,1.0,0.0) * speed * delta_time;
+        camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_down(app_state: &mut AppState){
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
-        camera.transform.move_dir_vector(Vector3::new(0.0,-0.15,0.0));
+        let speed = 5.0; // Units per second
+        let direction = Vector3::new(0.0,1.0,0.0) * -speed * delta_time;
+        camera.transform.move_dir_vector(direction);
     }
 }
 
 fn camera_rotate(app_state: &mut AppState) {
     let mouse_delta = app_state.get_mouse_state().get_delta();
+    let delta_time = app_state.delta_time;
     if let Some(camera) = app_state.get_camera_mut() {
         // Convert delta to radians and apply a sensitivity factor
-        let sensitivity = 0.01; // Adjust this value to change rotation speed
         let (delta_yaw, delta_pitch) = (
-            mouse_delta.0 as f32 * sensitivity,
-            mouse_delta.1 as f32 * sensitivity
+            mouse_delta.0 as f32 * delta_time,
+            mouse_delta.1 as f32 * delta_time
         );
 
         // Update camera rotation

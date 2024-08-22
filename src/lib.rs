@@ -82,10 +82,12 @@ pub struct AppState {
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
     pub display: Option<glium::Display<WindowSurface>>,
     pub time: f32,
+    pub delta_time: f32,
     pub render_scale: u32,
     pub max_buffers: usize,
     mouse_state: MouseState,
     last_event_time: Instant,
+    last_frame_time: Instant,
     is_mouse_down: bool,
     pub state_data: Vec<AppStateData>,
 }
@@ -115,12 +117,14 @@ impl AppState {
             post_processes: Vec::new(),
             display: None,
             time: 0.0,
+            delta_time: 0.0,
             render_scale: 1,
             max_buffers: 3,
             mouse_state: MouseState::new(),
             gui_injections: Vec::new(),
             state_data: Vec::new(),
             last_event_time: Instant::now(),
+            last_frame_time: Instant::now(),
             is_mouse_down: false,
         }
     }
@@ -683,7 +687,10 @@ impl EventLoop {
                     }
                 }
                 Event::RedrawRequested(_) => {
-                    app_state.time += 0.001;
+                    let current_time = Instant::now();
+                    app_state.delta_time = (current_time - app_state.last_frame_time).as_secs_f32();
+                    app_state.last_frame_time = current_time;
+                    app_state.time += app_state.delta_time;
                     // updating materials
                     for material in app_state.materials.iter_mut() {
                         material.update();

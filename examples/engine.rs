@@ -48,7 +48,12 @@ fn roll_right(app_state: &mut AppState) {
 fn hopping_objects(app_state: &mut AppState) {
     for object in app_state.objects.iter_mut() {
         let rand_scale = rand::thread_rng().gen_range(0.0..0.015);
-        object.transform.move_dir_array([0.0, (app_state.time * 20.0).sin() * rand_scale, 0.0])
+        let hop_speed = 1.0; // Adjust this value to control the hopping speed
+        object.transform.move_dir_array([
+            0.0,
+            (app_state.time * hop_speed).sin() * rand_scale * 1.0,
+            0.0
+        ])
     }
 }
 
