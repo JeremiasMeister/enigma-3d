@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoundingBox, Vertex};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
-use crate::{debug_geo, geometry};
+use crate::{animation, debug_geo, geometry};
 use uuid::Uuid;
 
 
@@ -29,6 +30,8 @@ pub struct ObjectSerializer {
     materials: Vec<String>,
     unique_id: String,
     cloned_id: String,
+    animations: Vec<animation::AnimationSerializer>,
+    skeleton: Option<animation::SkeletonSerializer>
 }
 
 pub struct Object {
@@ -40,6 +43,8 @@ pub struct Object {
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
     cloned_id: Uuid,
+    animations: Vec<animation::Animation>,
+    skeleton: Option<animation::Skeleton>
 }
 
 impl Clone for Object {
@@ -67,6 +72,8 @@ impl Clone for Object {
         new_object.bounding_box = self.bounding_box.clone();
         new_object.unique_id = Uuid::new_v4();
         new_object.cloned_id = self.unique_id;
+        new_object.animations = self.animations.clone();
+        new_object.skeleton = self.skeleton.clone();
         new_object
     }
 }
@@ -163,6 +170,8 @@ impl Object {
             unique_id: uuid,
             cloned_id: uuid,
             collision: true,
+            animations: Vec::new(),
+            skeleton: None
         };
         object.calculate_bounding_box();
         object
@@ -171,6 +180,7 @@ impl Object {
     pub fn to_serializer(&self) -> ObjectSerializer {
         let name = self.name.clone();
         let transform = self.transform.to_serializer();
+        let animations = self.animations.iter().map(|x| x.to_serializer()).collect();
         let shapes = self.shapes.clone();
         let materials = self.materials.iter().map(|x| x.to_string()).collect();
         let unique_id = self.unique_id.to_string();
@@ -183,6 +193,11 @@ impl Object {
             unique_id,
             cloned_id,
             collision: self.collision,
+            animations,
+            skeleton: match &self.skeleton {
+                Some(skeleton) => Some(skeleton.to_serializer()),
+                None => None
+            }
         }
     }
 
@@ -197,6 +212,17 @@ impl Object {
         object.cloned_id = uuid::Uuid::parse_str(serializer.cloned_id.as_str()).unwrap();
         object.collision = serializer.collision;
         object.calculate_bounding_box();
+
+        let mut animations = Vec::new();
+        for s in serializer.animations {
+            let anim = animation::Animation::from_serializer(s);
+            animations.push(anim);
+        }
+        object.animations = animations;
+        object.skeleton = match serializer.skeleton {
+            Some(s) => Some(animation::Skeleton::from_serializer(s)),
+            None => None
+        };
         object
     }
 
@@ -300,6 +326,10 @@ impl Object {
         self.shapes.push(shape);
     }
 
+    fn add_animation(&mut self, animation: animation::Animation){
+        self.animations.push(animation);
+    }
+
     pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<(glium::vertex::VertexBufferAny, usize)> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
@@ -371,44 +401,19 @@ impl Object {
     }
 
     pub fn load_from_gltf_resource(data: &[u8]) -> Self {
-        let (gltf, buffers, _) = gltf::import_slice(data).expect("Failed to import gltf file"); // gltf::import(path).expect("Failed to import gltf file");
-
-        let mut object = Object::new(Some(String::from("INTERNAL ENIGMA RESOURCE")));
-
-        for mesh in gltf.meshes() {
-            let mut vertices = Vec::new();
-            let mut indices = Vec::new();
-            for primitive in mesh.primitives() {
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-                let positions = reader.read_positions().unwrap();
-                let normals = reader.read_normals().unwrap();
-                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
-                let prim_indices = reader.read_indices().unwrap().into_u32();
-
-                let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
-                // flip tex_coords
-                for mut tex_coord in tex_coords.into_iter() {
-                    tex_coord[1] = 1.0 - tex_coord[1];
-                    flipped_tex_coords.push(tex_coord);
-                }
-
-                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
-                    let vertex = geometry::Vertex { position, color: [1.0, 1.0, 1.0], texcoord: tex_coord, normal };
-                    vertices.push(vertex);
-                }
-
-                prim_indices.for_each(|index| indices.push(index));
-            }
-            let shape = Shape::from_vertices_indices(vertices, indices);
-            object.add_shape(shape);
-        }
-        object
+        let (gltf, buffers, images) = gltf::import_slice(data).expect("Failed to import gltf file"); // gltf::import(path).expect("Failed to import gltf file");
+        let object = Object::new(Some(String::from("INTERNAL ENIGMA RESOURCE")));
+        Object::load_from_gltf_internal((gltf, buffers, images), object)
     }
 
     pub fn load_from_gltf(path: &str) -> Self {
-        let (gltf, buffers, _) = gltf::import(path).expect("Failed to import gltf file");
+        let (gltf, buffers, images) = gltf::import(path).expect("Failed to import gltf file");
+        let object = Object::new(Some(String::from(path)));
+        Object::load_from_gltf_internal((gltf, buffers, images), object)
+    }
 
-        let mut object = Object::new(Some(String::from(path)));
+    fn load_from_gltf_internal(content: (gltf::Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>), mut object: Object) -> Self {
+        let (gltf, buffers, _images) = content;
 
         for mesh in gltf.meshes() {
             let mut vertices = Vec::new();
@@ -441,8 +446,119 @@ impl Object {
             let shape = Shape::from_vertices_indices(vertices, indices);
             object.add_shape(shape);
         }
+
+        if let Some(skin) = gltf.skins().next() {
+            let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers);
+            object.skeleton = Some(skeleton);
+        }
+
+        // for anim in gltf.animations(){
+        //     object.animations.push(Object::load_animation_internal(&anim, &buffers));
+        // }
         object
     }
+
+    fn load_skeleton_internal(document: &gltf::Document, skin: &gltf::Skin, buffers: &[gltf::buffer::Data]) -> animation::Skeleton {
+        let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
+
+        // Get joints from the skin
+        let joints: Vec<gltf::Node> = skin.joints().collect();
+
+        // Read inverse bind matrices
+        let inverse_bind_matrices: Vec<Matrix4<f32>> = reader.read_inverse_bind_matrices()
+            .map(|iter| iter.map(Matrix4::from).collect())
+            .unwrap_or_else(|| vec![Matrix4::identity(); joints.len()]);
+
+        // Create a map of child to parent relationships
+        let mut parent_map = HashMap::new();
+        for node in document.nodes() {
+            for child in node.children() {
+                parent_map.insert(child.index(), node.index());
+            }
+        }
+
+        let bones = joints.into_iter().enumerate().zip(inverse_bind_matrices).map(|((id, joint), ibm)| {
+            animation::Bone {
+                name: joint.name().unwrap_or("").to_string(),
+                id,
+                parent_id: parent_map.get(&joint.index()).cloned(),
+                inverse_bind_pose: ibm,
+            }
+        }).collect();
+
+        animation::Skeleton { bones }
+    }
+
+    /*
+    fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data]) -> animation::Animation {
+        let mut channels = Vec::new();
+
+        for channel in anim.channels() {
+            let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+            let bone_id = channel.target().node().index();
+
+            let mut keyframes = HashMap::new();
+
+            if let (Some(times), Some(outputs)) = (reader.read_inputs(), reader.read_outputs()) {
+                let times: Vec<f32> = times.collect();
+                match outputs {
+                    gltf::animation::util::ReadOutputs::Translations(translations) => {
+                        for (time, translation) in times.iter().zip(translations) {
+                            keyframes.entry(*time)
+                                .or_insert_with(|| animation::AnimationKeyframe {
+                                    time: *time,
+                                    transform: Transform::new(),
+                                })
+                                .transform.set_position(translation);
+                        }
+                    },
+                    gltf::animation::util::ReadOutputs::Rotations(rotations) => {
+                        for (time, rotation) in times.iter().zip(rotations) {
+                            keyframes.entry(*time)
+                                .or_insert_with(|| animation::AnimationKeyframe {
+                                    time: *time,
+                                    transform: Transform::new(),
+                                })
+                                .transform.set_rotation(rotation);
+                        }
+                    },
+                    gltf::animation::util::ReadOutputs::Scales(scales) => {
+                        for (time, scale) in times.iter().zip(scales) {
+                            keyframes.entry(*time)
+                                .or_insert_with(|| animation::AnimationKeyframe {
+                                    time: *time,
+                                    transform: Transform::new(),
+                                })
+                                .transform.set_scale(scale);
+                        }
+                    },
+                    gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => {
+                        // Handle morph target weights if needed
+                        // For now, we'll just ignore these
+                    },
+                }
+            }
+
+            let keyframes: Vec<animation::AnimationKeyframe> = keyframes.into_iter()
+                .map(|(_, keyframe)| keyframe)
+                .collect();
+
+            if !keyframes.is_empty() {
+                channels.push(animation::AnimationChannel { bone_id, keyframes });
+            }
+        }
+
+        let duration = channels.iter()
+            .flat_map(|c| c.keyframes.iter().map(|k| k.time))
+            .fold(0.0, f32::max);
+
+        animation::Animation {
+            name: anim.name().unwrap_or("").to_string(),
+            duration,
+            channels,
+        }
+    }
+    */
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -565,5 +681,22 @@ impl Transform {
     pub fn get_matrix(&mut self) -> [[f32; 4]; 4] {
         self.update();
         self.matrix.into()
+    }
+
+    pub fn get_matrix_object(&mut self) -> Matrix4<f32> {
+        self.update();
+        self.matrix
+    }
+
+    pub fn lerp(&self, other: &Self, t: f32) -> Self {
+        let position = self.get_position().lerp(&other.get_position(), t);
+        let scale = self.get_scale().lerp(&other.get_scale(), t);
+        let rotation = self.get_rotation().slerp(&other.get_rotation(), t);
+
+        let mut result = Self::new();
+        result.set_position(position.into());
+        result.set_scale(scale.into());
+        result.set_rotation(rotation.into());
+        result
     }
 }
