@@ -326,7 +326,7 @@ impl Object {
         self.shapes.push(shape);
     }
 
-    fn add_animation(&mut self, animation: animation::Animation){
+    fn add_animation_internal(&mut self, animation: animation::Animation){
         self.animations.push(animation);
     }
 
