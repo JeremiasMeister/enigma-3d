@@ -18,10 +18,10 @@ pub trait PostProcessingEffect {
 
 pub fn get_screen_vert_rect(display: &Display<WindowSurface>) -> glium::VertexBuffer<Vertex> {
     let vertices = vec![
-        Vertex { position: [-1.0, -1.0, 0.0], texcoord: [0.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [-1.0, 1.0, 0.0], texcoord: [0.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [1.0, 1.0, 0.0], texcoord: [1.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [1.0, -1.0, 0.0], texcoord: [1.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0] },
+        Vertex { position: [-1.0, -1.0, 0.0], texcoord: [0.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0], bone_indices: [0, 0, 0, 0], bone_weights: [0.0, 0.0, 0.0, 0.0] },
+        Vertex { position: [-1.0, 1.0, 0.0], texcoord: [0.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0], bone_indices: [0, 0, 0, 0], bone_weights: [0.0, 0.0, 0.0, 0.0] },
+        Vertex { position: [1.0, 1.0, 0.0], texcoord: [1.0, 1.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0], bone_indices: [0, 0, 0, 0], bone_weights: [0.0, 0.0, 0.0, 0.0] },
+        Vertex { position: [1.0, -1.0, 0.0], texcoord: [1.0, 0.0], color: [1.0, 1.0, 1.0], normal: [0.0, 0.0, 1.0], bone_indices: [0, 0, 0, 0], bone_weights: [0.0, 0.0, 0.0, 0.0] },
     ];
     glium::VertexBuffer::new(display, &vertices).unwrap()
 }

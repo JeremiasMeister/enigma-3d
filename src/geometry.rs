@@ -1,7 +1,13 @@
 use std::fmt::Debug;
-use glium::implement_vertex;
+use glium::{implement_uniform_block, implement_vertex};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone)]
+pub struct BoneTransforms {
+    pub bone_transforms: [[[f32; 4]; 4]; 128]
+}
+implement_uniform_block!(BoneTransforms, bone_transforms);
 
 #[derive(Copy, Clone)]
 pub struct InstanceAttribute {
@@ -15,9 +21,12 @@ pub struct Vertex {
     pub texcoord: [f32; 2],
     pub color: [f32; 3],
     pub normal: [f32; 3],
+    pub bone_indices: [u32; 4],
+    pub bone_weights: [f32; 4],
 }
 
-glium::implement_vertex!(Vertex, position, texcoord, color, normal);
+glium::implement_vertex!(Vertex, position, texcoord, color, normal, bone_indices, bone_weights);
+
 
 #[derive(Serialize, Deserialize)]
 pub struct BoundingBoxSerializer {
@@ -79,6 +88,8 @@ impl BoundingBoxMesh {
                 texcoord: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
                 normal: [0.0, 0.0, 0.0],
+                bone_indices: [0, 0, 0, 0],
+                bone_weights: [0.0, 0.0, 0.0, 0.0],
             });
         }
         let indices = vec![

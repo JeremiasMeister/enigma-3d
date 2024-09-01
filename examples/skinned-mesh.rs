@@ -1,7 +1,29 @@
+use std::sync::Arc;
 use enigma_3d::camera::Camera;
-use enigma_3d::{example_resources, light, material, object, resources};
+use enigma_3d::{AppState, example_resources, light, material, object, resources};
+use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
 use enigma_3d::material::TextureType;
+
+pub fn print_rig_data(app_state: &mut AppState) {
+    match app_state.get_object("knight") {
+        Some(knight) => {
+            let anims = knight.get_animations();
+            for anim in anims{
+                println!("Animation {} -> {}", anim.1.name, anim.1.channels.len());
+            }
+            match knight.get_skeleton() {
+                Some(skeleton) => {
+                    for bone in &skeleton.bones {
+                        println!("Bone: {} -> {}", bone.name, bone.inverse_bind_pose);
+                    }
+                }
+                None => ()
+            }
+        }
+        None => ()
+    }
+}
 
 fn main() {
     let event_loop = enigma_3d::EventLoop::new("Enigma 3D Skinned Mesh Example", 1080, 720);
@@ -36,6 +58,8 @@ fn main() {
     app_state.add_light(main_light, LightEmissionType::Source);
     app_state.add_light(fill_light, LightEmissionType::Source);
     app_state.add_light(ambient_light, LightEmissionType::Ambient);
+
+    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
 
     app_state.add_material(material);
     app_state.add_object(knight);

@@ -1,3 +1,4 @@
+use glium::uniforms::UniformBuffer;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use glium::texture::RawImage2d;
@@ -6,11 +7,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::{resources, shader, texture};
 use crate::camera::Camera;
+use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightBlock};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MaterialSerializer {
-    name : String,
+    name: String,
     color: [f32; 3],
     albedo: Option<texture::TextureSerializer>,
     transparency: f32,
@@ -23,9 +25,9 @@ pub struct MaterialSerializer {
     emissive: Option<texture::TextureSerializer>,
     emissive_strength: f32,
     shader: shader::ShaderSerializer,
-    matrix: [[f32;4]; 4],
+    matrix: [[f32; 4]; 4],
     render_transparent: bool,
-    uuid: String
+    uuid: String,
 }
 
 pub struct Material {
@@ -52,7 +54,7 @@ pub struct Material {
     pub time: f32,
     pub matrix: [[f32; 4]; 4],
     pub render_transparent: bool,
-    pub uuid: Uuid
+    pub uuid: Uuid,
 }
 
 pub enum TextureType {
@@ -186,7 +188,7 @@ impl Material {
             shader: self.shader.to_serializer(),
             matrix: self.matrix,
             render_transparent: self.render_transparent,
-            uuid: self.uuid.to_string()
+            uuid: self.uuid.to_string(),
         }
     }
 
@@ -270,11 +272,11 @@ impl Material {
                 [0.0, 0.0, 0.0, 1.0f32],
             ],
             render_transparent: false,
-            uuid: Uuid::new_v4()
+            uuid: Uuid::new_v4(),
         }
     }
 
-    pub fn set_name(&mut self, name: &str){
+    pub fn set_name(&mut self, name: &str) {
         self.name = name.to_string()
     }
 
@@ -351,7 +353,7 @@ impl Material {
         }
     }
 
-    pub fn set_texture(&mut self, texture: texture::Texture, texture_type: TextureType){
+    pub fn set_texture(&mut self, texture: texture::Texture, texture_type: TextureType) {
         match texture_type {
             TextureType::Albedo => self.albedo = Some(texture),
             TextureType::Normal => self.normal = Some(texture),
@@ -379,11 +381,11 @@ impl Material {
             light_amount = 4;
         }
 
-        let mut light_position: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
-        let mut light_color: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
-        let mut light_intensity: [f32;4] = [0.0, 0.0, 0.0, 0.0];
-        let mut light_direction: [[f32; 4];4] = [[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0]];
-        let mut cast_shadow: [i32;4] = [0, 0, 0, 0];
+        let mut light_position: [[f32; 4]; 4] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+        let mut light_color: [[f32; 4]; 4] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+        let mut light_intensity: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
+        let mut light_direction: [[f32; 4]; 4] = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+        let mut cast_shadow: [i32; 4] = [0, 0, 0, 0];
 
         for i in 0..5 {
             if i < light_amount as usize {
@@ -393,7 +395,7 @@ impl Material {
                 light_direction[i] = {
                     let direction = lights[i].direction;
                     if direction == [0.0, 0.0, 0.0] {
-                        [0.0,0.0,0.0,0.0]
+                        [0.0, 0.0, 0.0, 0.0]
                     } else {
                         [lights[i].direction[0], lights[i].direction[1], lights[i].direction[2], 1.0]
                     }
@@ -420,8 +422,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
-
+    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 
         glium::uniform! {
@@ -507,6 +508,8 @@ impl Material {
             ambient_light_color: light_block.ambient_color,
             ambient_light_intensity: light_block.ambient_intensity,
             skybox: &skybox.texture,
+            bone_transforms: bone_transforms,
+            has_skeleton: has_skeleton
         }
     }
 

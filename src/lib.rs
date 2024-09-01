@@ -6,6 +6,7 @@ use egui_glium::EguiGlium;
 use winit::window::Window;
 use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
+use glium::uniforms::UniformBuffer;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
@@ -14,6 +15,7 @@ use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MouseState;
 use crate::data::AppStateData;
 use crate::event::EventModifiers;
+use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightEmissionType};
 use crate::material::Material;
 use crate::object::{Object, ObjectInstance};
@@ -148,7 +150,6 @@ impl AppState {
                     .collect::<Vec<_>>();
                 instance.instance_attributes = glium::vertex::VertexBuffer::dynamic(display, &data).unwrap();
                 Some((skybox.get_unique_id(), instance))
-
             }
             None => None
         }
@@ -169,7 +170,7 @@ impl AppState {
             let model_matrix = model_matrices.get(&object.get_unique_id()).unwrap_or_else(|| {
                 &[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
             });
-            if !instances.contains_key(&instance_id){
+            if !instances.contains_key(&instance_id) {
                 let mut object_instance = ObjectInstance::new(display);
                 object_instance.set_vertex_buffers(object.get_vertex_buffers(display));
                 object_instance.set_index_buffers(object.get_index_buffers(display));
@@ -179,7 +180,7 @@ impl AppState {
 
 
             //updating instance attributes
-            match instances.get_mut(&instance_id){
+            match instances.get_mut(&instance_id) {
                 Some(instance) => {
                     let data = instance.instance_matrices
                         .iter()
@@ -191,7 +192,6 @@ impl AppState {
                 }
                 None => panic!("Something went wrong, when adding the instance")
             }
-
         }
         instances
     }
@@ -696,10 +696,16 @@ impl EventLoop {
                     for material in app_state.materials.iter_mut() {
                         material.update();
                     }
+                    // updating objects
+                    let deltatime = app_state.delta_time;
+                    for object in app_state.objects.iter_mut() {
+                        object.update(deltatime);
+                    }
 
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
+                    let bone_uniform_buffers: std::collections::HashMap<Uuid, UniformBuffer<BoneTransforms>> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.get_bone_transform_buffer(&self.display))).collect();
                     let object_instances = app_state.setup_instances(&self.display, &model_matrices);
                     // render objects opaque
                     let opaque_rendering_parameter = glium::DrawParameters {
@@ -717,14 +723,16 @@ impl EventLoop {
                         match object_option {
                             Some(object) => {
                                 let closest_lights = object.get_closest_lights(&light);
-                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()){
+                                let has_skeleton = object.get_skeleton().is_some();
+                                let bone_transform = bone_uniform_buffers.get(&object.get_unique_id()).expect("Missing Bone Transform Uniforms for Object");
+                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()) {
                                     let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
                                     match app_state.get_material(mat_uuid) {
                                         Some(material) => {
                                             if material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in opaque draw")), indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
@@ -759,11 +767,12 @@ impl EventLoop {
                             match object_option {
                                 Some(skybox) => {
                                     let closest_lights = skybox.get_closest_lights(&light);
-                                    for ((buffer, mat_index), indices) in instance.vertex_buffers.iter().zip(instance.index_buffers.iter()){
+                                    let skybox_bone_buffer = skybox.get_bone_transform_buffer(&self.display);
+                                    for ((buffer, mat_index), indices) in instance.vertex_buffers.iter().zip(instance.index_buffers.iter()) {
                                         let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
                                         match app_state.get_material(mat_uuid) {
                                             Some(material) => {
-                                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &skybox_bone_buffer, false, skybox_texture);
                                                 render_target.draw((buffer, instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in skybox draw")), indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                                             }
                                             None => ()
@@ -786,14 +795,16 @@ impl EventLoop {
                         match object_option {
                             Some(object) => {
                                 let closest_lights = object.get_closest_lights(&light);
-                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()){
+                                let has_skeleton = object.get_skeleton().is_some();
+                                let bone_transform = bone_uniform_buffers.get(&object.get_unique_id()).expect("Missing Bone Transform Uniforms for Object");
+                                for ((buffer, mat_index), indices) in object_instance.vertex_buffers.iter().zip(object_instance.index_buffers.iter()) {
                                     let mat_uuid: &Uuid = &object.get_materials()[*mat_index];
                                     match app_state.get_material(mat_uuid) {
                                         Some(material) => {
                                             if !material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, skybox_texture);
+                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in transparent draw")), indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
