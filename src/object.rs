@@ -326,10 +326,6 @@ impl Object {
         self.shapes.push(shape);
     }
 
-    fn add_animation_internal(&mut self, animation: animation::Animation){
-        self.animations.push(animation);
-    }
-
     pub fn get_vertex_buffers(&self, display: &Display<WindowSurface>) -> Vec<(glium::vertex::VertexBufferAny, usize)> {
         let shapes = self.get_shapes();
         let mut buffer = Vec::new();
@@ -381,6 +377,13 @@ impl Object {
         self.name = name;
     }
 
+    pub fn get_animations(&self) -> &Vec<animation::Animation> {
+        &self.animations
+    }
+    pub fn get_animations_mut(&mut self) -> &mut Vec<animation::Animation> {
+        &mut self.animations
+    }
+
     pub fn load_from_obj(path: &str) -> Self {
         let input = BufReader::new(File::open(path).expect("Failed to open file"));
         let obj: Obj = load_obj(input).unwrap();
@@ -414,7 +417,6 @@ impl Object {
 
     fn load_from_gltf_internal(content: (gltf::Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>), mut object: Object) -> Self {
         let (gltf, buffers, _images) = content;
-
         for mesh in gltf.meshes() {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -451,10 +453,10 @@ impl Object {
             let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers);
             object.skeleton = Some(skeleton);
         }
-
-        // for anim in gltf.animations(){
-        //     object.animations.push(Object::load_animation_internal(&anim, &buffers));
-        // }
+        let animations = gltf.animations();
+        for (i, animation) in animations.enumerate() {
+            object.animations.push(Object::load_animation_internal(&animation, &buffers, i));
+        }
         object
     }
 
@@ -489,47 +491,52 @@ impl Object {
         animation::Skeleton { bones }
     }
 
-    /*
-    fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data]) -> animation::Animation {
-        let mut channels = Vec::new();
 
+    fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data], padding: usize) -> animation::Animation {
+        let mut channels = Vec::new();
+        let mut duration: f32 = 0.0;
+        let name = match anim.name() {
+            Some(n) => n.to_string(),
+            None => format!("animation_{}", padding)
+        };
         for channel in anim.channels() {
             let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
             let bone_id = channel.target().node().index();
-
-            let mut keyframes = HashMap::new();
-
+            let mut keyframes = Vec::new();
             if let (Some(times), Some(outputs)) = (reader.read_inputs(), reader.read_outputs()) {
                 let times: Vec<f32> = times.collect();
+                // Update max_time
+                if let Some(&channel_duration) = times.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)) {
+                    duration = duration.max(channel_duration);
+                }
                 match outputs {
                     gltf::animation::util::ReadOutputs::Translations(translations) => {
-                        for (time, translation) in times.iter().zip(translations) {
-                            keyframes.entry(*time)
-                                .or_insert_with(|| animation::AnimationKeyframe {
-                                    time: *time,
-                                    transform: Transform::new(),
-                                })
-                                .transform.set_position(translation);
+                        for (i, translation) in translations.enumerate() {
+                            let translation = Vector3::from(translation);
+                            keyframes.push(animation::AnimationKeyframe {
+                                time: times[i],
+                                transform: animation::AnimationTransform::Translation(translation.into()),
+                            });
                         }
                     },
                     gltf::animation::util::ReadOutputs::Rotations(rotations) => {
-                        for (time, rotation) in times.iter().zip(rotations) {
-                            keyframes.entry(*time)
-                                .or_insert_with(|| animation::AnimationKeyframe {
-                                    time: *time,
-                                    transform: Transform::new(),
-                                })
-                                .transform.set_rotation(rotation);
+                        for (i, rotation) in rotations.into_f32().enumerate() {
+                            let rotation = UnitQuaternion::from_quaternion(
+                                nalgebra::Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2])
+                            );
+                            keyframes.push(animation::AnimationKeyframe {
+                                time: times[i],
+                                transform: animation::AnimationTransform::Rotation([rotation[0], rotation[1], rotation[2], rotation[3]]),
+                            });
                         }
                     },
                     gltf::animation::util::ReadOutputs::Scales(scales) => {
-                        for (time, scale) in times.iter().zip(scales) {
-                            keyframes.entry(*time)
-                                .or_insert_with(|| animation::AnimationKeyframe {
-                                    time: *time,
-                                    transform: Transform::new(),
-                                })
-                                .transform.set_scale(scale);
+                        for (i, scale) in scales.enumerate() {
+                            let scale = Vector3::from(scale);
+                            keyframes.push(animation::AnimationKeyframe {
+                                time: times[i],
+                                transform: animation::AnimationTransform::Scale(scale.into()),
+                            });
                         }
                     },
                     gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => {
@@ -539,26 +546,17 @@ impl Object {
                 }
             }
 
-            let keyframes: Vec<animation::AnimationKeyframe> = keyframes.into_iter()
-                .map(|(_, keyframe)| keyframe)
-                .collect();
-
             if !keyframes.is_empty() {
                 channels.push(animation::AnimationChannel { bone_id, keyframes });
             }
         }
 
-        let duration = channels.iter()
-            .flat_map(|c| c.keyframes.iter().map(|k| k.time))
-            .fold(0.0, f32::max);
-
         animation::Animation {
-            name: anim.name().unwrap_or("").to_string(),
+            name,
             duration,
-            channels,
+            channels
         }
     }
-    */
 }
 
 #[derive(Serialize, Deserialize, Clone)]

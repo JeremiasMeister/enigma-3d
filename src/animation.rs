@@ -1,7 +1,7 @@
 use std::vec::Vec;
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4};
 use serde::{Deserialize, Serialize};
-use crate::object;
+
 #[derive(Clone)]
 pub struct Bone {
     pub name: String,
@@ -66,24 +66,32 @@ impl Skeleton {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub enum AnimationTransform {
+    Translation([f32; 3]),
+    Rotation([f32;4]),
+    Scale([f32;3])
+}
+
 #[derive(Clone)]
 pub struct AnimationKeyframe{
     pub time: f32,
-    pub transform: object::Transform,
+    pub transform: AnimationTransform,
 }
 
 impl AnimationKeyframe {
+
     pub fn to_serializer(&self) -> AnimationKeyframeSerializer {
         AnimationKeyframeSerializer {
             time: self.time.clone(),
-            transform: self.transform.to_serializer()
+            transform: self.transform.clone()
         }
     }
 
     pub fn from_serializer(serializer: AnimationKeyframeSerializer) -> Self {
         Self {
             time: serializer.time,
-            transform: object::Transform::from_serializer(serializer.transform)
+            transform: serializer.transform
         }
     }
 }
@@ -91,7 +99,7 @@ impl AnimationKeyframe {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AnimationKeyframeSerializer {
     pub time: f32,
-    pub transform: object::TransformSerializer,
+    pub transform: AnimationTransform,
 }
 
 #[derive(Clone)]

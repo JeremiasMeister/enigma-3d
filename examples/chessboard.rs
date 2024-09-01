@@ -505,7 +505,7 @@ fn main() {
 
 
     // add post processing effects
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 5)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.2, 60.0, 500.0,[0.3,0.3,0.75], 1.0)));
     //app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
 
