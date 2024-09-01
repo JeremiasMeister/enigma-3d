@@ -24,6 +24,7 @@ fn main() {
 
     // load knight model
     let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight());
+    knight.set_name("knight".to_string());
     knight.add_material(material.uuid);
 
 
