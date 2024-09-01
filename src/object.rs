@@ -30,7 +30,7 @@ pub struct ObjectSerializer {
     materials: Vec<String>,
     unique_id: String,
     cloned_id: String,
-    animations: Vec<animation::AnimationSerializer>,
+    animations: HashMap<String, animation::AnimationSerializer>,
     skeleton: Option<animation::SkeletonSerializer>
 }
 
@@ -43,7 +43,7 @@ pub struct Object {
     bounding_box: Option<geometry::BoundingBox>,
     unique_id: Uuid,
     cloned_id: Uuid,
-    animations: Vec<animation::Animation>,
+    animations: HashMap<String,animation::Animation>,
     skeleton: Option<animation::Skeleton>
 }
 
@@ -170,7 +170,7 @@ impl Object {
             unique_id: uuid,
             cloned_id: uuid,
             collision: true,
-            animations: Vec::new(),
+            animations: HashMap::new(),
             skeleton: None
         };
         object.calculate_bounding_box();
@@ -180,7 +180,10 @@ impl Object {
     pub fn to_serializer(&self) -> ObjectSerializer {
         let name = self.name.clone();
         let transform = self.transform.to_serializer();
-        let animations = self.animations.iter().map(|x| x.to_serializer()).collect();
+        let mut animations = HashMap::new();
+        for (n, a) in &self.animations {
+            animations.insert(n.to_string(), a.to_serializer());
+        }
         let shapes = self.shapes.clone();
         let materials = self.materials.iter().map(|x| x.to_string()).collect();
         let unique_id = self.unique_id.to_string();
@@ -213,10 +216,10 @@ impl Object {
         object.collision = serializer.collision;
         object.calculate_bounding_box();
 
-        let mut animations = Vec::new();
-        for s in serializer.animations {
+        let mut animations = HashMap::new();
+        for (n, s) in serializer.animations {
             let anim = animation::Animation::from_serializer(s);
-            animations.push(anim);
+            animations.insert(n, anim);
         }
         object.animations = animations;
         object.skeleton = match serializer.skeleton {
@@ -377,10 +380,10 @@ impl Object {
         self.name = name;
     }
 
-    pub fn get_animations(&self) -> &Vec<animation::Animation> {
+    pub fn get_animations(&self) -> &HashMap<String, animation::Animation> {
         &self.animations
     }
-    pub fn get_animations_mut(&mut self) -> &mut Vec<animation::Animation> {
+    pub fn get_animations_mut(&mut self) -> &mut HashMap<String, animation::Animation> {
         &mut self.animations
     }
 
@@ -455,7 +458,8 @@ impl Object {
         }
         let animations = gltf.animations();
         for (i, animation) in animations.enumerate() {
-            object.animations.push(Object::load_animation_internal(&animation, &buffers, i));
+            let loaded_anim = Object::load_animation_internal(&animation, &buffers, i);
+            object.animations.insert(loaded_anim.name.clone(), loaded_anim);
         }
         object
     }
