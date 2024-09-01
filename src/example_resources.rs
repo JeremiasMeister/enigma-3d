@@ -143,3 +143,18 @@ pub fn skybox_texture_hdr() -> &'static [u8] {
 pub fn uv_checker() -> &'static [u8] {
     include_bytes!("res/textures/engine/uv_checker.png")
 }
+
+// skinned-mesh example
+#[cfg(feature = "examples")]
+pub fn skinned_knight() -> &'static [u8] {
+    include_bytes!("res/models/skinned-mesh/knight.glb")
+}
+
+#[cfg(feature = "examples")]
+pub fn skinned_knight_albedo() -> &'static [u8] { include_bytes!("res/textures/skinned-mesh/knight_albedo.png") }
+
+#[cfg(feature = "examples")]
+pub fn skinned_knight_normal() -> &'static [u8] { include_bytes!("res/textures/skinned-mesh/knight_normal.png") }
+
+#[cfg(feature = "examples")]
+pub fn skinned_knight_roughness() -> &'static [u8] { include_bytes!("res/textures/skinned-mesh/knight_roughness.png") }
