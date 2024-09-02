@@ -1,3 +1,4 @@
+use nalgebra::Vector3;
 use uuid::Uuid;
 use crate::AppState;
 use crate::collision_world::RayCast;
@@ -42,5 +43,86 @@ fn select_object_single(app_state: &mut AppState) {
         None => {
             println!("No camera found to cast from, could not select object");
         }
+    }
+}
+
+pub fn camera_fly_forward(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.forward() * -speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_fly_backward(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.forward() * speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_fly_left(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.left() * speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_fly_right(app_state: &mut AppState) {
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = camera.transform.left() * -speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_up(app_state: &mut AppState){
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = Vector3::new(0.0,1.0,0.0) * speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_down(app_state: &mut AppState){
+    let delta_time = app_state.delta_time;
+    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
+    if let Some(camera) = app_state.get_camera_mut() {
+        let direction = Vector3::new(0.0,1.0,0.0) * -speed * delta_time;
+        camera.transform.move_dir_vector(direction);
+    }
+}
+
+pub fn camera_rotate(app_state: &mut AppState) {
+    let mouse_delta = app_state.get_mouse_state().get_delta();
+    let sensitivity = *app_state.get_state_data_value::<f32>("camera_rotate_speed").expect("failed to get camera rotate speed from state data") * app_state.delta_time;
+    if let Some(camera) = app_state.get_camera_mut() {
+        // Convert delta to radians and apply a sensitivity factor
+        let (delta_yaw, delta_pitch) = (
+            mouse_delta.0 as f32 * sensitivity,
+            mouse_delta.1 as f32 * sensitivity
+        );
+
+        // Update camera rotation
+        let mut rotation = camera.transform.rotation;
+
+        // Yaw rotation (around Y-axis)
+        rotation.y -= delta_yaw;
+
+        // Pitch rotation (around X-axis)
+        rotation.x -= delta_pitch;
+
+        // Clamp pitch to prevent camera flipping
+        rotation.x = rotation.x.clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
+
+        // Apply the new rotation
+        camera.transform.rotation = rotation;
     }
 }

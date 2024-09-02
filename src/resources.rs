@@ -37,6 +37,10 @@ pub fn post_processing_vignette_fragment() -> &'static str {
     include_str!("res/shader/post_processing/vignette/enigma_vignette.glsl")
 }
 
+pub fn post_processing_lens_dirt_fragment() -> &'static str {
+    include_str!("res/shader/post_processing/lens_dirt/enigma_lens_dirt.glsl")
+}
+
 //// other
 pub fn fragment_shader() -> &'static str {
     include_str!("res/shader/enigma_fragment_shader.glsl")
@@ -65,6 +69,10 @@ pub fn fragment_unlit_shader() -> &'static str {
 // textures
 pub fn skybox_texture() -> &'static [u8] {
     include_bytes!("res/textures/skybox.png")
+}
+
+pub fn lens_dirt_texture() -> &'static [u8] {
+    include_bytes!("res/textures/lens_dirt.png")
 }
 
 pub fn icon() -> &'static [u8] {

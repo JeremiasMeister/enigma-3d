@@ -254,37 +254,37 @@ fn main() {
 
     // add events
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Left),
         Arc::new(rotate_left),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Right),
         Arc::new(rotate_right),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Up),
         Arc::new(rotate_up),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Down),
         Arc::new(rotate_down),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Right),
         Arc::new(roll_right),
-        None,
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Left),
         Arc::new(roll_left),
-        None,
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
         Arc::new(spawn_object),
         None,
     );
