@@ -55,6 +55,48 @@ pub fn init_default(app_state: &mut AppState) {
         Arc::new(default_events::select_object_add),
         None,
     );
+
+    //event functions for moving the camera
+    // adding the camera move and rotation speed as a state data entry. this allows us to retrieve it in all camera related functions while having
+    // a unique place to control it. See, that we need to pass the value in with explicit type declaration, this is so enigma can properly use it
+    app_state.add_state_data("camera_move_speed", Box::new(10.0f32));
+    app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
+
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        Arc::new(default_events::camera_fly_forward),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        Arc::new(default_events::camera_fly_left),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        Arc::new(default_events::camera_fly_backward),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        Arc::new(default_events::camera_fly_right),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(default_events::camera_up),
+        Some(EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        Arc::new(default_events::camera_down),
+        Some(EventModifiers::new(true, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::MouseDown(winit::event::MouseButton::Right),
+        Arc::new(default_events::camera_rotate),
+        Some(EventModifiers::new(true, false, false)),
+    );
 }
 
 #[derive(Serialize, Deserialize)]

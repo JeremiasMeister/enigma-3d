@@ -1,93 +1,10 @@
 use std::sync::Arc;
 use egui::ScrollArea;
-use nalgebra::Vector3;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, event, EventLoop, resources, example_resources, shader, material, object, texture};
-use enigma_3d::event::EventModifiers;
+use enigma_3d::{AppState, EventLoop, resources, example_resources, shader, material, object, texture};
 use enigma_3d::material::Material;
-
-fn camera_fly_forward(app_state: &mut AppState) {
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.forward() * -speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_fly_backward(app_state: &mut AppState) {
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.forward() * speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_fly_left(app_state: &mut AppState) {
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.left() * speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_fly_right(app_state: &mut AppState) {
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = camera.transform.left() * -speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_up(app_state: &mut AppState){
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = Vector3::new(0.0,1.0,0.0) * speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_down(app_state: &mut AppState){
-    let delta_time = app_state.delta_time;
-    let speed = *app_state.get_state_data_value::<f32>("camera_move_speed").expect("failed to get camera speed from state data");
-    if let Some(camera) = app_state.get_camera_mut() {
-        let direction = Vector3::new(0.0,1.0,0.0) * -speed * delta_time;
-        camera.transform.move_dir_vector(direction);
-    }
-}
-
-fn camera_rotate(app_state: &mut AppState) {
-    let mouse_delta = app_state.get_mouse_state().get_delta();
-    let sensitivity = *app_state.get_state_data_value::<f32>("camera_rotate_speed").expect("failed to get camera rotate speed from state data") * app_state.delta_time;
-    if let Some(camera) = app_state.get_camera_mut() {
-        // Convert delta to radians and apply a sensitivity factor
-        let (delta_yaw, delta_pitch) = (
-            mouse_delta.0 as f32 * sensitivity,
-            mouse_delta.1 as f32 * sensitivity
-        );
-
-        // Update camera rotation
-        let mut rotation = camera.transform.rotation;
-
-        // Yaw rotation (around Y-axis)
-        rotation.y -= delta_yaw;
-
-        // Pitch rotation (around X-axis)
-        rotation.x -= delta_pitch;
-
-        // Clamp pitch to prevent camera flipping
-        rotation.x = rotation.x.clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
-
-        // Apply the new rotation
-        camera.transform.rotation = rotation;
-    }
-}
-
+use enigma_3d::postprocessing::lens_dirt::LensDirt;
 
 fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
     egui::Window::new("Enigma - Chessboard Example")
@@ -461,52 +378,27 @@ fn main() {
     let camera = Camera::new(Some([-4.3, 3.0, 1.8]), Some([-9.3, -14.01, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
-    // adding the camera move and rotation speed as a state data entry. this allows us to retrieve it in all camera related functions while having
-    // a unique place to control it. See, that we need to pass the value in with explicit type declaration, this is so enigma can properly use it
-    app_state.add_state_data("camera_move_speed", Box::new(10.0f32));
-    app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
-
-    //event functions for moving the camera
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
-        Arc::new(camera_fly_forward),
-        Some(EventModifiers::new(false, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
-        Arc::new(camera_fly_left),
-        Some(EventModifiers::new(false, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
-        Arc::new(camera_fly_backward),
-        Some(EventModifiers::new(false, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
-        Arc::new(camera_fly_right),
-        Some(EventModifiers::new(false, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
-        Arc::new(camera_up),
-        Some(EventModifiers::new(false, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
-        Arc::new(camera_down),
-        Some(EventModifiers::new(true, false, false)),
-    );
-    app_state.inject_event(
-        event::EventCharacteristic::MouseDown(winit::event::MouseButton::Right),
-        Arc::new(camera_rotate),
-        Some(EventModifiers::new(true, false, false)),
-    );
-
-
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.2, 60.0, 500.0,[0.3,0.3,0.75], 1.0)));
+    let vignette = Box::new(enigma_3d::postprocessing::vignette::Vignette::new(
+        &event_loop.display.clone(),
+        0.2,  // intensity
+        0.5,  // falloff
+        [0.0, 0.0, 0.0],  // color (black)
+        0.8   // opacity
+    ));
+    app_state.add_post_process(vignette);
+
+    // In your setup code:
+    let lens_dirt = LensDirt::new(
+        &event_loop.display,
+        resources::lens_dirt_texture(),
+        2.0,  // intensity
+        [800.0, 800.0],  // tile_scale: texture will repeat every 400x300 pixels
+        2.0   // light_sensitivity: higher values make the effect more pronounced in bright areas
+    );
+    app_state.add_post_process(Box::new(lens_dirt));
     //app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
 
     //add one ui function to the app state. multiple ui functions can be added modular
