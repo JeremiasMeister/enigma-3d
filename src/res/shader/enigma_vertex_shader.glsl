@@ -48,7 +48,7 @@ void main() {
     vec3 total_normal = normal;
 
     if (has_skeleton) {
-        //total_position = vec3(0.0);
+        total_position = vec3(0.0);
         total_normal = vec3(0.0);
 
         for(int i = 0; i < 4; i++) {

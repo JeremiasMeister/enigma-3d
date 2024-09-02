@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use glium::{implement_uniform_block, implement_vertex};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
@@ -58,6 +58,21 @@ impl Debug for Vertex {
             .field("texcoord", &self.texcoord)
             .field("color", &self.color)
             .field("normal", &self.normal)
+            .field("bone_indices", &self.bone_indices)
+            .field("bone_weights", &self.bone_weights)
+            .finish()
+    }
+}
+
+impl Display for Vertex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Vertex")
+            .field("position", &self.position)
+            .field("texcoord", &self.texcoord)
+            .field("color", &self.color)
+            .field("normal", &self.normal)
+            .field("bone_indices", &self.bone_indices)
+            .field("bone_weights", &self.bone_weights)
             .finish()
     }
 }

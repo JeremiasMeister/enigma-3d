@@ -9,16 +9,29 @@ pub fn print_rig_data(app_state: &mut AppState) {
     match app_state.get_object("knight") {
         Some(knight) => {
             let anims = knight.get_animations();
+            let shapes = knight.get_shapes();
+            println!("ANIMATION:\n__________________________________________________________________________{}","");
             for anim in anims{
                 println!("Animation {} -> {}", anim.1.name, anim.1.channels.len());
+                for channel in &anim.1.channels{
+                    println!("Channel Bone ID: {}", channel.bone_id)
+                }
             }
+            println!("SKELETON:\n__________________________________________________________________________{}","");
             match knight.get_skeleton() {
                 Some(skeleton) => {
                     for bone in &skeleton.bones {
-                        println!("Bone: {} -> {}", bone.name, bone.inverse_bind_pose);
+                        println!("Bone: {} -> Matrix: {} -> ID: {} -> Parent: {}", bone.name, bone.inverse_bind_pose, bone.id, bone.parent_id.unwrap_or_else(||0).to_string());
                     }
                 }
                 None => ()
+            }
+            println!("SHAPES:\n__________________________________________________________________________{}","");
+            for shape in shapes{
+                println!("Shape Indices: {}, Shape Vertices: {}, Shape Material Index: {}", shape.indices.len(), shape.vertices.len(), shape.material_index);
+                //for vertex in &shape.vertices{
+                //    println!("Vertex: {}", vertex)
+                //}
             }
         }
         None => ()
