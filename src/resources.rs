@@ -33,6 +33,10 @@ pub fn post_processing_grayscale_fragment() -> &'static str {
     include_str!("res/shader/post_processing/grayscale/enigma_grayscale.glsl")
 }
 
+pub fn post_processing_vignette_fragment() -> &'static str {
+    include_str!("res/shader/post_processing/vignette/enigma_vignette.glsl")
+}
+
 //// other
 pub fn fragment_shader() -> &'static str {
     include_str!("res/shader/enigma_fragment_shader.glsl")
