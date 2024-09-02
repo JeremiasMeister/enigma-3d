@@ -1,10 +1,8 @@
 use std::sync::Arc;
 use egui::ScrollArea;
-use nalgebra::Vector3;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, event, EventLoop, resources, example_resources, shader, material, object, texture};
-use enigma_3d::event::EventModifiers;
+use enigma_3d::{AppState, EventLoop, resources, example_resources, shader, material, object, texture};
 use enigma_3d::material::Material;
 use enigma_3d::postprocessing::lens_dirt::LensDirt;
 
