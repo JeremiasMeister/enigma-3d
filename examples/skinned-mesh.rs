@@ -25,6 +25,16 @@ pub fn print_rig_data(app_state: &mut AppState) {
     }
 }
 
+pub fn print_selected_objects(app_state: &mut AppState){
+    for id in &app_state.object_selection{
+        let obj = &app_state.get_object_by_uuid(&id);
+        match obj {
+            Some(o) => println!("Selected: {}", o.name),
+            None => ()
+        }
+    }
+}
+
 fn main() {
     let event_loop = enigma_3d::EventLoop::new("Enigma 3D Skinned Mesh Example", 1080, 720);
     let mut app_state = enigma_3d::AppState::new();
@@ -45,8 +55,10 @@ fn main() {
     material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
     // load knight model
-    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight());
+    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
     knight.set_name("knight".to_string());
+    let scaler = 1.0;
+    knight.transform.set_scale([scaler,scaler,scaler]);
     knight.add_material(material.uuid);
 
 
@@ -60,6 +72,7 @@ fn main() {
     app_state.add_light(ambient_light, LightEmissionType::Ambient);
 
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
+    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_selected_objects), None);
 
     app_state.add_material(material);
     app_state.add_object(knight);

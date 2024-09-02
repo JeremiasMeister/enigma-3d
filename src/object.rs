@@ -356,6 +356,14 @@ impl Object {
             }
         }
 
+        // debugging
+        // let mut display_data = Vec::new();
+        // for t in bone_transform_data.bone_transforms {
+        //     let m = Matrix4::from(t);
+        //     display_data.push(m);
+        // }
+        // println!("Transform Matrices: {:?}", display_data);
+
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
     }
 
@@ -529,19 +537,19 @@ impl Object {
         object
     }
 
-    pub fn load_from_gltf_resource(data: &[u8]) -> Self {
+    pub fn load_from_gltf_resource(data: &[u8], rig_scale_multiplier: Option<f32>) -> Self {
         let (gltf, buffers, images) = gltf::import_slice(data).expect("Failed to import gltf file"); // gltf::import(path).expect("Failed to import gltf file");
         let object = Object::new(Some(String::from("INTERNAL ENIGMA RESOURCE")));
-        Object::load_from_gltf_internal((gltf, buffers, images), object)
+        Object::load_from_gltf_internal((gltf, buffers, images), object, rig_scale_multiplier.unwrap_or_else(|| 1.0f32))
     }
 
-    pub fn load_from_gltf(path: &str) -> Self {
+    pub fn load_from_gltf(path: &str, rig_scale_multiplier: Option<f32>) -> Self {
         let (gltf, buffers, images) = gltf::import(path).expect("Failed to import gltf file");
         let object = Object::new(Some(String::from(path)));
-        Object::load_from_gltf_internal((gltf, buffers, images), object)
+        Object::load_from_gltf_internal((gltf, buffers, images), object, rig_scale_multiplier.unwrap_or_else(|| 1.0f32))
     }
 
-    fn load_from_gltf_internal(content: (gltf::Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>), mut object: Object) -> Self {
+    fn load_from_gltf_internal(content: (gltf::Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>), mut object: Object, rig_scale_multiplier: f32) -> Self {
         let (gltf, buffers, _images) = content;
         for mesh in gltf.meshes() {
             let mut vertices = Vec::new();
@@ -570,7 +578,6 @@ impl Object {
                 for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
                     let bone_indices = joint_data.as_mut().and_then(|j| j.next()).unwrap_or([0; 4]);
                     let bone_weight = weight_data.as_mut().and_then(|w| w.next()).unwrap_or([0.0; 4]);
-
                     let vertex = Vertex {
                         position,
                         texcoord: tex_coord,
@@ -589,27 +596,30 @@ impl Object {
         }
 
         if let Some(skin) = gltf.skins().next() {
-            let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers);
+            let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers, rig_scale_multiplier);
             object.skeleton = Some(skeleton);
         }
         let animations = gltf.animations();
         for (i, animation) in animations.enumerate() {
-            let loaded_anim = Object::load_animation_internal(&animation, &buffers, i);
+            let loaded_anim = Object::load_animation_internal(&animation, &buffers, i, rig_scale_multiplier);
             object.animations.insert(loaded_anim.name.clone(), loaded_anim);
         }
         object
     }
 
-    fn load_skeleton_internal(document: &gltf::Document, skin: &gltf::Skin, buffers: &[gltf::buffer::Data]) -> animation::Skeleton {
+    fn load_skeleton_internal(document: &gltf::Document, skin: &gltf::Skin, buffers: &[gltf::buffer::Data], multiplier: f32) -> animation::Skeleton {
         let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
 
         // Get joints from the skin
         let joints: Vec<gltf::Node> = skin.joints().collect();
 
         // Read inverse bind matrices
-        let inverse_bind_matrices: Vec<Matrix4<f32>> = reader.read_inverse_bind_matrices()
+        let mut inverse_bind_matrices: Vec<Matrix4<f32>> = reader.read_inverse_bind_matrices()
             .map(|iter| iter.map(Matrix4::from).collect())
             .unwrap_or_else(|| vec![Matrix4::identity(); joints.len()]);
+
+        // apply scale multiplier
+        inverse_bind_matrices = inverse_bind_matrices.iter_mut().map(|x| *x * multiplier).collect();
 
         // Create a map of child to parent relationships
         let mut parent_map = HashMap::new();
@@ -631,7 +641,7 @@ impl Object {
         animation::Skeleton { bones }
     }
 
-    fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data], padding: usize) -> animation::Animation {
+    fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data], padding: usize, multiplier: f32) -> animation::Animation {
         let mut channels = Vec::new();
         let mut duration: f32 = 0.0;
         let name = match anim.name() {
@@ -654,7 +664,7 @@ impl Object {
                             let translation = Vector3::from(translation);
                             keyframes.push(animation::AnimationKeyframe {
                                 time: times[i],
-                                transform: animation::AnimationTransform::Translation(translation.into()),
+                                transform: animation::AnimationTransform::Translation((translation * multiplier).into()),
                             });
                         }
                     }
@@ -674,7 +684,7 @@ impl Object {
                             let scale = Vector3::from(scale);
                             keyframes.push(animation::AnimationKeyframe {
                                 time: times[i],
-                                transform: animation::AnimationTransform::Scale(scale.into()),
+                                transform: animation::AnimationTransform::Scale((scale * multiplier).into()),
                             });
                         }
                     }

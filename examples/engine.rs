@@ -219,7 +219,7 @@ fn main() {
 
 
     // create an object, and load the Suzanne model from resources
-    let mut object = Object::load_from_gltf_resource(example_resources::suzanne());
+    let mut object = Object::load_from_gltf_resource(example_resources::suzanne(), None);
 
     // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material.uuid);

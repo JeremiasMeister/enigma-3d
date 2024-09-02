@@ -41,41 +41,32 @@ uniform float mat_metallic_strength;
 layout(std140) uniform BoneTransforms {
     mat4 bone_transforms[128];
 };
-uniform bool has_skeleton = false;
+uniform bool has_skeleton;
 
 void main() {
-    vec3 animated_position = position;
-    vec3 animated_normal = normal;
+    vec3 total_position = position;
+    vec3 total_normal = normal;
 
     if (has_skeleton) {
-        animated_position = vec3(0.0);
-        animated_normal = vec3(0.0);
+        //total_position = vec3(0.0);
+        total_normal = vec3(0.0);
 
-        // Correctly accessing bone transforms from the uniform buffer
-        mat4 transform0 = bone_transforms[bone_indices.x];
-        mat4 transform1 = bone_transforms[bone_indices.y];
-        mat4 transform2 = bone_transforms[bone_indices.z];
-        mat4 transform3 = bone_transforms[bone_indices.w];
+        for(int i = 0; i < 4; i++) {
+            vec4 localPosition = bone_transforms[bone_indices[i]] * vec4(position, 1.0);
+            total_position += (localPosition * bone_weights[i]).xyz;
 
-        animated_position += (transform0 * vec4(position, 1.0)).xyz * bone_weights.x;
-        animated_position += (transform1 * vec4(position, 1.0)).xyz * bone_weights.y;
-        animated_position += (transform2 * vec4(position, 1.0)).xyz * bone_weights.z;
-        animated_position += (transform3 * vec4(position, 1.0)).xyz * bone_weights.w;
-
-        animated_normal += (mat3(transform0) * normal) * bone_weights.x;
-        animated_normal += (mat3(transform1) * normal) * bone_weights.y;
-        animated_normal += (mat3(transform2) * normal) * bone_weights.z;
-        animated_normal += (mat3(transform3) * normal) * bone_weights.w;
+            vec4 world_normal = bone_transforms[bone_indices[i]] * vec4(normal, 1.0);
+            total_normal += normalize((world_normal * bone_weights[i]).xyz);
+        }
     }
-
     mat4 modelview = view_matrix * model_matrix;
-    gl_Position = projection_matrix * modelview * vec4(animated_position, 1.0);
+    gl_Position = projection_matrix * modelview * vec4(total_position, 1.0);
     v_model_matrix = model_matrix;
-    v_position = animated_position;
-    v_world_position = (model_matrix * vec4(animated_position, 1.0)).xyz;
-    v_vertex_normal = transpose(inverse(mat3(modelview))) * animated_normal;
+    v_position = total_position;
+    v_world_position = (model_matrix * vec4(total_position, 1.0)).xyz;
+    v_vertex_normal = transpose(inverse(mat3(modelview))) * total_normal;
     v_view_direction = normalize(v_world_position - camera_position);
-    v_modelView_pos = -(modelview * vec4(animated_position, 1.0)).xyz;
+    v_modelView_pos = -(modelview * vec4(total_position, 1.0)).xyz;
     v_object_position = vec3(model_matrix[3]);
     v_vertex_color = color;
     v_vertex_texcoord = texcoord;
