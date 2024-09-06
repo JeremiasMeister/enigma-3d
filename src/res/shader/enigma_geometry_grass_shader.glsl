@@ -75,7 +75,7 @@ void emitGrassBlade(vec3 base_pos, vec3 normal, vec3 direction) {
         vec3 right_pos = base_pos + blade_up * height + blade_right * width + offset;
 
         gl_Position = projection_matrix * modelview * vec4(left_pos, 1.0);
-        vertex_color = mix(vec3(0.0, 0.5, 0.0), vec3(0.0, 1.0, 0.0), t);
+        vertex_color = mix(vec3(0.0, 0.3, 0.0), vec3(0.8, 1.0, 0.3), t);
         vertex_texcoord = vec2(0, t);
         vertex_normal = blade_forward;
         world_position = left_pos;

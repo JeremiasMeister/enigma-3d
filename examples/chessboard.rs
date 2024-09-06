@@ -4,7 +4,6 @@ use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, EventLoop, resources, example_resources, shader, material, object, texture};
 use enigma_3d::material::Material;
-use enigma_3d::postprocessing::lens_dirt::LensDirt;
 
 fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
     egui::Window::new("Enigma - Chessboard Example")
@@ -76,7 +75,7 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
         });
 }
 
-fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
+fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop) {
     // setup materials
     let mut board_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
     board_material.set_name("mat_board");
@@ -112,11 +111,11 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_bishop_white_1.add_material(figures_white_material.uuid);
     obj_bishop_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_bishop_white_1.transform.set_position([-1.45, -1.15, -2.4]);
-    obj_bishop_white_1.transform.set_rotation([0.0,-45.0, 0.0]);
+    obj_bishop_white_1.transform.set_rotation([0.0, -45.0, 0.0]);
     let mut obj_bishop_white_2 = obj_bishop_white_1.clone();
     obj_bishop_white_2.set_name("obj_bishop_white_2".to_string());
     obj_bishop_white_2.transform.set_position([1.45, -1.15, -2.4]);
-    obj_bishop_white_2.transform.set_rotation([0.0,45.0, 0.0]);
+    obj_bishop_white_2.transform.set_rotation([0.0, 45.0, 0.0]);
     let mut obj_king_white = Object::load_from_gltf_resource(example_resources::chess_king_gltf(), None);
     obj_king_white.set_name("obj_king_white".to_string());
     obj_king_white.add_material(figures_white_material.uuid);
@@ -132,7 +131,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_knight_white_1.add_material(figures_white_material.uuid);
     obj_knight_white_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_knight_white_1.transform.set_position([2.5, -1.15, -2.4]);
-    obj_knight_white_1.transform.set_rotation([0.0,-90.0, 0.0]);
+    obj_knight_white_1.transform.set_rotation([0.0, -90.0, 0.0]);
     let mut obj_knight_white_2 = obj_knight_white_1.clone();
     obj_knight_white_2.set_name("obj_knight_white_2".to_string());
     obj_knight_white_2.transform.set_position([-2.5, -1.15, -2.4]);
@@ -176,11 +175,11 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     obj_bishop_black_1.add_material(figures_black_material.uuid);
     obj_bishop_black_1.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_bishop_black_1.transform.set_position([-1.45, -1.15, -9.4]);
-    obj_bishop_black_1.transform.set_rotation([0.0,-45.0, 0.0]);
+    obj_bishop_black_1.transform.set_rotation([0.0, -45.0, 0.0]);
     let mut obj_bishop_black_2 = obj_bishop_black_1.clone();
     obj_bishop_black_2.set_name("obj_bishop_black_2".to_string());
     obj_bishop_black_2.transform.set_position([1.45, -1.15, -9.4]);
-    obj_bishop_black_2.transform.set_rotation([0.0,45.0, 0.0]);
+    obj_bishop_black_2.transform.set_rotation([0.0, 45.0, 0.0]);
     let mut obj_king_black = Object::load_from_gltf_resource(example_resources::chess_king_gltf(), None);
     obj_king_black.set_name("obj_king_black".to_string());
     obj_king_black.add_material(figures_black_material.uuid);
@@ -276,11 +275,11 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop){
     app_state.add_material(figures_black_material);
 }
 
-fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
+fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     // ground_material with geometry grass shader
-    //let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
+    let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
 
-    // ground_material without geometry shader - way faster, since geometry shader are a very slow feature
+    //ground_material without geometry shader - way faster, since geometry shader are a very slow feature
     let mut ground_material = Material::lit_pbr(event_loop.get_display_clone(), false);
 
     let mut tree_material_opaque = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
@@ -290,10 +289,10 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
     tree_material_transparent.set_name("mat_tree_transparent");
     ground_material.set_name("mat_terrain");
 
-    let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
-    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
-    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
-    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(),example_resources::terrain_albedo());
+    let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
+    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
+    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
+    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
     tex_ground_albedo.set_tileable(true);
     tex_ground_normal.set_tileable(true);
     tex_ground_metallic.set_tileable(true);
@@ -339,8 +338,6 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop){
 
     app_state.add_object(obj_terrain);
     app_state.add_object(obj_tree);
-
-
 }
 
 fn main() {
@@ -379,27 +376,10 @@ fn main() {
     app_state.set_camera(camera);
 
     // add post processing effects
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.95, 15)));
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display,0.2, 60.0, 500.0,[0.3,0.3,0.75], 1.0)));
-    let vignette = Box::new(enigma_3d::postprocessing::vignette::Vignette::new(
-        &event_loop.display.clone(),
-        0.2,  // intensity
-        0.5,  // falloff
-        [0.0, 0.0, 0.0],  // color (black)
-        0.8   // opacity
-    ));
-    app_state.add_post_process(vignette);
-
-    // In your setup code:
-    let lens_dirt = LensDirt::new(
-        &event_loop.display,
-        resources::lens_dirt_texture(),
-        2.0,  // intensity
-        [800.0, 800.0],  // tile_scale: texture will repeat every 400x300 pixels
-        2.0   // light_sensitivity: higher values make the effect more pronounced in bright areas
-    );
-    app_state.add_post_process(Box::new(lens_dirt));
-    //app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display,0.0005, [0.5,0.5,0.85])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.999, 15)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display, 0.2, 60.0, 500.0, [0.3, 0.3, 0.75], 1.0)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.2, 0.5, [0.0, 0.0, 0.0], 0.8)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::lens_dirt::LensDirt::new(&event_loop.display, resources::lens_dirt_texture(), 2.0, [800.0, 800.0], 2.0)));
 
     //add one ui function to the app state. multiple ui functions can be added modular
     app_state.inject_gui(Arc::new(enigma_ui_function));
