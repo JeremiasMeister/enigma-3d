@@ -124,6 +124,26 @@ impl BoundingBoxMesh {
 }
 
 impl BoundingBox {
+    pub fn new(min_point: [f32; 3], max_point: [f32; 3]) -> Self {
+        let min = Vector3::from(min_point);
+        let max = Vector3::from(max_point);
+
+        // Calculate the center point
+        let center = (min + max) / 2.0;
+
+        // Calculate dimensions
+        let width = max.x - min.x;
+        let height = max.y - min.y;
+        let depth = max.z - min.z;
+
+        BoundingBox {
+            center,
+            width,
+            height,
+            depth,
+        }
+    }
+
     // Returns the minimum point of the bounding box
     pub fn min_point(&self) -> Vector3<f32> {
         Vector3::new(
