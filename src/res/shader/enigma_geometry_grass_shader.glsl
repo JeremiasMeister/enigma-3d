@@ -39,6 +39,21 @@ const float SPREAD = 5.0;
 uniform vec3 WIND_DIRECTION = vec3(1.0, 0.0, 1.0);
 uniform float WIND_STRENGTH = 0.1;
 uniform float WIND_SPEED = 50.0;
+uniform float GRASS_DISTANCE = 50.0;
+
+bool is_visible_and_in_grass_range(vec3 world_position, vec3 view_direction) {
+    // Calculate the vector from the camera to the world position
+    vec3 to_position = world_position - camera_position;
+    // Calculate the distance to the world position
+    float d = length(to_position);
+    // Normalize the vector to the position
+    vec3 to_position_normalized = to_position / d;
+    // Calculate the dot product between the view direction and the direction to the position
+    float dot_product = dot(view_direction, to_position_normalized);
+    // Check if the dot product is positive (camera is facing the position)
+    // and if the distance is greater than GRASS_DISTANCE
+    return dot_product > 0 && d < GRASS_DISTANCE;
+}
 
 float random(vec2 st, float scale) {
     return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123) * scale;
@@ -105,16 +120,17 @@ void main() {
         EmitVertex();
     }
     EndPrimitive();
-
-    vec3 center = (v_position[0] + v_position[1] + v_position[2]) / 3.0;
-    vec3 normal = normalize(v_vertex_normal[0] + v_vertex_normal[1] + v_vertex_normal[2]);
-    for (int i = 0; i < BLADES_PER_TRIANGLE; i++) {
-        vec2 rand = vec2(random(center.xy + float(i), SPREAD), random(center.yz + float(i), SPREAD));
-        vec3 offset = vec3(rand.x, 0, rand.y) * MAX_OFFSET;
-        vec3 base_pos = center + offset;
-        vec3 world_pos = (v_model_matrix[0] * vec4(base_pos, 1.0)).xyz;
-        vec3 blade_direction = normalize(world_pos - camera_position);
-        blade_direction = vec3(blade_direction.x, base_pos.y, blade_direction.z);
-        emitGrassBlade(base_pos, normal, blade_direction);
+    if(is_visible_and_in_grass_range(v_world_position[0], v_view_direction[0])){
+        vec3 center = (v_position[0] + v_position[1] + v_position[2]) / 3.0;
+        vec3 normal = normalize(v_vertex_normal[0] + v_vertex_normal[1] + v_vertex_normal[2]);
+        for (int i = 0; i < BLADES_PER_TRIANGLE; i++) {
+            vec2 rand = vec2(random(center.xy + float(i), SPREAD), random(center.yz + float(i), SPREAD));
+            vec3 offset = vec3(rand.x, 0, rand.y) * MAX_OFFSET;
+            vec3 base_pos = center + offset;
+            vec3 world_pos = (v_model_matrix[0] * vec4(base_pos, 1.0)).xyz;
+            vec3 blade_direction = normalize(world_pos - camera_position);
+            blade_direction = vec3(blade_direction.x, base_pos.y, blade_direction.z);
+            emitGrassBlade(base_pos, normal, blade_direction);
+        }
     }
 }
