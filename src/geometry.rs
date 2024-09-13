@@ -3,6 +3,7 @@ use glium::{implement_uniform_block, implement_vertex};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 
+#[repr(C, align(16))]
 #[derive(Copy, Clone)]
 pub struct BoneTransforms {
     pub bone_transforms: [[[f32; 4]; 4]; 128]

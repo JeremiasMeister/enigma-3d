@@ -68,7 +68,7 @@ fn main() {
     material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
     // load knight model
-    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
+    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), Some(0.01));
     knight.set_name("knight".to_string());
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);

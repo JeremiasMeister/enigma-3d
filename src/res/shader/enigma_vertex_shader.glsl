@@ -56,9 +56,10 @@ void main() {
             total_position += (localPosition * bone_weights[i]).xyz;
 
             vec4 world_normal = bone_transforms[bone_indices[i]] * vec4(normal, 1.0);
-            total_normal += normalize((world_normal * bone_weights[i]).xyz);
+            total_normal += (bone_transforms[bone_indices[i]] * vec4(normal, 0.0) * bone_weights[i]).xyz;
         }
     }
+    total_normal = normalize(total_normal);
     mat4 modelview = view_matrix * model_matrix;
     gl_Position = projection_matrix * modelview * vec4(total_position, 1.0);
     v_model_matrix = model_matrix;

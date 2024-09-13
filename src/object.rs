@@ -318,6 +318,10 @@ impl Object {
         }
     }
 
+    pub fn has_skeletal_animation(&self) -> bool {
+        self.skeleton.is_some() && !self.animations.is_empty()
+    }
+
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
         let mut bone_transform_data = BoneTransforms {
             bone_transforms: [
@@ -333,8 +337,8 @@ impl Object {
             if let Some(anim_name) = &self.current_animation {
                 match self.animations.get(anim_name) {
                     Some(animation) => {
-                        for (i, bone) in skeleton.bones.iter().take(128).enumerate() {
-                            // taking only 100 as a hard capped bone limit
+                        for (i, bone) in skeleton.bones.iter().take(animation::MAX_BONES).enumerate() {
+                            // taking only 128 as a hard capped bone limit
                             let local_transform = self.interpolate_keyframes(animation, i, self.animation_time);
                             let parent_transform = Matrix4::from(bone.parent_id.map_or([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]], |parent_id| bone_transform_data.bone_transforms[parent_id]));
                             let global_transform = parent_transform * local_transform;
@@ -345,7 +349,7 @@ impl Object {
                 }
             } else {
                 // No animation is playing, return the skeleton's bones in their bind pose
-                for (i, bone) in skeleton.bones.iter().take(128).enumerate() {
+                for (i, bone) in skeleton.bones.iter().take(animation::MAX_BONES).enumerate() {
                     let parent_transform = Matrix4::from(bone.parent_id.map_or(
                         [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
                         |parent_id| bone_transform_data.bone_transforms[parent_id]

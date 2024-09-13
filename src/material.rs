@@ -375,7 +375,7 @@ impl Material {
         mat
     }
 
-    fn light_block_from_vec(lights: Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
+    fn light_block_from_vec(lights: &Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
         let mut light_amount = lights.len() as i32;
         if light_amount > 4 {
             light_amount = 4;
@@ -422,7 +422,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 
         glium::uniform! {
@@ -508,11 +508,10 @@ impl Material {
             ambient_light_color: light_block.ambient_color,
             ambient_light_intensity: light_block.ambient_intensity,
             skybox: &skybox.texture,
-            bone_transforms: bone_transforms,
+            BoneTransforms: bone_transforms,
             has_skeleton: has_skeleton
         }
     }
-
     fn tex_raw_from_array(color: [f32; 4]) -> RawImage2d<'static, u8> {
         let byte_color: [u8; 4] = [
             (color[0] * 255.0) as u8,

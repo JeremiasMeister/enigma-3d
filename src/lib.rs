@@ -774,7 +774,7 @@ impl EventLoop {
                                             if material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in opaque draw")), indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
@@ -814,7 +814,7 @@ impl EventLoop {
                                         let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
                                         match app_state.get_material(mat_uuid) {
                                             Some(material) => {
-                                                let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &skybox_bone_buffer, false, skybox_texture);
+                                                let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &skybox_bone_buffer, false, skybox_texture);
                                                 render_target.draw((buffer, instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in skybox draw")), indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                                             }
                                             None => ()
@@ -846,7 +846,7 @@ impl EventLoop {
                                             if !material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(closest_lights.clone(), ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in transparent draw")), indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()

@@ -2,6 +2,8 @@ use std::vec::Vec;
 use nalgebra::{Matrix4};
 use serde::{Deserialize, Serialize};
 
+pub(crate) const MAX_BONES: usize = 128;
+
 #[derive(Clone)]
 pub struct Bone {
     pub name: String,
