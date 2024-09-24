@@ -36,6 +36,7 @@ pub mod ui;
 pub mod resources;
 pub mod data;
 pub mod example_resources;
+pub mod logging;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
