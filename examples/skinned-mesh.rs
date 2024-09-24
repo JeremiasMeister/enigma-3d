@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, example_resources, light, material, object, resources};
+use enigma_3d::{AppState, example_resources, light, material, object, resources, smart_format};
 use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
+use enigma_3d::logging::EnigmaMessage;
 use enigma_3d::material::TextureType;
 
 pub fn debug_single_bone(app_state: &mut AppState){
@@ -12,7 +13,7 @@ pub fn debug_single_bone(app_state: &mut AppState){
             match skel {
                 Some(skeleton) => {
                     let bone = &skeleton.bones[5];
-                    println!("Bone Pos: {} ", bone.inverse_bind_pose);
+                    EnigmaMessage::new(Some(smart_format!("Bone Pos: {} ", bone.inverse_bind_pose).as_str()), true).log()
                 }
                 None => ()
             }
@@ -25,22 +26,24 @@ pub fn print_rig_data(app_state: &mut AppState) {
     match app_state.get_object("knight") {
         Some(knight) => {
             let anims = knight.get_animations();
-            println!("ANIMATION:\n__________________________________________________________________________{}","");
+            let mut logger = EnigmaMessage::new(None, true);
+            logger.extent("ANIMATION:\n__________________________________________________________________________");
             for anim in anims{
-                println!("Animation {} -> {}", anim.1.name, anim.1.channels.len());
+                logger.extent(smart_format!("Animation {} -> {}", anim.1.name, anim.1.channels.len()).as_str());
                 for channel in &anim.1.channels{
-                    println!("Channel Bone ID: {}", channel.bone_id)
+                    logger.extent(smart_format!("Channel Bone ID: {}", channel.bone_id).as_str());
                 }
             }
-            println!("SKELETON:\n__________________________________________________________________________{}","");
+            logger.extent("SKELETON:\n__________________________________________________________________________");
             match knight.get_skeleton() {
                 Some(skeleton) => {
                     for bone in &skeleton.bones {
-                        println!("Bone: {} -> Matrix: {} -> ID: {} -> Parent: {}", bone.name, bone.inverse_bind_pose, bone.id, bone.parent_id.unwrap_or_else(||0).to_string());
+                        logger.extent(smart_format!("Bone: {} -> Matrix: {} -> ID: {} -> Parent: {}", bone.name, bone.inverse_bind_pose, bone.id, bone.parent_id.unwrap_or_else(||0).to_string()).as_str());
                     }
                 }
                 None => ()
             }
+            logger.log();
         }
         None => ()
     }
@@ -50,7 +53,7 @@ pub fn print_selected_objects(app_state: &mut AppState){
     for id in &app_state.object_selection{
         let obj = &app_state.get_object_by_uuid(&id);
         match obj {
-            Some(o) => println!("Selected: {}", o.name),
+            Some(o) => EnigmaMessage::new(Some(smart_format!("Selected {}", o.name).as_str()), true).log(),
             None => ()
         }
     }
@@ -99,10 +102,9 @@ fn main() {
     app_state.add_light(fill_light, LightEmissionType::Source);
     app_state.add_light(ambient_light, LightEmissionType::Ambient);
 
-    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_selected_objects), None);
-
-    //app_state.inject_update_function(Arc::new(debug_single_bone));
+    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(debug_single_bone), None);
+    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
 
     app_state.add_material(material);
     app_state.add_object(knight);
