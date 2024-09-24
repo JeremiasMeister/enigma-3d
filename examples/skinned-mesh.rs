@@ -5,11 +5,26 @@ use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
 use enigma_3d::material::TextureType;
 
+pub fn debug_single_bone(app_state: &mut AppState){
+    match app_state.get_object("knight") {
+        Some(knight) => {
+            let skel = knight.get_skeleton();
+            match skel {
+                Some(skeleton) => {
+                    let bone = &skeleton.bones[5];
+                    println!("Bone Pos: {} ", bone.inverse_bind_pose);
+                }
+                None => ()
+            }
+        }
+        None => ()
+    }
+}
+
 pub fn print_rig_data(app_state: &mut AppState) {
     match app_state.get_object("knight") {
         Some(knight) => {
             let anims = knight.get_animations();
-            let shapes = knight.get_shapes();
             println!("ANIMATION:\n__________________________________________________________________________{}","");
             for anim in anims{
                 println!("Animation {} -> {}", anim.1.name, anim.1.channels.len());
@@ -25,13 +40,6 @@ pub fn print_rig_data(app_state: &mut AppState) {
                     }
                 }
                 None => ()
-            }
-            println!("SHAPES:\n__________________________________________________________________________{}","");
-            for shape in shapes{
-                println!("Shape Indices: {}, Shape Vertices: {}, Shape Material Index: {}", shape.indices.len(), shape.vertices.len(), shape.material_index);
-                //for vertex in &shape.vertices{
-                //    println!("Vertex: {}", vertex)
-                //}
             }
         }
         None => ()
@@ -68,11 +76,18 @@ fn main() {
     material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
     // load knight model
-    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), Some(0.01));
+    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
+    knight.try_fix_object().expect("failed to fix object");
     knight.set_name("knight".to_string());
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
     knight.add_material(material.uuid);
+
+    for (anim, _) in knight.get_animations(){
+        println!("{}", anim);
+    }
+
+    knight.play_animation("MyAnimation", true);
 
 
     // create some lighting
@@ -86,6 +101,8 @@ fn main() {
 
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_selected_objects), None);
+
+    //app_state.inject_update_function(Arc::new(debug_single_bone));
 
     app_state.add_material(material);
     app_state.add_object(knight);

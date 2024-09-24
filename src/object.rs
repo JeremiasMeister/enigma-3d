@@ -14,6 +14,7 @@ use glium::uniforms::UniformBuffer;
 use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
+use crate::animation::{AnimationState, MAX_BONES};
 
 pub struct ObjectInstance {
     pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
@@ -46,8 +47,7 @@ pub struct Object {
     cloned_id: Uuid,
     animations: HashMap<String, animation::Animation>,
     skeleton: Option<animation::Skeleton>,
-    current_animation: Option<String>,
-    animation_time: f32,
+    current_animation: Option<AnimationState>,
 }
 
 impl Clone for Object {
@@ -176,7 +176,6 @@ impl Object {
             animations: HashMap::new(),
             skeleton: None,
             current_animation: None,
-            animation_time: 0.0,
         };
         object.calculate_bounding_box();
         object
@@ -304,16 +303,16 @@ impl Object {
     }
 
     fn update_animation_internal(&mut self, delta_time: f32) {
-        if let Some(anim_name) = &self.current_animation {
-            let animation = self.animations.get(anim_name);
-            match animation {
-                Some(anim) => {
-                    self.animation_time += delta_time;
-                    if self.animation_time > anim.duration {
-                        self.animation_time %= anim.duration;
+        if let Some(anim_state) = &mut self.current_animation {
+            if let Some(animation) = self.animations.get(&anim_state.name) {
+                anim_state.time += delta_time * anim_state.speed;
+                if anim_state.time > animation.duration {
+                    if anim_state.looping {
+                        anim_state.time %= animation.duration;
+                    } else {
+                        anim_state.time = animation.duration;
                     }
                 }
-                None => self.animation_time = 0.0
             }
         }
     }
@@ -324,58 +323,33 @@ impl Object {
 
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
         let mut bone_transform_data = BoneTransforms {
-            bone_transforms: [
-                [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0]
-                ]; 128
-            ],
+            bone_transforms: [[[1.0; 4]; 4]; MAX_BONES],
         };
-        if let Some(skeleton) = &self.skeleton {
-            if let Some(anim_name) = &self.current_animation {
-                match self.animations.get(anim_name) {
-                    Some(animation) => {
-                        for (i, bone) in skeleton.bones.iter().take(animation::MAX_BONES).enumerate() {
-                            // taking only 128 as a hard capped bone limit
-                            let local_transform = self.interpolate_keyframes(animation, i, self.animation_time);
-                            let parent_transform = Matrix4::from(bone.parent_id.map_or([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]], |parent_id| bone_transform_data.bone_transforms[parent_id]));
-                            let global_transform = parent_transform * local_transform;
-                            bone_transform_data.bone_transforms[i] = (global_transform * bone.inverse_bind_pose).into();
-                        }
-                    }
-                    None => ()
-                }
-            } else {
-                // No animation is playing, return the skeleton's bones in their bind pose
-                for (i, bone) in skeleton.bones.iter().take(animation::MAX_BONES).enumerate() {
-                    let parent_transform = Matrix4::from(bone.parent_id.map_or(
-                        [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
-                        |parent_id| bone_transform_data.bone_transforms[parent_id]
-                    ));
-                    let global_transform = parent_transform; // No local transform when in bind pose
-                    bone_transform_data.bone_transforms[i] = (global_transform * bone.inverse_bind_pose).into();
+
+        if let (Some(skeleton), Some(anim_state)) = (&self.skeleton, &self.current_animation) {
+            if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
+                let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
+
+                for (i, bone) in skeleton.bones.iter().enumerate() {
+                    let local_transform = self.interpolate_keyframes(animation, i, anim_state.time);
+                    let parent_transform: Matrix4<f32> = bone.parent_id
+                        .map(|id| global_transforms[id])
+                        .unwrap_or_else(Matrix4::identity);
+
+                    global_transforms[i] = parent_transform * local_transform;
+                    let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
+
+                    bone_transform_data.bone_transforms[i] = final_transform.into();
+
+                    println!("Bone {}: {:?}", i, final_transform);
                 }
             }
         }
-
-        // debugging
-        // let mut display_data = Vec::new();
-        // for t in bone_transform_data.bone_transforms {
-        //     let m = Matrix4::from(t);
-        //     display_data.push(m);
-        // }
-        // println!("Transform Matrices: {:?}", display_data);
 
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
     }
 
     fn interpolate_keyframes(&self, animation: &animation::Animation, bone_id: usize, time: f32) -> Matrix4<f32> {
-        // Implement keyframe interpolation logic here
-        // This will depend on how your keyframes are stored and what interpolation method you want to use
-        // For simplicity, let's assume linear interpolation between two keyframes
-
         if let Some(channel) = animation.channels.iter().find(|c| c.bone_id == bone_id) {
             let mut prev_keyframe = &channel.keyframes[0];
             let mut next_keyframe = prev_keyframe;
@@ -390,36 +364,43 @@ impl Object {
 
             let t = (time - prev_keyframe.time) / (next_keyframe.time - prev_keyframe.time);
 
-            // Interpolate between prev_keyframe and next_keyframe based on t
-            // This is a simplified example, you might need to handle different transform types
             match (&prev_keyframe.transform, &next_keyframe.transform) {
                 (animation::AnimationTransform::Translation(prev), animation::AnimationTransform::Translation(next)) => {
-                    let interpolated = [
+                    let interpolated = Vector3::new(
                         prev[0] + (next[0] - prev[0]) * t,
                         prev[1] + (next[1] - prev[1]) * t,
                         prev[2] + (next[2] - prev[2]) * t,
-                    ];
-                    Matrix4::from([
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [interpolated[0], interpolated[1], interpolated[2], 1.0],
-                    ])
+                    );
+                    Matrix4::new_translation(&interpolated)
                 }
-                // Handle other transform types (rotation, scale) similarly
-                _ => Matrix4::from([
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0]
-                ]) // Return identity matrix if no matching transform type
+                (animation::AnimationTransform::Rotation(prev), animation::AnimationTransform::Rotation(next)) => {
+                    let prev_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(prev[3], prev[0], prev[1], prev[2]));
+                    let next_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(next[3], next[0], next[1], next[2]));
+                    prev_quat.slerp(&next_quat, t).to_homogeneous()
+                }
+                (animation::AnimationTransform::Scale(prev), animation::AnimationTransform::Scale(next)) => {
+                    let interpolated = Vector3::new(
+                        prev[0] + (next[0] - prev[0]) * t,
+                        prev[1] + (next[1] - prev[1]) * t,
+                        prev[2] + (next[2] - prev[2]) * t,
+                    );
+                    Matrix4::new_nonuniform_scaling(&interpolated)
+                }
+                _ => Matrix4::identity(),
             }
         } else {
-            Matrix4::from([
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0]]) // Return identity matrix if no animation channel for this bone
+            Matrix4::identity()
+        }
+    }
+
+    pub fn play_animation(&mut self, name: &str, looping: bool) {
+        if let Some(_) = self.animations.get(name) {
+            self.current_animation = Some(AnimationState {
+                name: name.to_string(),
+                time: 0.0,
+                speed: 1.0,
+                looping,
+            });
         }
     }
 
@@ -522,6 +503,27 @@ impl Object {
     pub fn get_skeleton(&self) -> &Option<animation::Skeleton> {
         &self.skeleton
     }
+
+    pub fn get_skeleton_mut(&mut self) -> &mut Option<animation::Skeleton> {
+        &mut self.skeleton
+    }
+
+    pub fn try_fix_object(&mut self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if let Some(skeleton) = &mut self.skeleton {
+            match skeleton.try_fix() {
+                Ok(_) => {},
+                Err(e) => errors.push(e),
+            }
+        }
+
+        if !errors.is_empty() {
+            Err(errors)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn load_from_obj(path: &str) -> Self {
         let input = BufReader::new(File::open(path).expect("Failed to open file"));
         let obj: Obj = load_obj(input).unwrap();
@@ -601,11 +603,18 @@ impl Object {
 
         if let Some(skin) = gltf.skins().next() {
             let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers, rig_scale_multiplier);
-            object.skeleton = Some(skeleton);
+            match skeleton.validate() {
+                Err(e) => {
+                    println!("Error Loading on object {}: {}", &object.name, e);
+                }
+                Ok(_) => ()
+            }
+            object.skeleton = Some(skeleton)
+
         }
         let animations = gltf.animations();
         for (i, animation) in animations.enumerate() {
-            let loaded_anim = Object::load_animation_internal(&animation, &buffers, i, rig_scale_multiplier);
+            let loaded_anim = Object::load_animation_internal(&animation, &buffers, i, 1.);
             object.animations.insert(loaded_anim.name.clone(), loaded_anim);
         }
         object

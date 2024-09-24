@@ -66,6 +66,28 @@ impl Skeleton {
             bones
         }
     }
+    pub fn validate(&self) -> Result<(), String> {
+        for bone in self.bones.iter() {
+            if let Some(parent_id) = bone.parent_id {
+                if parent_id >= self.bones.len() {
+                    return Err(format!("Invalid parent ID {} for bone {} with id {}. There are only {} bones in the skeleton.", parent_id, bone.name, bone.id, self.bones.len()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn try_fix(&mut self) -> Result<(), String> {
+        let len = self.bones.len();
+        for bone in self.bones.iter_mut() {
+            if let Some(parent_id) = bone.parent_id {
+                if parent_id >= len {
+                    bone.parent_id = None;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -108,6 +130,13 @@ pub struct AnimationKeyframeSerializer {
 pub struct AnimationChannel {
     pub bone_id: usize,
     pub keyframes: Vec<AnimationKeyframe>,
+}
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AnimationState {
+    pub name: String,
+    pub time: f32,
+    pub speed: f32,
+    pub looping: bool,
 }
 
 impl AnimationChannel {

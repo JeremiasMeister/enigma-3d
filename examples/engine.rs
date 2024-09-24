@@ -82,8 +82,8 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
         .default_height(200.0)
         .show(ctx, |ui| {
             ui.label("Enigma 3D Renderer");
-            ui.label("Press A, D, W, S, E, Q to rotate the selected object");
-            ui.label("Press Space to spawn a new object");
+            ui.label("Press WASD (Space and Ctrl+Space) to move the Camera. Right-Click and Ctrl to Rotate it");
+            ui.label("Press E to spawn a new object");
             ui.label("Press Ctrl + S to save the current state");
             ui.label("Press Ctrl + O to load the saved state");
             ui.label("Press Ctrl + N to reset the scene to the original state");
@@ -312,9 +312,12 @@ fn main() {
     app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing effects
-    //app_state.add_post_process(Box::new(enigma::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
+    //app_state.add_post_process(Box::new(enigma_3d::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::lens_dirt::LensDirt::new(&event_loop.display, resources::lens_dirt_texture(), 2.0, [800.0, 800.0], 2.0)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.2, 0.5, [0.0, 0.0, 0.0], 0.8)));
+
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));
