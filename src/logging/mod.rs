@@ -74,25 +74,31 @@ impl EnigmaLog for EnigmaMessage {
 }
 
 
+#[derive(Debug)]
 pub struct EnigmaError {
     errors: Vec<String>,
     disk: bool
 }
 
+#[derive(Debug)]
 pub struct EnigmaWarning {
     warnings: Vec<String>,
     disk: bool
 }
 
+#[derive(Debug)]
 pub struct EnigmaMessage {
     messages: Vec<String>,
     disk: bool
 }
 
 impl EnigmaError {
-    pub fn new(error: &str, disk: bool) -> Self {
+    pub fn new(error: Option<&str>, disk: bool) -> Self {
         Self {
-            errors: vec![error.to_string()],
+            errors: match error {
+                Some(e) => vec![e.to_string()],
+                None => Vec::new()
+            },
             disk
         }
     }
@@ -103,18 +109,31 @@ impl EnigmaError {
 
     pub fn log(&self) {
         for error in self.errors.iter() {
-            println!("Error: {}", error.red());
+            println!("{} {}","ERROR >>".red(), error.red());
         }
         if self.disk {
             save_to_disk(Box::new(self)).expect("failed to write log")
         }
     }
+
+    pub fn merge(&mut self, error: EnigmaError) {
+        for e in error.errors {
+            self.extent(e.as_str())
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
 }
 
 impl EnigmaWarning {
-    pub fn new(warning: &str, disk: bool) -> Self {
+    pub fn new(warning: Option<&str>, disk: bool) -> Self {
         Self {
-            warnings: vec![warning.to_string()],
+            warnings: match warning {
+                Some(w) => vec![w.to_string()],
+                None => Vec::new()
+            },
             disk
         }
     }
@@ -125,18 +144,31 @@ impl EnigmaWarning {
 
     pub fn log(&self) {
         for warning in self.warnings.iter() {
-            println!("Warning: {}", warning.yellow());
+            println!("{} {}","WARNING >>".yellow(), warning.yellow());
         }
         if self.disk {
             save_to_disk(Box::new(self)).expect("failed to write log")
         }
     }
+
+    pub fn merge(&mut self, error: EnigmaWarning) {
+        for w in error.warnings {
+            self.extent(w.as_str())
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.warnings.is_empty()
+    }
 }
 
 impl EnigmaMessage {
-    pub fn new(message: &str, disk: bool) -> Self {
+    pub fn new(message: Option<&str>, disk: bool) -> Self {
         Self {
-            messages: vec![message.to_string()],
+            messages: match message {
+                Some(m) => vec![m.to_string()],
+                None => Vec::new()
+            },
             disk
         }
     }
@@ -147,10 +179,20 @@ impl EnigmaMessage {
 
     pub fn log(&self) {
         for message in self.messages.iter() {
-            println!("Message: {}", message.bright_blue());
+            println!("{} {}","MESSAGE >>".bright_blue(), message.bright_blue());
         }
         if self.disk {
             save_to_disk(Box::new(self)).expect("failed to write log")
         }
+    }
+
+    pub fn merge(&mut self, error: EnigmaMessage) {
+        for m in error.messages {
+            self.extent(m.as_str())
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.messages.is_empty()
     }
 }

@@ -1,6 +1,7 @@
 use std::vec::Vec;
 use nalgebra::{Matrix4};
 use serde::{Deserialize, Serialize};
+use crate::logging::EnigmaError;
 
 pub(crate) const MAX_BONES: usize = 128;
 
@@ -77,7 +78,7 @@ impl Skeleton {
         Ok(())
     }
 
-    pub fn try_fix(&mut self) -> Result<(), String> {
+    pub fn try_fix(&mut self) -> Result<(), EnigmaError> {
         let len = self.bones.len();
         for bone in self.bones.iter_mut() {
             if let Some(parent_id) = bone.parent_id {
