@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use crate::logging::EnigmaMessage;
+use crate::smart_format;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ShaderSerializer {
@@ -86,12 +88,13 @@ impl Shader {
     }
 
     pub fn log(&self) {
-        println!("Vertex Shader:\n{}", self.vertex_shader);
-        println!("Fragment Shader:\n{}", self.fragment_shader);
+        let mut logger = EnigmaMessage::new(Some(smart_format!("Vertex Shader:\n{}", self.vertex_shader).as_str()), true);
+        logger.extent(smart_format!("Fragment Shader:\n{}", self.fragment_shader).as_str());
         match &self.geometry_shader {
-            Some(geometry_shader) => println!("Geometry Shader:\n{}", geometry_shader),
+            Some(geometry_shader) => logger.extent(smart_format!("Geometry Shader:\n{}", geometry_shader).as_str()),
             None => (),
         }
+        logger.log();
     }
 
     pub fn default() -> Self {

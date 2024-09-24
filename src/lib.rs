@@ -17,6 +17,7 @@ use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightEmissionType};
+use crate::logging::{EnigmaError, EnigmaMessage};
 use crate::material::Material;
 use crate::object::{Object, ObjectInstance};
 use crate::postprocessing::PostProcessingEffect;
@@ -240,7 +241,7 @@ impl AppState {
     }
 
     pub fn to_serializer(&self) -> AppStateSerializer {
-        println!("WARNING: an AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!");
+        EnigmaMessage::new(Some("An AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!"), true).log();
         let camera = match self.camera {
             Some(camera) => Some(camera.to_serializer()),
             None => None,
@@ -782,7 +783,7 @@ impl EventLoop {
                                     }
                                 }
                             }
-                            None => println!("Error, instancing the Object Instance with the instance id {}, because no Object with that Id could be found", instance_id)
+                            None => EnigmaError::new(Some(smart_format!("Error, instancing the Object Instance with the instance id {}, because no Object with that Id could be found", instance_id).as_str()), true).log()
                         }
                     }
 
@@ -822,7 +823,7 @@ impl EventLoop {
                                         }
                                     }
                                 }
-                                None => println!("Error, instancing the Skybox Instance with the instance id {}, because no Object with that Id could be found", skybox_id)
+                                None => EnigmaError::new(Some(smart_format!("Error, instancing the Skybox Instance with the instance id {}, because no Object with that Id could be found", skybox_id).as_str()), true).log()
                             }
                         }
                         None => {}
@@ -854,7 +855,7 @@ impl EventLoop {
                                     }
                                 }
                             }
-                            None => println!("Error, instancing the Transparent Object Instance with the instance id {}, because no Object with that Id could be found", instance_id)
+                            None => EnigmaError::new(Some(smart_format!("Error, instancing the Transparent Object Instance with the instance id {}, because no Object with that Id could be found", instance_id).as_str()), true).log()
                         }
                     }
 

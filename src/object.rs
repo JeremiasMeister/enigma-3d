@@ -4,7 +4,7 @@ use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoneTransforms, BoundingBox, Vertex};
 use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
-use crate::{animation, debug_geo, geometry};
+use crate::{animation, debug_geo, geometry, smart_format};
 use uuid::Uuid;
 
 
@@ -15,7 +15,7 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 use crate::animation::{AnimationState, MAX_BONES};
-use crate::logging::EnigmaError;
+use crate::logging::{EnigmaError, EnigmaWarning};
 
 pub struct ObjectInstance {
     pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
@@ -342,7 +342,7 @@ impl Object {
 
                     bone_transform_data.bone_transforms[i] = final_transform.into();
 
-                    println!("Bone {}: {:?}", i, final_transform);
+                    EnigmaWarning::new(Some(smart_format!("Bone {}: {}", i, final_transform).as_str()), true).log();
                 }
             }
         }
@@ -605,9 +605,7 @@ impl Object {
         if let Some(skin) = gltf.skins().next() {
             let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers, rig_scale_multiplier);
             match skeleton.validate() {
-                Err(e) => {
-                    println!("Error Loading on object {}: {}", &object.name, e);
-                }
+                Err(e) => e.log(),
                 Ok(_) => ()
             }
             object.skeleton = Some(skeleton)

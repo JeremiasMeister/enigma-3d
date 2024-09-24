@@ -1,3 +1,5 @@
+pub mod format;
+
 use colored::Colorize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;

@@ -1,7 +1,8 @@
 use nalgebra::Vector3;
 use uuid::Uuid;
-use crate::AppState;
+use crate::{AppState, smart_format};
 use crate::collision_world::RayCast;
+use crate::logging::{EnigmaError, EnigmaMessage};
 
 pub fn select_object(app_state: &mut AppState){
     app_state.object_selection.clear();
@@ -35,13 +36,13 @@ fn select_object_single(app_state: &mut AppState) {
                         }
                     }
                     app_state.object_selection = ids;
-                    println!("Selected Objects: {:?}", app_state.object_selection)
+                    EnigmaMessage::new(Some(smart_format!("Selected Objects: {:?}", app_state.object_selection).as_str()), true).log()
                 }
                 None => ()
             }
         },
         None => {
-            println!("No camera found to cast from, could not select object");
+            EnigmaError::new(Some("No camera found to cast from, could not select object"), true).log();
         }
     }
 }

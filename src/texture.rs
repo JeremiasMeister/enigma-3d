@@ -9,6 +9,7 @@ use glium::Display;
 use glium::texture::{RawImage2d, SrgbTexture2d, MipmapsOption};
 use lru::LruCache;
 use std::num::NonZeroUsize;
+use crate::logging::EnigmaWarning;
 
 thread_local! {
     static IMAGE_CACHE: RefCell<LruCache<Vec<u8>, RgbaImage>> = RefCell::new(LruCache::new(NonZeroUsize::new(20).unwrap()));
@@ -64,7 +65,7 @@ impl Texture {
         } else {
             return Texture::new(display, path.to_str().unwrap());
         }
-        println!("could not create texture from serializer, returned texture is empty");
+        EnigmaWarning::new(Some("could not create texture from serializer, returned texture is empty"), true).log();
         let empty_tex = glium::texture::SrgbTexture2d::empty(display, serializer.width, serializer.height);
         return Self {
             texture: empty_tex.expect("Could not create Empty Texture"),
@@ -121,7 +122,7 @@ impl Texture {
                     return Texture::from_resource(display, data.as_slice());
                 }
                 None => {
-                    println!("could not clone texture , returned texture is empty");
+                    EnigmaWarning::new(Some("could not clone texture , returned texture is empty"), true).log();
                     let empty_tex = glium::texture::SrgbTexture2d::empty(display, self.width, self.height);
                     return Self {
                         texture: empty_tex.expect("Could not create Empty Texture"),

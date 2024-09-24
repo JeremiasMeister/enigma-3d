@@ -2,6 +2,7 @@ use std::vec::Vec;
 use nalgebra::{Matrix4};
 use serde::{Deserialize, Serialize};
 use crate::logging::EnigmaError;
+use crate::smart_format;
 
 pub(crate) const MAX_BONES: usize = 128;
 
@@ -67,11 +68,11 @@ impl Skeleton {
             bones
         }
     }
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), EnigmaError> {
         for bone in self.bones.iter() {
             if let Some(parent_id) = bone.parent_id {
                 if parent_id >= self.bones.len() {
-                    return Err(format!("Invalid parent ID {} for bone {} with id {}. There are only {} bones in the skeleton.", parent_id, bone.name, bone.id, self.bones.len()));
+                    return Err(EnigmaError::new(Some(smart_format!("Invalid parent ID {} for bone {} with id {}. There are only {} bones in the skeleton.", parent_id, bone.name, bone.id, self.bones.len()).as_str()), true))
                 }
             }
         }

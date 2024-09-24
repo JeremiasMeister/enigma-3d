@@ -4,6 +4,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::texture::DepthTexture2d;
 use crate::AppState;
 use crate::geometry::Vertex;
+use crate::logging::EnigmaWarning;
 
 pub mod grayscale;
 pub mod bloom;
@@ -14,7 +15,7 @@ pub mod lens_dirt;
 
 pub trait PostProcessingEffect {
     fn render(&self, _app_state: &AppState, _vertex_buffer: &VertexBuffer<Vertex>, _index_buffer: &IndexBuffer<u32>, _target: &mut SimpleFrameBuffer, _source: &Texture2d, _depth_source: &DepthTexture2d, _buffer_textures: &Vec<Texture2d>) {
-        println!("PostProcessingEffect::render() not implemented. Please implement this trait in your postprocessing struct.");
+        EnigmaWarning::new(Some("PostProcessingEffect::render() not implemented. Please implement this trait in your postprocessing struct."), true).log();
     }
 }
 
