@@ -13,7 +13,6 @@ macro_rules! smart_format {
             result.push_str(part);
         }
 
-        let mut arg_index = 0;
         $(
             if let Some(part) = fmt_parts.next() {
                 if let Some(end_brace) = part.find('}') {
@@ -33,7 +32,6 @@ macro_rules! smart_format {
                     result.push_str(part);
                 }
             }
-            arg_index += 1;
         )*
 
         // Handle any remaining parts of the format string
