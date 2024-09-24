@@ -80,7 +80,10 @@ fn main() {
 
     // load knight model
     let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
-    knight.try_fix_object().expect("failed to fix object");
+    match knight.try_fix_object() {
+        Ok(_) => {},
+        Err(e) => e.log()
+    }
     knight.set_name("knight".to_string());
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
