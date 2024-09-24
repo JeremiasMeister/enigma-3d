@@ -1,11 +1,37 @@
 pub mod format;
 
+use std::env;
 use colored::Colorize;
+use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Once;
 
-const LOGLOCATION: &str = "enigma_logs/enigma.log";
+const LOG_DIRECTORY: &str = "enigma_logs";
+static INIT: Once = Once::new();
+static mut LOG_FILE_PATH: Option<PathBuf> = None;
+
+fn initialize_log_file() -> PathBuf {
+    let exec_name = env::current_exe()
+        .ok()
+        .and_then(|pb| pb.file_name().map(|s| s.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let datetime = Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let filename = format!("{}_{}.log", exec_name, datetime);
+    PathBuf::from(LOG_DIRECTORY).join(filename)
+}
+
+fn get_log_filepath() -> PathBuf {
+    unsafe {
+        INIT.call_once(|| {
+            let path = initialize_log_file();
+            LOG_FILE_PATH = Some(path);
+        });
+        LOG_FILE_PATH.clone().unwrap()
+    }
+}
 
 fn save_to_disk(log: Box<&dyn EnigmaLog>) -> std::io::Result<()> {
     let prefix = match log.log_type() {
@@ -22,11 +48,9 @@ fn save_to_disk(log: Box<&dyn EnigmaLog>) -> std::io::Result<()> {
         .join("\n");
 
     // Ensure the directory exists
-    let log_path = Path::new(LOGLOCATION);
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
+    fs::create_dir_all(LOG_DIRECTORY)?;
 
+    let log_path = get_log_filepath();
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)

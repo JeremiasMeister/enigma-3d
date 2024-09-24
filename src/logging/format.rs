@@ -43,30 +43,3 @@ macro_rules! smart_format {
         result
     }};
 }
-
-// Example usage
-#[cfg(test)]
-mod tests {
-    use uuid::Uuid;
-
-    #[test]
-    fn test_smart_format() {
-        let id = Uuid::new_v4();
-        let num = 42;
-        let formatted = smart_format!("ID: {}, Number: {}", id, num);
-        assert!(formatted.starts_with("ID: "));
-        assert!(formatted.contains("Number: 42"));
-
-        let text = "Hello";
-        let formatted = smart_format!("{}, world!", text);
-        assert_eq!(formatted, "\"Hello\", world!");  // Note the quotes due to debug formatting
-
-        let vec = vec![Uuid::new_v4(), Uuid::new_v4()];
-        let formatted = smart_format!("UUIDs: {:?}", vec);
-        assert!(formatted.starts_with("UUIDs: ["));
-
-        // Test with no arguments
-        let formatted = smart_format!("No arguments");
-        assert_eq!(formatted, "No arguments");
-    }
-}

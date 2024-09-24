@@ -37,7 +37,7 @@ fn select_object_single(app_state: &mut AppState) {
                     }
                     app_state.object_selection = ids;
                     // we wanna print in the console that we selected an object but not write to disk to not bloat the log file
-                    EnigmaMessage::new(Some(smart_format!("Selected Objects: {:?}", app_state.object_selection).as_str()), false).log()
+                    EnigmaMessage::new(Some(smart_format!("Selected Objects: {:?}", app_state.object_selection).as_str()), true).log()
                 }
                 None => ()
             }
