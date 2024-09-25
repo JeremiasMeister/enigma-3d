@@ -17,9 +17,39 @@ enum LogLevel {
 }
 
 const LOG_DIRECTORY: &str = "enigma_logs";
-const LOG_LEVEL: LogLevel = LogLevel::Message;
+
 static INIT: Once = Once::new();
 static mut LOG_FILE_PATH: Option<PathBuf> = None;
+
+fn get_logging_level() -> LogLevel {
+    match env::var("LOG_LEVEL") {
+        Ok(var) => {
+            match var.to_lowercase().as_str() {
+                "message" => return LogLevel::Message,
+                "warning" => return LogLevel::Warning,
+                "error" => return LogLevel::Error,
+                "none" => return LogLevel::None,
+                _ => return LogLevel::Message
+            }
+        },
+        Err(_) => return LogLevel::Message
+    }
+}
+
+fn get_save_log_files() -> bool {
+    match env::var("SAVE_LOG_FILES") {
+        Ok(var) => {
+            match var.to_lowercase().as_str() {
+                "1" => return true,
+                "true" => return true,
+                "0" => return false,
+                "false" => return false,
+                _ => return true
+            }
+        },
+        Err(_) => return true
+    }
+}
 
 fn initialize_log_file() -> PathBuf {
     let exec_name = env::current_exe()
@@ -43,6 +73,10 @@ fn get_log_filepath() -> PathBuf {
 }
 
 fn save_to_disk(log: Box<&dyn EnigmaLog>) -> std::io::Result<()> {
+    if !get_save_log_files() {
+        return Ok(());
+    }
+
     let prefix = match log.log_type() {
         EnigmaLogType::Error => "ERROR >> ",
         EnigmaLogType::Warning => "WARNING >> ",
@@ -143,7 +177,7 @@ impl EnigmaError {
     }
 
     pub fn log(&self) {
-        if LOG_LEVEL < LogLevel::Error {
+        if get_logging_level() < LogLevel::Error {
             return;
         }
         for error in self.errors.iter() {
@@ -181,7 +215,7 @@ impl EnigmaWarning {
     }
 
     pub fn log(&self) {
-        if LOG_LEVEL < LogLevel::Warning {
+        if get_logging_level() < LogLevel::Warning {
             return;
         }
         for warning in self.warnings.iter() {
@@ -219,7 +253,7 @@ impl EnigmaMessage {
     }
 
     pub fn log(&self) {
-        if LOG_LEVEL < LogLevel::Message {
+        if get_logging_level() < LogLevel::Message {
             return;
         }
         for message in self.messages.iter() {

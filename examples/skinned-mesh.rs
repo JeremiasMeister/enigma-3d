@@ -88,11 +88,11 @@ fn main() {
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
     knight.add_material(material.uuid);
+    //knight.skeleton = None;
 
     for (anim, _) in knight.get_animations(){
         println!("{}", anim);
     }
-
     //knight.play_animation("Armature|mixamo.com|Layer0", true);
 
 

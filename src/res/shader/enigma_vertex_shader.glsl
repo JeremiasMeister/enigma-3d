@@ -44,30 +44,37 @@ layout(std140) uniform BoneTransforms {
 uniform bool has_skeleton;
 
 void main() {
-    vec3 total_position = position;
+    vec4 total_position = vec4(position,1);
     vec3 total_normal = normal;
-
+    float weight_sum = 0;
     if (has_skeleton) {
-        total_position = vec3(0.0);
-        total_normal = vec3(0.0);
-
         for(int i = 0; i < 4; i++) {
-            vec4 localPosition = bone_transforms[bone_indices[i]] * vec4(position, 1.0);
-            total_position += (localPosition * bone_weights[i]).xyz;
+            float weight = float(bone_weights[i]);
+            if (weight > 0.0) {
+                mat4 bone_transform = bone_transforms[bone_indices[i]];
+                vec4 transformed_position = bone_transform * vec4(position, 1.0);
+                total_position += weight * transformed_position;
 
-            vec4 world_normal = bone_transforms[bone_indices[i]] * vec4(normal, 1.0);
-            total_normal += (bone_transforms[bone_indices[i]] * vec4(normal, 0.0) * bone_weights[i]).xyz;
+                mat3 normal_transform = mat3(bone_transform);
+                total_normal += weight * (normal_transform * normal);
+
+                weight_sum += weight;
+            }
+        }
+
+        if (weight_sum > 0.0) {
+            total_position /= weight_sum;
+            total_normal = normalize(total_normal);
         }
     }
-    total_normal = normalize(total_normal);
     mat4 modelview = view_matrix * model_matrix;
-    gl_Position = projection_matrix * modelview * vec4(total_position, 1.0);
+    gl_Position = projection_matrix * modelview * total_position;
     v_model_matrix = model_matrix;
-    v_position = total_position;
-    v_world_position = (model_matrix * vec4(total_position, 1.0)).xyz;
+    v_position = total_position.xyz;
+    v_world_position = (model_matrix * total_position).xyz;
     v_vertex_normal = transpose(inverse(mat3(modelview))) * total_normal;
     v_view_direction = normalize(v_world_position - camera_position);
-    v_modelView_pos = -(modelview * vec4(total_position, 1.0)).xyz;
+    v_modelView_pos = -(modelview * total_position).xyz;
     v_object_position = vec3(model_matrix[3]);
     v_vertex_color = color;
     v_vertex_texcoord = texcoord;

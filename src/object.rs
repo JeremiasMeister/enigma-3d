@@ -343,7 +343,7 @@ impl Object {
                             .unwrap_or_else(Matrix4::identity);
 
                         global_transforms[i] = parent_transform * local_transform;
-                        let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
+                        let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
 
                         bone_transform_data.bone_transforms[i] = final_transform.into();
                     }
@@ -361,7 +361,7 @@ impl Object {
             logger.extent("No skeleton found, using identity transforms");
         }
 
-        logger.log();
+        //logger.log();
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
     }
 
