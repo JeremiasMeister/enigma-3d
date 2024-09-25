@@ -1,7 +1,7 @@
 use std::vec::Vec;
 use nalgebra::{Matrix4, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
-use crate::logging::EnigmaError;
+use crate::logging::{EnigmaError, EnigmaMessage};
 use crate::smart_format;
 
 pub(crate) const MAX_BONES: usize = 128;
@@ -92,14 +92,14 @@ impl Skeleton {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AnimationTransform {
     Translation([f32; 3]),
     Rotation([f32;4]),
     Scale([f32;3])
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AnimationKeyframe{
     pub time: f32,
     pub transform: AnimationTransform,
@@ -221,6 +221,7 @@ fn find_keyframes(channel: &AnimationChannel, time: f32) -> (&AnimationKeyframe,
 }
 
 pub fn interpolate_keyframes(animation: &Animation, bone_id: usize, time: f32) -> Matrix4<f32> {
+    let mut logger = EnigmaMessage::new(None, true);
     if let Some(channel) = animation.channels.iter().find(|c| c.bone_id == bone_id) {
         let (prev_keyframe, next_keyframe) = find_keyframes(channel, time);
 
@@ -230,48 +231,62 @@ pub fn interpolate_keyframes(animation: &Animation, bone_id: usize, time: f32) -
             0.0
         };
 
-        let translation = interpolate_translation(&prev_keyframe.transform, &next_keyframe.transform, t);
-        let rotation = interpolate_rotation(&prev_keyframe.transform, &next_keyframe.transform, t);
-        let scale = interpolate_scale(&prev_keyframe.transform, &next_keyframe.transform, t);
+        logger.extent(&smart_format!("Bone {}: Interpolating at t = {}", bone_id, t));
+        logger.extent(&smart_format!("Prev keyframe: {:?}", prev_keyframe.transform));
+        logger.extent(&smart_format!("Next keyframe: {:?}", next_keyframe.transform));
+
+        let translation = match (&prev_keyframe.transform, &next_keyframe.transform) {
+            (AnimationTransform::Translation(p), AnimationTransform::Translation(n)) => {
+                interpolate_translation(p, n, t)
+            },
+            _ => Matrix4::identity(),
+        };
+
+        let rotation = match (&prev_keyframe.transform, &next_keyframe.transform) {
+            (AnimationTransform::Rotation(p), AnimationTransform::Rotation(n)) => {
+                interpolate_rotation(p, n, t)
+            },
+            _ => Matrix4::identity(),
+        };
+
+        let scale = match (&prev_keyframe.transform, &next_keyframe.transform) {
+            (AnimationTransform::Scale(p), AnimationTransform::Scale(n)) => {
+                interpolate_scale(p, n, t)
+            },
+            _ => Matrix4::identity(),
+        };
+
+        logger.extent(&smart_format!("Translation: {:?}", translation));
+        logger.extent(&smart_format!("Rotation: {:?}", rotation));
+        logger.extent(&smart_format!("Scale: {:?}", scale));
+
+        logger.log();
 
         // Combine the transformations
         translation * rotation * scale
     } else {
+        logger.extent(&smart_format!("No channel found for bone {}", bone_id));
+        logger.log();
         Matrix4::identity()
     }
 }
 
-fn interpolate_translation(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
-    match (prev, next) {
-        (AnimationTransform::Translation(p), AnimationTransform::Translation(n)) => {
-            let start = Vector3::from(*p);
-            let end = Vector3::from(*n);
-            let interpolated = start.lerp(&end, t);
-            Matrix4::new_translation(&interpolated)
-        },
-        _ => Matrix4::identity(),
-    }
+fn interpolate_translation(prev: &[f32; 3], next: &[f32; 3], t: f32) -> Matrix4<f32> {
+    let start = Vector3::from(*prev);
+    let end = Vector3::from(*next);
+    let interpolated = start.lerp(&end, t);
+    Matrix4::new_translation(&interpolated)
 }
 
-fn interpolate_rotation(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
-    match (prev, next) {
-        (AnimationTransform::Rotation(p), AnimationTransform::Rotation(n)) => {
-            let start = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(p[3], p[0], p[1], p[2]));
-            let end = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(n[3], n[0], n[1], n[2]));
-            start.slerp(&end, t).to_homogeneous()
-        },
-        _ => Matrix4::identity(),
-    }
+fn interpolate_rotation(prev: &[f32; 4], next: &[f32; 4], t: f32) -> Matrix4<f32> {
+    let start = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(prev[3], prev[0], prev[1], prev[2]));
+    let end = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(next[3], next[0], next[1], next[2]));
+    start.slerp(&end, t).to_homogeneous()
 }
 
-fn interpolate_scale(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
-    match (prev, next) {
-        (AnimationTransform::Scale(p), AnimationTransform::Scale(n)) => {
-            let start = Vector3::from(*p);
-            let end = Vector3::from(*n);
-            let interpolated = start.lerp(&end, t);
-            Matrix4::new_nonuniform_scaling(&interpolated)
-        },
-        _ => Matrix4::identity(),
-    }
+fn interpolate_scale(prev: &[f32; 3], next: &[f32; 3], t: f32) -> Matrix4<f32> {
+    let start = Vector3::from(*prev);
+    let end = Vector3::from(*next);
+    let interpolated = start.lerp(&end, t);
+    Matrix4::new_nonuniform_scaling(&interpolated)
 }
