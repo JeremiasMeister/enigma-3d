@@ -79,7 +79,7 @@ fn main() {
     material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
     // load knight model
-    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
+    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), Some(10.));
     match knight.try_fix_object() {
         Ok(_) => {},
         Err(e) => e.log()
@@ -93,7 +93,7 @@ fn main() {
     for (anim, _) in knight.get_animations(){
         println!("{}", anim);
     }
-    //knight.play_animation("Armature|mixamo.com|Layer0", true);
+    knight.play_animation("Armature|mixamo.com|Layer0", true);
 
 
     // create some lighting
