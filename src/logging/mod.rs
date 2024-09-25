@@ -8,7 +8,16 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Once;
 
+#[derive(PartialEq, PartialOrd)]
+enum LogLevel {
+    None,
+    Error,
+    Warning,
+    Message,
+}
+
 const LOG_DIRECTORY: &str = "enigma_logs";
+const LOG_LEVEL: LogLevel = LogLevel::Message;
 static INIT: Once = Once::new();
 static mut LOG_FILE_PATH: Option<PathBuf> = None;
 
@@ -134,6 +143,9 @@ impl EnigmaError {
     }
 
     pub fn log(&self) {
+        if LOG_LEVEL < LogLevel::Error {
+            return;
+        }
         for error in self.errors.iter() {
             println!("{} {}","ERROR >>".red(), error.red());
         }
@@ -169,6 +181,9 @@ impl EnigmaWarning {
     }
 
     pub fn log(&self) {
+        if LOG_LEVEL < LogLevel::Warning {
+            return;
+        }
         for warning in self.warnings.iter() {
             println!("{} {}","WARNING >>".yellow(), warning.yellow());
         }
@@ -204,6 +219,9 @@ impl EnigmaMessage {
     }
 
     pub fn log(&self) {
+        if LOG_LEVEL < LogLevel::Message {
+            return;
+        }
         for message in self.messages.iter() {
             println!("{} {}","MESSAGE >>".bright_blue(), message.bright_blue());
         }
