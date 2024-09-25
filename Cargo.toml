@@ -55,11 +55,6 @@ identifier = "io.github.JeremiasMeister.enigma"
 default = []
 examples = []
 
-# this does not work atm - TODO: fix the environment variables to set logging level and save logs
-[env]
-SAVE_LOG_FILES = "false"
-LOG_LEVEL = "Message" # can be "Message", "Warning", "Error" or "None"
-
 [package.metadata.docs.rs]
 features = ["default"]
 
