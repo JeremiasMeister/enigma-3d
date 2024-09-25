@@ -3,7 +3,7 @@ use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, example_resources, light, material, object, resources, smart_format};
 use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
-use enigma_3d::logging::EnigmaMessage;
+use enigma_3d::logging::{EnigmaMessage, EnigmaWarning};
 use enigma_3d::material::TextureType;
 
 pub fn debug_single_bone(app_state: &mut AppState){
@@ -88,11 +88,12 @@ fn main() {
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
     knight.add_material(material.uuid);
-    //knight.skeleton = None;
 
+    let mut anim_logger = EnigmaWarning::new(None, true);
     for (anim, _) in knight.get_animations(){
-        println!("{}", anim);
+        anim_logger.extent(smart_format!("{}", anim).as_str());
     }
+    anim_logger.log();
     knight.play_animation("Armature|mixamo.com|Layer0", true);
 
 

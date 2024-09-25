@@ -63,8 +63,9 @@ void main() {
         }
 
         if (weight_sum > 0.0) {
-            total_position /= weight_sum;
-            total_normal = normalize(total_normal);
+            float inv_weight_sum = 1.0 / weight_sum;
+            total_position *= inv_weight_sum;
+            total_normal = normalize(total_normal * inv_weight_sum);
         }
     }
     mat4 modelview = view_matrix * model_matrix;

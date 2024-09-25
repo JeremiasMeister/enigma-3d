@@ -1,5 +1,5 @@
 use std::vec::Vec;
-use nalgebra::{Matrix4};
+use nalgebra::{Matrix4, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use crate::logging::EnigmaError;
 use crate::smart_format;
@@ -203,4 +203,75 @@ pub struct AnimationSerializer {
     pub name: String,
     pub duration: f32,
     pub channels: Vec<AnimationChannelSerializer>,
+}
+
+fn find_keyframes(channel: &AnimationChannel, time: f32) -> (&AnimationKeyframe, &AnimationKeyframe) {
+    let mut prev = &channel.keyframes[0];
+    let mut next = prev;
+
+    for keyframe in &channel.keyframes {
+        if keyframe.time > time {
+            next = keyframe;
+            break;
+        }
+        prev = keyframe;
+    }
+
+    (prev, next)
+}
+
+pub fn interpolate_keyframes(animation: &Animation, bone_id: usize, time: f32) -> Matrix4<f32> {
+    if let Some(channel) = animation.channels.iter().find(|c| c.bone_id == bone_id) {
+        let (prev_keyframe, next_keyframe) = find_keyframes(channel, time);
+
+        let t = if next_keyframe.time != prev_keyframe.time {
+            (time - prev_keyframe.time) / (next_keyframe.time - prev_keyframe.time)
+        } else {
+            0.0
+        };
+
+        let translation = interpolate_translation(&prev_keyframe.transform, &next_keyframe.transform, t);
+        let rotation = interpolate_rotation(&prev_keyframe.transform, &next_keyframe.transform, t);
+        let scale = interpolate_scale(&prev_keyframe.transform, &next_keyframe.transform, t);
+
+        // Combine the transformations
+        translation * rotation * scale
+    } else {
+        Matrix4::identity()
+    }
+}
+
+fn interpolate_translation(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
+    match (prev, next) {
+        (AnimationTransform::Translation(p), AnimationTransform::Translation(n)) => {
+            let start = Vector3::from(*p);
+            let end = Vector3::from(*n);
+            let interpolated = start.lerp(&end, t);
+            Matrix4::new_translation(&interpolated)
+        },
+        _ => Matrix4::identity(),
+    }
+}
+
+fn interpolate_rotation(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
+    match (prev, next) {
+        (AnimationTransform::Rotation(p), AnimationTransform::Rotation(n)) => {
+            let start = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(p[3], p[0], p[1], p[2]));
+            let end = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(n[3], n[0], n[1], n[2]));
+            start.slerp(&end, t).to_homogeneous()
+        },
+        _ => Matrix4::identity(),
+    }
+}
+
+fn interpolate_scale(prev: &AnimationTransform, next: &AnimationTransform, t: f32) -> Matrix4<f32> {
+    match (prev, next) {
+        (AnimationTransform::Scale(p), AnimationTransform::Scale(n)) => {
+            let start = Vector3::from(*p);
+            let end = Vector3::from(*n);
+            let interpolated = start.lerp(&end, t);
+            Matrix4::new_nonuniform_scaling(&interpolated)
+        },
+        _ => Matrix4::identity(),
+    }
 }

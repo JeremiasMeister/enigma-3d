@@ -15,7 +15,7 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 use crate::animation::{AnimationState, MAX_BONES};
-use crate::logging::{EnigmaError, EnigmaWarning};
+use crate::logging::{EnigmaError, EnigmaMessage, EnigmaWarning};
 
 pub struct ObjectInstance {
     pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
@@ -314,6 +314,7 @@ impl Object {
                         anim_state.time = animation.duration;
                     }
                 }
+                EnigmaMessage::new(Some(smart_format!("update_anim: {}", anim_state.time).as_str()), false).log();
             }
         }
     }
@@ -337,7 +338,7 @@ impl Object {
                     let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
 
                     for (i, bone) in skeleton.bones.iter().enumerate() {
-                        let local_transform = self.interpolate_keyframes(animation, i, anim_state.time);
+                        let local_transform = animation::interpolate_keyframes(animation, i, anim_state.time);
                         let parent_transform: Matrix4<f32> = bone.parent_id
                             .map(|id| global_transforms[id])
                             .unwrap_or_else(Matrix4::identity);
@@ -346,15 +347,23 @@ impl Object {
                         let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
 
                         bone_transform_data.bone_transforms[i] = final_transform.into();
+                        if i < 5 {  // Log only first 5 bones to avoid spam
+                            logger.extent(smart_format!("Bone {}: Local: {:?}, Global: {:?}, Final: {:?}", i, local_transform, global_transforms[i], final_transform).as_str());
+                        }
                     }
                 } else {
                     logger.extent(smart_format!("Animation not found: {}", anim_state.name).as_str());
                 }
             } else {
                 logger.extent("No animation playing, using bind pose");
+                let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
                 for (i, bone) in skeleton.bones.iter().enumerate() {
+                    let parent_transform = bone.parent_id
+                        .map(|id| global_transforms[id])
+                        .unwrap_or_else(Matrix4::identity);
                     let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
-                    bone_transform_data.bone_transforms[i] = bind_pose.into();
+                    global_transforms[i] = parent_transform * bind_pose;
+                    bone_transform_data.bone_transforms[i] = global_transforms[i].into();
                 }
             }
         } else {
@@ -363,50 +372,6 @@ impl Object {
 
         //logger.log();
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
-    }
-
-    fn interpolate_keyframes(&self, animation: &animation::Animation, bone_id: usize, time: f32) -> Matrix4<f32> {
-        if let Some(channel) = animation.channels.iter().find(|c| c.bone_id == bone_id) {
-            let mut prev_keyframe = &channel.keyframes[0];
-            let mut next_keyframe = prev_keyframe;
-
-            for keyframe in &channel.keyframes {
-                if keyframe.time > time {
-                    next_keyframe = keyframe;
-                    break;
-                }
-                prev_keyframe = keyframe;
-            }
-
-            let t = (time - prev_keyframe.time) / (next_keyframe.time - prev_keyframe.time);
-
-            match (&prev_keyframe.transform, &next_keyframe.transform) {
-                (animation::AnimationTransform::Translation(prev), animation::AnimationTransform::Translation(next)) => {
-                    let interpolated = Vector3::new(
-                        prev[0] + (next[0] - prev[0]) * t,
-                        prev[1] + (next[1] - prev[1]) * t,
-                        prev[2] + (next[2] - prev[2]) * t,
-                    );
-                    Matrix4::new_translation(&interpolated)
-                }
-                (animation::AnimationTransform::Rotation(prev), animation::AnimationTransform::Rotation(next)) => {
-                    let prev_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(prev[3], prev[0], prev[1], prev[2]));
-                    let next_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(next[3], next[0], next[1], next[2]));
-                    prev_quat.slerp(&next_quat, t).to_homogeneous()
-                }
-                (animation::AnimationTransform::Scale(prev), animation::AnimationTransform::Scale(next)) => {
-                    let interpolated = Vector3::new(
-                        prev[0] + (next[0] - prev[0]) * t,
-                        prev[1] + (next[1] - prev[1]) * t,
-                        prev[2] + (next[2] - prev[2]) * t,
-                    );
-                    Matrix4::new_nonuniform_scaling(&interpolated)
-                }
-                _ => Matrix4::identity(),
-            }
-        } else {
-            Matrix4::identity()
-        }
     }
 
     pub fn play_animation(&mut self, name: &str, looping: bool) {
@@ -528,7 +493,7 @@ impl Object {
         let mut errors = EnigmaError::new(None, true);
         if let Some(skeleton) = &mut self.skeleton {
             match skeleton.try_fix() {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => errors.merge(e),
             }
         }
@@ -624,7 +589,6 @@ impl Object {
                 Ok(_) => ()
             }
             object.skeleton = Some(skeleton)
-
         }
         let animations = gltf.animations();
         for (i, animation) in animations.enumerate() {
