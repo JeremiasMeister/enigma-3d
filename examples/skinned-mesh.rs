@@ -93,7 +93,7 @@ fn main() {
         println!("{}", anim);
     }
 
-    knight.play_animation("MyAnimation", true);
+    //knight.play_animation("Armature|mixamo.com|Layer0", true);
 
 
     // create some lighting

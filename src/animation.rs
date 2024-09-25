@@ -6,7 +6,7 @@ use crate::smart_format;
 
 pub(crate) const MAX_BONES: usize = 128;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bone {
     pub name: String,
     pub id: usize,
@@ -42,7 +42,7 @@ impl Bone {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Skeleton {
     pub bones: Vec<Bone>,
 }
@@ -133,7 +133,7 @@ pub struct AnimationChannel {
     pub bone_id: usize,
     pub keyframes: Vec<AnimationKeyframe>,
 }
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AnimationState {
     pub name: String,
     pub time: f32,

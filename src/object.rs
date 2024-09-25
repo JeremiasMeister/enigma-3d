@@ -323,30 +323,45 @@ impl Object {
     }
 
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
+        let mut logger = EnigmaWarning::new(None, true);
         let mut bone_transform_data = BoneTransforms {
             bone_transforms: [[[1.0; 4]; 4]; MAX_BONES],
         };
 
-        if let (Some(skeleton), Some(anim_state)) = (&self.skeleton, &self.current_animation) {
-            if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
-                let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
+        logger.extent(smart_format!("Entering get_bone_transform_buffer for object: {}", self.name).as_str());
 
+        if let Some(skeleton) = &self.skeleton {
+            if let Some(anim_state) = &self.current_animation {
+                if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
+                    logger.extent(smart_format!("Applying animation: {}", anim_state.name).as_str());
+                    let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
+
+                    for (i, bone) in skeleton.bones.iter().enumerate() {
+                        let local_transform = self.interpolate_keyframes(animation, i, anim_state.time);
+                        let parent_transform: Matrix4<f32> = bone.parent_id
+                            .map(|id| global_transforms[id])
+                            .unwrap_or_else(Matrix4::identity);
+
+                        global_transforms[i] = parent_transform * local_transform;
+                        let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
+
+                        bone_transform_data.bone_transforms[i] = final_transform.into();
+                    }
+                } else {
+                    logger.extent(smart_format!("Animation not found: {}", anim_state.name).as_str());
+                }
+            } else {
+                logger.extent("No animation playing, using bind pose");
                 for (i, bone) in skeleton.bones.iter().enumerate() {
-                    let local_transform = self.interpolate_keyframes(animation, i, anim_state.time);
-                    let parent_transform: Matrix4<f32> = bone.parent_id
-                        .map(|id| global_transforms[id])
-                        .unwrap_or_else(Matrix4::identity);
-
-                    global_transforms[i] = parent_transform * local_transform;
-                    let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
-
-                    bone_transform_data.bone_transforms[i] = final_transform.into();
-
-                    EnigmaWarning::new(Some(smart_format!("Bone {}: {}", i, final_transform).as_str()), true).log();
+                    let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+                    bone_transform_data.bone_transforms[i] = bind_pose.into();
                 }
             }
+        } else {
+            logger.extent("No skeleton found, using identity transforms");
         }
 
+        logger.log();
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
     }
 
