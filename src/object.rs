@@ -17,6 +17,7 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 use crate::animation::{Animation, AnimationChannel, AnimationKeyframe, AnimationState, Bone, MAX_BONES, Skeleton};
+use crate::gizmo::Gizmo;
 use crate::logging::{EnigmaError, EnigmaWarning};
 
 pub struct ObjectInstance {
@@ -47,7 +48,7 @@ pub struct Object {
     unique_id: Uuid,
     cloned_id: Uuid,
     animations: HashMap<String, animation::Animation>,
-    skeleton: Option<animation::Skeleton>,
+    pub (crate) skeleton: Option<animation::Skeleton>,
     current_animation: Option<AnimationState>,
 }
 
@@ -163,6 +164,63 @@ impl ObjectInstance {
 }
 
 impl Object {
+
+    pub fn visualize_skeleton(&mut self, gizmo: &mut Gizmo) {
+        if let Some(skeleton) = &self.skeleton {
+            let animated_transforms = self.get_animated_bone_transforms();
+
+            for (i, bone) in skeleton.bones.iter().enumerate() {
+                let bone_transform = animated_transforms[i];
+                let bone_position = self.transform.get_matrix_object() * bone_transform.column(3);
+                let bone_point = Point3::new(bone_position[0], bone_position[1], bone_position[2]);
+
+                // Draw a small circle for each bone
+                gizmo.draw_circle(bone_point, 0.02, 8);
+
+                // Draw a line to the parent bonee
+                if let Some(parent_id) = bone.parent_id {
+                    let parent_transform = animated_transforms[parent_id];
+                    let parent_position = self.transform.get_matrix_object() * parent_transform.column(3);
+                    let parent_point = Point3::new(parent_position[0], parent_position[1], parent_position[2]);
+
+                    gizmo.draw_line(bone_point, parent_point);
+                }
+            }
+        }
+    }
+
+    fn get_animated_bone_transforms(&self) -> Vec<Matrix4<f32>> {
+        let mut transforms = Vec::new();
+
+        if let Some(skeleton) = &self.skeleton {
+            if let Some(animation_state) = &self.current_animation {
+                if let Some(animation) = self.animations.get(&animation_state.name) {
+                    for (i, bone) in skeleton.bones.iter().enumerate() {
+                        let local_transform = animation::interpolate_keyframes(animation, i, animation_state.time);
+                        let parent_transform = bone.parent_id
+                            .map(|id| transforms[id])
+                            .unwrap_or_else(Matrix4::identity);
+
+                        let global_transform = parent_transform * local_transform;
+                        transforms.push(global_transform);
+                    }
+                }
+            } else {
+                // If no animation is playing, use bind pose
+                for bone in &skeleton.bones {
+                    let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+                    let parent_transform = bone.parent_id
+                        .map(|id| transforms[id])
+                        .unwrap_or_else(Matrix4::identity);
+                    transforms.push(parent_transform * bind_pose);
+                }
+            }
+        }
+
+        transforms
+    }
+
+
     pub fn new(name: Option<String>) -> Self {
         let uuid = Uuid::new_v4();
         let mut object = Object {

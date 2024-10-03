@@ -16,6 +16,7 @@ use crate::collision_world::MouseState;
 use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::geometry::BoneTransforms;
+use crate::gizmo::Gizmo;
 use crate::light::{Light, LightEmissionType};
 use crate::logging::{EnigmaError, EnigmaMessage};
 use crate::material::Material;
@@ -41,6 +42,7 @@ pub mod data;
 pub mod example_resources;
 pub mod animation;
 pub mod logging;
+pub mod gizmo;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
@@ -137,6 +139,7 @@ pub struct AppState {
     last_frame_time: Instant,
     is_mouse_down: bool,
     pub state_data: Vec<AppStateData>,
+    pub gizmos: Vec<gizmo::Gizmo>
 }
 
 pub struct EventLoop {
@@ -173,7 +176,12 @@ impl AppState {
             last_event_time: Instant::now(),
             last_frame_time: Instant::now(),
             is_mouse_down: false,
+            gizmos: Vec::new(),
         }
+    }
+
+    pub fn add_gizmo(&mut self, gizmo: gizmo::Gizmo) {
+        self.gizmos.push(gizmo);
     }
 
     fn setup_skybox_instance(&self, display: &Display<WindowSurface>, sky_box_matrix: &Option<[[f32; 4]; 4]>) -> Option<(Uuid, object::ObjectInstance)> {
@@ -863,6 +871,13 @@ impl EventLoop {
                     for process in app_state.get_post_processes() {
                         process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
                     }
+
+                    let mut gizmo = Gizmo::new();
+                    for obj in app_state.objects.iter_mut() {
+                        obj.visualize_skeleton(&mut gizmo)
+                    }
+                    gizmo.render(&self.display, &mut framebuffer, &camera.unwrap());
+                    gizmo.clear();
 
                     // drawing to screen
                     let mut screen_target = self.display.draw();

@@ -5,6 +5,8 @@ use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
 use enigma_3d::logging::{EnigmaMessage, EnigmaWarning};
 use enigma_3d::material::TextureType;
+use enigma_3d::gizmo;
+use enigma_3d::gizmo::Gizmo;
 
 pub fn debug_single_bone(app_state: &mut AppState){
     match app_state.get_object("knight") {
@@ -83,10 +85,10 @@ fn main() {
 
     // load knight model
     let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight());
-    //match knight.try_fix_object() {
-    //    Ok(_) => {},
-    //    Err(e) => e.log()
-    //}
+    match knight.try_fix_object() {
+        Ok(_) => {},
+        Err(e) => e.log()
+    }
     knight.set_name("knight".to_string());
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
@@ -108,7 +110,6 @@ fn main() {
     base_loc.add_shape(object::Shape::default());
     base_loc.add_material(debug_mat.uuid);
     app_state.add_object(base_loc);
-
 
 
     // create some lighting
