@@ -68,7 +68,7 @@ fn main() {
     enigma_3d::init_default(&mut app_state);
 
     // create and add a camera to the app state
-    let camera = Camera::new(Some([0.0, 1.5, 1.0]), Some([-20.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
+    let camera = Camera::new(Some([0.0, 0.0, 1.0]), Some([0.0, 0.0, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
     // load knight material
@@ -78,15 +78,19 @@ fn main() {
     material.set_texture_from_resource(example_resources::skinned_knight_normal(), TextureType::Normal);
     material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
+    let mut debug_mat = material::Material::unlit(event_loop.get_display_clone(), false);
+    debug_mat.set_color([1.0,0.,0.]);
+
     // load knight model
-    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight(), Some(10.), Some(0.1));
-    match knight.try_fix_object() {
-        Ok(_) => {},
-        Err(e) => e.log()
-    }
+    let mut knight = object::Object::load_from_gltf_resource(example_resources::skinned_knight());
+    //match knight.try_fix_object() {
+    //    Ok(_) => {},
+    //    Err(e) => e.log()
+    //}
     knight.set_name("knight".to_string());
     let scaler = 1.0;
     knight.transform.set_scale([scaler,scaler,scaler]);
+    knight.transform.set_position([0.0,-0.38,0.0]);
     knight.add_material(material.uuid);
 
     let mut anim_logger = EnigmaWarning::new(None, true);
@@ -95,6 +99,16 @@ fn main() {
     }
     anim_logger.log();
     knight.play_animation("Armature|mixamo.com|Layer0", true);
+
+
+    let mut base_loc = object::Object::default();
+    base_loc.transform.set_scale([0.1,0.2,0.1]);
+    base_loc.transform.set_position([0.0,0.0,0.0]);
+    base_loc.transform.set_rotation([0.,180.,0.]);
+    base_loc.add_shape(object::Shape::default());
+    base_loc.add_material(debug_mat.uuid);
+    app_state.add_object(base_loc);
+
 
 
     // create some lighting
@@ -111,6 +125,7 @@ fn main() {
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
 
     app_state.add_material(material);
+    app_state.add_material(debug_mat);
     app_state.add_object(knight);
 
     // run the event loop

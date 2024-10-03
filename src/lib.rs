@@ -573,7 +573,7 @@ impl EventLoop {
         material.set_texture_from_resource(resources::skybox_texture(), crate::material::TextureType::Albedo);
 
         // create a default object
-        let mut object = Object::load_from_gltf_resource(resources::skybox(), None, None);
+        let mut object = Object::load_from_gltf_resource(resources::skybox());
 
         // set the material
         object.add_material(material.uuid);
