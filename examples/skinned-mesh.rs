@@ -5,8 +5,6 @@ use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
 use enigma_3d::logging::{EnigmaMessage, EnigmaWarning};
 use enigma_3d::material::TextureType;
-use enigma_3d::gizmo;
-use enigma_3d::gizmo::Gizmo;
 
 pub fn debug_single_bone(app_state: &mut AppState){
     match app_state.get_object("knight") {
@@ -59,6 +57,19 @@ pub fn print_selected_objects(app_state: &mut AppState){
             None => ()
         }
     }
+}
+
+pub fn toggle_animation(app_state: &mut AppState) {
+    let knight = app_state.get_object_mut("knight").unwrap();
+    let mut logger = EnigmaWarning::new(None, false);
+    if knight.is_animation_playing() {
+        knight.stop_animation();
+        logger.extent("Stopping Animation")
+    } else {
+        knight.play_animation("Armature|mixamo.com|Layer0", true);
+        logger.extent("Playing Animation: Armature|mixamo.com|Layer0")
+    }
+    logger.log();
 }
 
 fn main() {
@@ -124,6 +135,7 @@ fn main() {
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_selected_objects), None);
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(debug_single_bone), None);
     app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::P), Arc::new(print_rig_data), None);
+    app_state.inject_event(EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q), Arc::new(toggle_animation), None);
 
     app_state.add_material(material);
     app_state.add_material(debug_mat);

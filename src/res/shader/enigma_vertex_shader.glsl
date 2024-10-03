@@ -48,6 +48,7 @@ void main() {
     vec3 total_normal = normal;
     float weight_sum = 0;
     if (has_skeleton) {
+        //total_position = vec4(0);
         for(int i = 0; i < 4; i++) {
             float weight = float(bone_weights[i]);
             if (weight > 0.0) {

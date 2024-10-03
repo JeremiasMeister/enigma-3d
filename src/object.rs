@@ -3,7 +3,7 @@ use std::vec::Vec;
 use glium::Display;
 use glium::glutin::surface::WindowSurface;
 use crate::geometry::{BoneTransforms, BoundingBox, Vertex};
-use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3, Quaternion};
+use nalgebra::{Vector3, Matrix4, Translation3, UnitQuaternion, Point3};
 use crate::{animation, debug_geo, geometry, smart_format};
 use uuid::Uuid;
 
@@ -11,7 +11,6 @@ use uuid::Uuid;
 use std::fs::File;
 use std::io::BufReader;
 use glium::uniforms::UniformBuffer;
-use gltf::animation::util::ReadOutputs;
 use gltf::buffer::Data;
 use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
@@ -164,63 +163,6 @@ impl ObjectInstance {
 }
 
 impl Object {
-
-    pub fn visualize_skeleton(&mut self, gizmo: &mut Gizmo) {
-        if let Some(skeleton) = &self.skeleton {
-            let animated_transforms = self.get_animated_bone_transforms();
-
-            for (i, bone) in skeleton.bones.iter().enumerate() {
-                let bone_transform = animated_transforms[i];
-                let bone_position = self.transform.get_matrix_object() * bone_transform.column(3);
-                let bone_point = Point3::new(bone_position[0], bone_position[1], bone_position[2]);
-
-                // Draw a small circle for each bone
-                gizmo.draw_circle(bone_point, 0.02, 8);
-
-                // Draw a line to the parent bonee
-                if let Some(parent_id) = bone.parent_id {
-                    let parent_transform = animated_transforms[parent_id];
-                    let parent_position = self.transform.get_matrix_object() * parent_transform.column(3);
-                    let parent_point = Point3::new(parent_position[0], parent_position[1], parent_position[2]);
-
-                    gizmo.draw_line(bone_point, parent_point);
-                }
-            }
-        }
-    }
-
-    fn get_animated_bone_transforms(&self) -> Vec<Matrix4<f32>> {
-        let mut transforms = Vec::new();
-
-        if let Some(skeleton) = &self.skeleton {
-            if let Some(animation_state) = &self.current_animation {
-                if let Some(animation) = self.animations.get(&animation_state.name) {
-                    for (i, bone) in skeleton.bones.iter().enumerate() {
-                        let local_transform = animation::interpolate_keyframes(animation, i, animation_state.time);
-                        let parent_transform = bone.parent_id
-                            .map(|id| transforms[id])
-                            .unwrap_or_else(Matrix4::identity);
-
-                        let global_transform = parent_transform * local_transform;
-                        transforms.push(global_transform);
-                    }
-                }
-            } else {
-                // If no animation is playing, use bind pose
-                for bone in &skeleton.bones {
-                    let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
-                    let parent_transform = bone.parent_id
-                        .map(|id| transforms[id])
-                        .unwrap_or_else(Matrix4::identity);
-                    transforms.push(parent_transform * bind_pose);
-                }
-            }
-        }
-
-        transforms
-    }
-
-
     pub fn new(name: Option<String>) -> Self {
         let uuid = Uuid::new_v4();
         let mut object = Object {
@@ -243,10 +185,6 @@ impl Object {
     pub fn to_serializer(&self) -> ObjectSerializer {
         let name = self.name.clone();
         let transform = self.transform.to_serializer();
-        let mut animations = HashMap::new();
-        for (n, a) in &self.animations {
-            animations.insert(n.to_string(), a.to_serializer());
-        }
         let shapes = self.shapes.clone();
         let materials = self.materials.iter().map(|x| x.to_string()).collect();
         let unique_id = self.unique_id.to_string();
@@ -364,19 +302,87 @@ impl Object {
         self.skeleton.is_some() && !self.animations.is_empty()
     }
 
+    pub fn is_animation_playing(&self) -> bool {
+        self.current_animation.is_some()
+    }
+
+    pub fn visualize_skeleton(&mut self, gizmo: &mut Gizmo) {
+        if let Some(skeleton) = &self.skeleton {
+            let animated_transforms = self.get_animated_bone_transforms();
+
+            for (i, bone) in skeleton.bones.iter().enumerate() {
+                let bone_transform = animated_transforms[i];
+                let bone_position = self.transform.get_matrix_object() * bone_transform.column(3);
+                let bone_point = Point3::new(bone_position[0], bone_position[1], bone_position[2]);
+
+                // Draw a small circle for each bone
+                gizmo.draw_circle(bone_point, 0.02, 8, [1.0,1.0,1.0,1.0]);
+
+                // Draw bone axes
+                let x_axis = bone_transform.column(0).xyz().normalize() * 0.05;
+                let y_axis = bone_transform.column(1).xyz().normalize() * 0.05;
+                let z_axis = bone_transform.column(2).xyz().normalize() * 0.05;
+                gizmo.draw_line(bone_point, bone_point + x_axis, [1.0, 0.0, 0.0, 1.0]);
+                gizmo.draw_line(bone_point, bone_point + y_axis, [0.0, 1.0, 0.0, 1.0]);
+                gizmo.draw_line(bone_point, bone_point + z_axis, [0.0, 0.0, 1.0, 1.0]);
+
+                // Draw a line to the parent bone
+                if let Some(parent_id) = bone.parent_id {
+                    let parent_transform = animated_transforms[parent_id];
+                    let parent_position = self.transform.get_matrix_object() * parent_transform.column(3);
+                    let parent_point = Point3::new(parent_position[0], parent_position[1], parent_position[2]);
+
+                    gizmo.draw_line(bone_point, parent_point, [1.0, 1.0, 1.0, 1.0]);
+                }
+            }
+        }
+    }
+
+    fn get_animated_bone_transforms(&self) -> Vec<Matrix4<f32>> {
+        let mut transforms = Vec::new();
+
+        if let Some(skeleton) = &self.skeleton {
+            if let Some(animation_state) = &self.current_animation {
+                if let Some(animation) = self.animations.get(&animation_state.name) {
+                    for (i, bone) in skeleton.bones.iter().enumerate() {
+                        let local_transform = animation::interpolate_keyframes(animation, i, animation_state.time);
+                        let parent_transform = bone.parent_id
+                            .map(|id| transforms[id])
+                            .unwrap_or_else(Matrix4::identity);
+
+                        let global_transform = parent_transform * local_transform;
+                        transforms.push(global_transform);
+                    }
+                }
+            } else {
+                // If no animation is playing, use bind pose
+                for bone in &skeleton.bones {
+                    let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+                    let parent_transform = bone.parent_id
+                        .map(|id| transforms[id])
+                        .unwrap_or_else(Matrix4::identity);
+                    transforms.push(parent_transform * bind_pose);
+                }
+            }
+        }
+
+        transforms
+    }
+
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
         let mut logger = EnigmaWarning::new(None, true);
         let mut bone_transform_data = BoneTransforms {
-            bone_transforms: [[[1.0; 4]; 4]; MAX_BONES],
+            bone_transforms: [[[0.0; 4]; 4]; MAX_BONES],
         };
 
         logger.extent(smart_format!("Entering get_bone_transform_buffer for object: {}", self.name).as_str());
 
         if let Some(skeleton) = &self.skeleton {
+            let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
+
             if let Some(anim_state) = &self.current_animation {
                 if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
                     logger.extent(smart_format!("Applying animation: {}", anim_state.name).as_str());
-                    let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
 
                     for (i, bone) in skeleton.bones.iter().enumerate() {
                         let local_transform = animation::interpolate_keyframes(animation, i, anim_state.time);
@@ -385,12 +391,16 @@ impl Object {
                             .unwrap_or_else(Matrix4::identity);
 
                         global_transforms[i] = parent_transform * local_transform;
-                        // Use the inverse bind pose directly
+
+                        // Calculate final transform for skinning
                         let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
 
                         bone_transform_data.bone_transforms[i] = final_transform.into();
                         if i < 5 {  // Log only first 5 bones to avoid spam
-                            logger.extent(smart_format!("Bone {}: Local: {:?}, Global: {:?}, Final: {:?}", i, local_transform, global_transforms[i], final_transform).as_str());
+                            logger.extent(smart_format!(
+                            "Bone {}: Local: {:?}, Global: {:?}, Final: {:?}",
+                            i, local_transform, global_transforms[i], final_transform
+                        ).as_str());
                         }
                     }
                 } else {
@@ -398,14 +408,21 @@ impl Object {
                 }
             } else {
                 logger.extent("No animation playing, using bind pose");
-                let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
+
                 for (i, bone) in skeleton.bones.iter().enumerate() {
                     let parent_transform = bone.parent_id
                         .map(|id| global_transforms[id])
                         .unwrap_or_else(Matrix4::identity);
+
+                    // Use the inverse of the inverse bind pose to get the bind pose
                     let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+
                     global_transforms[i] = parent_transform * bind_pose;
-                    bone_transform_data.bone_transforms[i] = global_transforms[i].into();
+
+                    // For bind pose, the final transform is identity
+                    let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
+
+                    bone_transform_data.bone_transforms[i] = final_transform.into();
                 }
             }
         } else {
@@ -417,6 +434,7 @@ impl Object {
     }
 
 
+
     pub fn play_animation(&mut self, name: &str, looping: bool) {
         if let Some(_) = self.animations.get(name) {
             self.current_animation = Some(AnimationState {
@@ -426,6 +444,10 @@ impl Object {
                 looping,
             });
         }
+    }
+
+    pub fn stop_animation(&mut self) {
+        self.current_animation = None;
     }
 
     pub fn update(&mut self, delta_time: f32) {
@@ -581,9 +603,29 @@ impl Object {
 
     fn load_from_gltf_internal(
         content: (gltf::Document, Vec<gltf::buffer::Data>, Vec<gltf::image::Data>),
-        mut object: Object
+        mut object: Object,
     ) -> Self {
         let (gltf, buffers, _images) = content;
+
+        // Load skeleton first
+        let mut node_index_to_bone_index = HashMap::new();
+
+        if let Some(skin) = gltf.skins().next() {
+            let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers);
+            match skeleton.validate() {
+                Err(e) => e.log(),
+                Ok(_) => (),
+            }
+
+            // Build node_index_to_bone_index mapping
+            for bone in &skeleton.bones {
+                node_index_to_bone_index.insert(bone.node_index, bone.id);
+            }
+
+            object.skeleton = Some(skeleton);
+        }
+
+        // Now load meshes
         for mesh in gltf.meshes() {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -612,6 +654,15 @@ impl Object {
 
                     let bone_indices = joint_data.as_mut().and_then(|j| j.next()).unwrap_or([0; 4]);
                     let bone_weight = weight_data.as_mut().and_then(|w| w.next()).unwrap_or([0.0; 4]);
+
+                    // Map joint indices (node indices) to bone indices
+                    let bone_indices = [
+                        *node_index_to_bone_index.get(&(bone_indices[0] as usize)).unwrap_or(&0) as u32,
+                        *node_index_to_bone_index.get(&(bone_indices[1] as usize)).unwrap_or(&0) as u32,
+                        *node_index_to_bone_index.get(&(bone_indices[2] as usize)).unwrap_or(&0) as u32,
+                        *node_index_to_bone_index.get(&(bone_indices[3] as usize)).unwrap_or(&0) as u32,
+                    ];
+
                     let vertex = Vertex {
                         position,
                         texcoord: tex_coord,
@@ -629,32 +680,52 @@ impl Object {
             object.add_shape(shape);
         }
 
-        if let Some(skin) = gltf.skins().next() {
-            let skeleton = Object::load_skeleton_internal(&gltf, &skin, &buffers);
-            match skeleton.validate() {
-                Err(e) => e.log(),
-                Ok(_) => (),
-            }
-            object.skeleton = Some(skeleton);
-        }
+        // Load animations
         let animations = gltf.animations();
         for (i, animation) in animations.enumerate() {
             let loaded_anim = Object::load_animation_internal(&animation, &buffers, i);
             object.animations.insert(loaded_anim.name.clone(), loaded_anim);
         }
+
         object
     }
 
-    fn load_skeleton_internal(document: &gltf::Document, skin: &gltf::Skin, buffers: &[Data]) -> Skeleton {
+    fn find_parent_bone_id(
+        node_index: usize,
+        node_parent_map: &HashMap<usize, usize>,
+        joint_node_indices: &[usize],
+    ) -> Option<usize> {
+        let mut current_node_index = node_index;
+        while let Some(&parent_node_index) = node_parent_map.get(&current_node_index) {
+            if let Some(parent_bone_index) = joint_node_indices
+                .iter()
+                .position(|&idx| idx == parent_node_index)
+            {
+                return Some(parent_bone_index);
+            }
+            current_node_index = parent_node_index;
+        }
+        None
+    }
+
+    fn load_skeleton_internal(
+        document: &gltf::Document,
+        skin: &gltf::Skin,
+        buffers: &[Data],
+    ) -> Skeleton {
         let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
 
-        // Get joints from the skin
-        let joints: Vec<gltf::Node> = skin.joints().collect();
+        // Collect joint node indices
+        let joint_node_indices: Vec<usize> = skin.joints().map(|j| j.index()).collect();
 
         // Read inverse bind matrices
-        let inverse_bind_matrices: Vec<Matrix4<f32>> = reader.read_inverse_bind_matrices()
-            .map(|iter| iter.map(Matrix4::from).collect())
-            .unwrap_or_else(|| vec![Matrix4::identity(); joints.len()]);
+        let inverse_bind_matrices: Vec<Matrix4<f32>> = reader
+            .read_inverse_bind_matrices()
+            .map(|matrices| matrices.map(Matrix4::from).collect())
+            .unwrap_or_else(|| vec![Matrix4::identity(); joint_node_indices.len()]);
+
+        // Ensure consistency
+        assert_eq!(joint_node_indices.len(), inverse_bind_matrices.len());
 
         // Build a map from node index to parent node index
         let mut node_parent_map = HashMap::new();
@@ -664,27 +735,24 @@ impl Object {
             }
         }
 
-        // Map from node index to bone index
-        let node_index_to_bone_index: HashMap<usize, usize> = joints
+        // Build bones
+        let bones: Vec<Bone> = joint_node_indices
             .iter()
             .enumerate()
-            .map(|(i, node)| (node.index(), i))
-            .collect();
+            .map(|(bone_index, &node_index)| {
+                // Get the node corresponding to this joint
+                let node = document.nodes().find(|n| n.index() == node_index).unwrap();
 
-        let bones = joints
-            .into_iter()
-            .enumerate()
-            .map(|(id, joint)| {
-                // Get the parent node index
-                let parent_node_index = node_parent_map.get(&joint.index()).cloned();
-                // Map parent node index to parent bone index
-                let parent_bone_id = parent_node_index.and_then(|pni| node_index_to_bone_index.get(&pni).cloned());
+                // Find the parent bone index
+                let parent_bone_id =
+                    Object::find_parent_bone_id(node_index, &node_parent_map, &joint_node_indices);
 
                 Bone {
-                    name: joint.name().unwrap_or("").to_string(),
-                    id,
+                    name: node.name().unwrap_or("").to_string(),
+                    id: bone_index,
+                    node_index,  // Store node index
                     parent_id: parent_bone_id,
-                    inverse_bind_pose: inverse_bind_matrices[id],
+                    inverse_bind_pose: inverse_bind_matrices[bone_index],
                 }
             })
             .collect();
@@ -728,7 +796,7 @@ impl Object {
                 match outputs {
                     gltf::animation::util::ReadOutputs::Translations(translations) => {
                         for (i, translation) in translations.enumerate() {
-                            let translation = Vector3::from(translation) * 0.1;
+                            let translation = Vector3::from(translation) * 0.01;
                             let keyframe = AnimationKeyframe {
                                 time: times[i],
                                 value: translation.into(),

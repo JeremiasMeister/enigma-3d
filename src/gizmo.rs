@@ -2,17 +2,15 @@ use glium::{Display, implement_vertex, program, Surface, uniform};
 use glium::framebuffer::SimpleFrameBuffer;
 use glium::glutin::surface::WindowSurface;
 use nalgebra::{Matrix4, Point3, Vector3};
-
-use crate::animation::Skeleton;
 use crate::camera::Camera;
-use crate::object::{Object, Transform};
 
 #[derive(Copy, Clone)]
 struct GizmoVertex {
     position: [f32; 3],
+    color: [f32; 4],
 }
 
-implement_vertex!(GizmoVertex, position);
+implement_vertex!(GizmoVertex, position, color);
 
 pub struct Gizmo {
     circle_vertices: Vec<GizmoVertex>,
@@ -27,19 +25,19 @@ impl Gizmo {
         }
     }
 
-    pub fn draw_circle(&mut self, center: Point3<f32>, radius: f32, segments: u32) {
+    pub fn draw_circle(&mut self, center: Point3<f32>, radius: f32, segments: u32, color: [f32; 4]) {
         for i in 0..segments {
             let angle = (i as f32 / segments as f32) * std::f32::consts::PI * 2.0;
             let x = center.x + radius * angle.cos();
             let y = center.y + radius * angle.sin();
             let z = center.z;
-            self.circle_vertices.push(GizmoVertex { position: [x, y, z] });
+            self.circle_vertices.push(GizmoVertex { position: [x, y, z] , color});
         }
     }
 
-    pub fn draw_line(&mut self, start: Point3<f32>, end: Point3<f32>) {
-        self.line_vertices.push(GizmoVertex { position: [start.x, start.y, start.z] });
-        self.line_vertices.push(GizmoVertex { position: [end.x, end.y, end.z] });
+    pub fn draw_line(&mut self, start: Point3<f32>, end: Point3<f32>, color: [f32;4]) {
+        self.line_vertices.push(GizmoVertex { position: [start.x, start.y, start.z], color });
+        self.line_vertices.push(GizmoVertex { position: [end.x, end.y, end.z], color });
     }
 
     pub fn render(&self, display: &Display<WindowSurface>, frame: &mut SimpleFrameBuffer, camera: &Camera) {
@@ -68,15 +66,19 @@ impl Gizmo {
                     #version 140
                     uniform mat4 matrix;
                     in vec3 position;
+                    in vec4 color;
+                    out vec4 v_col;
                     void main() {
                         gl_Position = matrix * vec4(position, 1.0);
+                        v_col = color;
                     }
                 ",
                 fragment: "
                     #version 140
+                    in vec4 v_col;
                     out vec4 color;
                     void main() {
-                        color = vec4(1.0, 0.0, 0.0, 1.0);
+                        color = v_col;
                     }
                 "
             }

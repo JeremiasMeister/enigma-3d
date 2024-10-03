@@ -1,7 +1,7 @@
 use std::vec::Vec;
 use nalgebra::{Matrix4, UnitQuaternion, Vector3, Quaternion};
 use serde::{Deserialize, Serialize};
-use crate::logging::{EnigmaError, EnigmaMessage};
+use crate::logging::{EnigmaError};
 use crate::smart_format;
 
 pub(crate) const MAX_BONES: usize = 128;
@@ -10,36 +10,9 @@ pub(crate) const MAX_BONES: usize = 128;
 pub struct Bone {
     pub name: String,
     pub id: usize,
+    pub node_index: usize,
     pub parent_id: Option<usize>,
     pub inverse_bind_pose: Matrix4<f32>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct BoneSerializer {
-    pub name: String,
-    pub id: usize,
-    pub parent_id: Option<usize>,
-    pub inverse_bind_pose: [[f32; 4]; 4],
-}
-
-impl Bone {
-    pub fn to_serializer(&self) -> BoneSerializer {
-        BoneSerializer {
-            name: self.name.clone(),
-            id: self.id,
-            parent_id: self.parent_id,
-            inverse_bind_pose: self.inverse_bind_pose.into(),
-        }
-    }
-
-    pub fn from_serializer(serializer: BoneSerializer) -> Self {
-        Self {
-            name: serializer.name,
-            id: serializer.id,
-            parent_id: serializer.parent_id,
-            inverse_bind_pose: Matrix4::from(serializer.inverse_bind_pose),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -47,23 +20,8 @@ pub struct Skeleton {
     pub bones: Vec<Bone>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SkeletonSerializer {
-    pub bones: Vec<BoneSerializer>,
-}
 
 impl Skeleton {
-    pub fn to_serializer(&self) -> SkeletonSerializer {
-        SkeletonSerializer {
-            bones: self.bones.iter().map(|x| x.to_serializer()).collect(),
-        }
-    }
-
-    pub fn from_serializer(serializer: SkeletonSerializer) -> Self {
-        let bones = serializer.bones.into_iter().map(Bone::from_serializer).collect();
-        Self { bones }
-    }
-
     pub fn validate(&self) -> Result<(), EnigmaError> {
         for bone in &self.bones {
             if let Some(parent_id) = bone.parent_id {
@@ -106,78 +64,12 @@ pub struct AnimationKeyframe<T> {
     pub value: T,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AnimationKeyframeSerializer<T> {
-    pub time: f32,
-    pub value: T,
-}
-
-impl<T: Clone + Serialize + for<'de> Deserialize<'de>> AnimationKeyframe<T> {
-    pub fn to_serializer(&self) -> AnimationKeyframeSerializer<T> {
-        AnimationKeyframeSerializer {
-            time: self.time,
-            value: self.value.clone(),
-        }
-    }
-
-    pub fn from_serializer(serializer: AnimationKeyframeSerializer<T>) -> Self {
-        Self {
-            time: serializer.time,
-            value: serializer.value,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct AnimationChannel {
     pub bone_id: usize,
     pub translations: Vec<AnimationKeyframe<[f32; 3]>>,
     pub rotations: Vec<AnimationKeyframe<[f32; 4]>>,
     pub scales: Vec<AnimationKeyframe<[f32; 3]>>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct AnimationChannelSerializer {
-    pub bone_id: usize,
-    pub translations: Vec<AnimationKeyframeSerializer<[f32; 3]>>,
-    pub rotations: Vec<AnimationKeyframeSerializer<[f32; 4]>>,
-    pub scales: Vec<AnimationKeyframeSerializer<[f32; 3]>>,
-}
-
-impl AnimationChannel {
-    pub fn to_serializer(&self) -> AnimationChannelSerializer {
-        AnimationChannelSerializer {
-            bone_id: self.bone_id,
-            translations: self
-                .translations
-                .iter()
-                .map(|x| x.to_serializer())
-                .collect(),
-            rotations: self.rotations.iter().map(|x| x.to_serializer()).collect(),
-            scales: self.scales.iter().map(|x| x.to_serializer()).collect(),
-        }
-    }
-
-    pub fn from_serializer(serializer: AnimationChannelSerializer) -> Self {
-        Self {
-            bone_id: serializer.bone_id,
-            translations: serializer
-                .translations
-                .into_iter()
-                .map(AnimationKeyframe::from_serializer)
-                .collect(),
-            rotations: serializer
-                .rotations
-                .into_iter()
-                .map(AnimationKeyframe::from_serializer)
-                .collect(),
-            scales: serializer
-                .scales
-                .into_iter()
-                .map(AnimationKeyframe::from_serializer)
-                .collect(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -193,35 +85,6 @@ pub struct Animation {
     pub name: String,
     pub duration: f32,
     pub channels: Vec<AnimationChannel>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct AnimationSerializer {
-    pub name: String,
-    pub duration: f32,
-    pub channels: Vec<AnimationChannelSerializer>,
-}
-
-impl Animation {
-    pub fn to_serializer(&self) -> AnimationSerializer {
-        AnimationSerializer {
-            name: self.name.clone(),
-            duration: self.duration,
-            channels: self.channels.iter().map(|x| x.to_serializer()).collect(),
-        }
-    }
-
-    pub fn from_serializer(serializer: AnimationSerializer) -> Self {
-        Self {
-            name: serializer.name,
-            duration: serializer.duration,
-            channels: serializer
-                .channels
-                .into_iter()
-                .map(AnimationChannel::from_serializer)
-                .collect(),
-        }
-    }
 }
 
 fn find_keyframes<T>(
