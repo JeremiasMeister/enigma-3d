@@ -316,7 +316,7 @@ impl Object {
                 let bone_point = Point3::new(bone_position[0], bone_position[1], bone_position[2]);
 
                 // Draw a small circle for each bone
-                gizmo.draw_circle(bone_point, 0.02, 8, [1.0,1.0,1.0,1.0]);
+                gizmo.draw_position(bone_point, 0.02, 8, [1.0,1.0,1.0,1.0]);
 
                 // Draw bone axes
                 let x_axis = bone_transform.column(0).xyz().normalize() * 0.05;
@@ -333,6 +333,38 @@ impl Object {
                     let parent_point = Point3::new(parent_position[0], parent_position[1], parent_position[2]);
 
                     gizmo.draw_line(bone_point, parent_point, [1.0, 1.0, 1.0, 1.0]);
+                }
+            }
+        }
+    }
+
+    pub fn visualize_bind_skeleton(&self, gizmo: &mut Gizmo) {
+        if let Some(skeleton) = &self.skeleton {
+            for (_i, bone) in skeleton.bones.iter().enumerate() {
+                // Calculate the bone's position in bind pose
+                let bind_pose = bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+                let bone_position = bind_pose.column(3).xyz();
+                let bone_point = Point3::from(bone_position);
+
+                // Draw a small sphere for each bone
+                gizmo.draw_position(bone_point, 0.02, 8, [1.0,1.0,1.0,1.0]);
+
+                // Draw bone axes
+                let x_axis = bind_pose.column(0).xyz().normalize() * 0.05;
+                let y_axis = bind_pose.column(1).xyz().normalize() * 0.05;
+                let z_axis = bind_pose.column(2).xyz().normalize() * 0.05;
+                gizmo.draw_line(bone_point, bone_point + x_axis, [1.0, 0.0, 0.0, 1.0]);
+                gizmo.draw_line(bone_point, bone_point + y_axis, [0.0, 1.0, 0.0, 1.0]);
+                gizmo.draw_line(bone_point, bone_point + z_axis, [0.0, 0.0, 1.0, 1.0]);
+
+                // Draw a line to the parent bone
+                if let Some(parent_id) = bone.parent_id {
+                    let parent_bone = &skeleton.bones[parent_id];
+                    let parent_bind_pose = parent_bone.inverse_bind_pose.try_inverse().unwrap_or(Matrix4::identity());
+                    let parent_position = parent_bind_pose.column(3).xyz();
+                    let parent_point = Point3::from(parent_position);
+
+                    gizmo.draw_line(bone_point, parent_point, [0.5, 0.5, 0.5, 1.0]);
                 }
             }
         }

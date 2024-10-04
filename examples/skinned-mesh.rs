@@ -101,9 +101,6 @@ fn main() {
         Err(e) => e.log()
     }
     knight.set_name("knight".to_string());
-    let scaler = 1.0;
-    knight.transform.set_scale([scaler,scaler,scaler]);
-    knight.transform.set_position([0.0,-0.38,0.0]);
     knight.add_material(material.uuid);
 
     let mut anim_logger = EnigmaWarning::new(None, true);
