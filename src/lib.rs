@@ -874,7 +874,8 @@ impl EventLoop {
 
                     let mut gizmo = Gizmo::new();
                     for obj in app_state.objects.iter_mut() {
-                        obj.visualize_skeleton(&mut gizmo)
+                        obj.visualize_skeleton(&mut gizmo);
+                        obj.visualize_bind_skeleton(&mut gizmo)
                     }
                     gizmo.render(&self.display, &mut framebuffer, &camera.unwrap());
                     gizmo.clear();

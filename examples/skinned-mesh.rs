@@ -4,7 +4,6 @@ use enigma_3d::{AppState, example_resources, light, material, object, resources,
 use enigma_3d::event::EventCharacteristic;
 use enigma_3d::light::LightEmissionType;
 use enigma_3d::logging::{EnigmaMessage, EnigmaWarning};
-use enigma_3d::material::TextureType;
 
 pub fn debug_single_bone(app_state: &mut AppState){
     match app_state.get_object("knight") {
@@ -66,8 +65,10 @@ pub fn toggle_animation(app_state: &mut AppState) {
         knight.stop_animation();
         logger.extent("Stopping Animation")
     } else {
-        knight.play_animation("Armature|mixamo.com|Layer0", true);
-        logger.extent("Playing Animation: Armature|mixamo.com|Layer0")
+        //knight.play_animation("Armature|mixamo.com|Layer0", true);
+        knight.play_animation("ArmatureAction", true);
+        //logger.extent("Playing Animation: Armature|mixamo.com|Layer0");
+        logger.extent("Playing Animation: ArmatureAction");
     }
     logger.log();
 }
@@ -87,9 +88,11 @@ fn main() {
     // load knight material
     let mut material = material::Material::lit_pbr(event_loop.get_display_clone(), false);
     material.set_name("knight_material");
-    material.set_texture_from_resource(example_resources::skinned_knight_albedo(), TextureType::Albedo);
-    material.set_texture_from_resource(example_resources::skinned_knight_normal(), TextureType::Normal);
-    material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
+    //material.set_color([0.5,0.5,0.5]);
+    material.set_roughness_strength(1.0);
+    //material.set_texture_from_resource(example_resources::skinned_knight_albedo(), TextureType::Albedo);
+    //material.set_texture_from_resource(example_resources::skinned_knight_normal(), TextureType::Normal);
+    //material.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
 
     let mut debug_mat = material::Material::unlit(event_loop.get_display_clone(), false);
     debug_mat.set_color([1.0,0.,0.]);
@@ -108,7 +111,8 @@ fn main() {
         anim_logger.extent(&smart_format!("{}, {}", anim, data.channels.len()));
     }
     anim_logger.log();
-    knight.play_animation("Armature|mixamo.com|Layer0", true);
+    //knight.play_animation("Armature|mixamo.com|Layer0", true);
+    knight.play_animation("ArmatureAction", true);
 
 
     let mut base_loc = object::Object::default();

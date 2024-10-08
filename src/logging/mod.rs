@@ -86,7 +86,7 @@ fn save_to_disk(log: Box<&dyn EnigmaLog>) -> std::io::Result<()> {
 
     let joined_string = log.get()
         .iter()
-        .map(|((t,s))| format!("{} {}{}", t, prefix, s))
+        .map(|(t,s)| format!("{} {}{}", t, prefix, s))
         .collect::<Vec<String>>()
         .join("\n");
 
