@@ -48,7 +48,7 @@ void main() {
     vec3 total_normal = normal;
     float weight_sum = 0;
     if (has_skeleton) {
-        //total_position = vec4(0);
+        total_position = vec4(0);
         for(int i = 0; i < 4; i++) {
             float weight = float(bone_weights[i]);
             if (weight > 0.0) {
@@ -68,7 +68,10 @@ void main() {
             total_position *= inv_weight_sum;
             total_normal = normalize(total_normal * inv_weight_sum);
         }
+        total_position = vec4(0);
     }
+
+
     mat4 modelview = view_matrix * model_matrix;
     gl_Position = projection_matrix * modelview * total_position;
     v_model_matrix = model_matrix;

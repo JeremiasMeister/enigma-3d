@@ -22,6 +22,7 @@ out vec3 object_position;
 out vec3 vertex_color;
 out vec3 vertex_normal;
 out vec2 vertex_texcoord;
+out vec3 position;
 
 uniform float time;
 uniform vec3 camera_position;
@@ -117,6 +118,7 @@ void main() {
         vertex_color = v_vertex_color[i];
         vertex_normal = v_vertex_normal[i];
         vertex_texcoord = v_vertex_texcoord[i];
+        position = v_position[i];
         EmitVertex();
     }
     EndPrimitive();

@@ -277,10 +277,10 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop) {
 
 fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     // ground_material with geometry grass shader
-    //let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
+    let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
 
     //ground_material without geometry shader - way faster, since geometry shader are a very slow feature
-    let mut ground_material = Material::lit_pbr(event_loop.get_display_clone(), false);
+    //let mut ground_material = Material::lit_pbr(event_loop.get_display_clone(), false);
 
     let mut tree_material_opaque = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
     let mut tree_material_transparent = Material::default(shader::Shader::from_strings(resources::vertex_wind_shader(), resources::fragment_shader(), None), &event_loop.display);
@@ -342,7 +342,8 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
 
 fn main() {
     // create an enigma eventloop and appstate
-    let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer - Chessboard", 1080, 720);
+    //let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer - Chessboard", 1080, 720);
+    let event_loop = enigma_3d::EventLoop::new("Enigma 3D Renderer - Chessboard", 1920, 1080);
     let mut app_state = enigma_3d::AppState::new();
     // set the icon from the resources
     event_loop.set_icon_from_resource(resources::icon());
