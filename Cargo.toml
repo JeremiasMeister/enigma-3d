@@ -17,7 +17,8 @@ include = [
     "src/res/models/skybox.glb",
     "src/res/shader/**/*.glsl",
     "src/res/textures/skybox.png",
-    "src/res/textures/icon.png"
+    "src/res/textures/icon.png",
+    "src/res/textures/lens_dirt.png"
 ]
 
 
