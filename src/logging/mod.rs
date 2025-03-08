@@ -6,11 +6,10 @@ use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Once;
+use once_cell::sync::Lazy;
 
 const LOG_DIRECTORY: &str = "enigma_logs";
-static INIT: Once = Once::new();
-static mut LOG_FILE_PATH: Option<PathBuf> = None;
+static LOG_FILE_PATH: Lazy<PathBuf> = Lazy::new(|| initialize_log_file());
 
 fn initialize_log_file() -> PathBuf {
     let exec_name = env::current_exe()
@@ -24,13 +23,8 @@ fn initialize_log_file() -> PathBuf {
 }
 
 fn get_log_filepath() -> PathBuf {
-    unsafe {
-        INIT.call_once(|| {
-            let path = initialize_log_file();
-            LOG_FILE_PATH = Some(path);
-        });
-        LOG_FILE_PATH.clone().unwrap()
-    }
+    // Simply clone the lazy initialized path
+    LOG_FILE_PATH.clone()
 }
 
 fn save_to_disk(log: Box<&dyn EnigmaLog>) -> std::io::Result<()> {
