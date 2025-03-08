@@ -54,6 +54,10 @@ impl Camera {
         c
     }
 
+    pub fn default() -> Self {
+        Camera::new(None, None, None, None, None, None)
+    }
+
     pub fn from_serializer(serializer: CameraSerializer) -> Self {
         Self {
             transform: Transform::from_serializer(serializer.transform),

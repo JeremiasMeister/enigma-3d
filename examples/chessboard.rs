@@ -314,7 +314,7 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     obj_terrain.set_name("obj_terrain".to_string());
     obj_terrain.set_collision(false);
     obj_terrain.add_material(ground_material.uuid);
-    obj_terrain.transform.set_position([0.0, -1.5, -6.0]);
+    obj_terrain.transform.set_position([0.0, -1.8, -6.0]);
     obj_terrain.transform.set_rotation([0.0, -70.0, 0.0]);
 
     let mut obj_tree = object::Object::load_from_gltf_resource(example_resources::tree(), None);
@@ -323,7 +323,7 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     // we add both, the transparent and the opaque material uuid to the object
     obj_tree.add_material(tree_material_opaque.uuid);
     obj_tree.add_material(tree_material_transparent.uuid);
-    obj_tree.transform.set_position([-5.0, -1.5, -10.0]);
+    obj_tree.transform.set_position([-5.0, -1.8, -10.0]);
     obj_tree.transform.set_rotation([0.0, 25.0, 0.0]);
     obj_tree.transform.set_scale([2.5, 2.5, 2.5]);
 
