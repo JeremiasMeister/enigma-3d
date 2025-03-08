@@ -38,12 +38,6 @@ uniform float mat_roughness_strength;
 uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 
-// skeletal animation uniforms
-layout(std140) uniform BoneTransforms {
-    mat4 bone_transforms[128];
-};
-uniform bool has_skeleton = false;
-
 uniform vec3 wind_direction = vec3(1.0, 0.0, 0.0); // Default to blowing along x-axis
 uniform float wind_strength = 0.01;
 uniform float wind_speed = 50.0;
@@ -57,38 +51,22 @@ void main() {
     v_object_position = vec3(model_matrix[3]);
     float random_offset = random(v_object_position) * 1000.0;
 
-    vec3 total_position = position;
-    vec3 total_normal = normal;
-
-    if (has_skeleton) {
-        //total_position = vec3(0.0);
-        //total_normal = vec3(0.0);
-
-        for(int i = 0; i < 4; i++) {
-            vec4 localPosition = bone_transforms[bone_indices[i]] * vec4(position, 1.0);
-            total_position += (localPosition * bone_weights[i]).xyz;
-
-            vec4 world_normal = bone_transforms[bone_indices[i]] * vec4(normal, 1.0);
-            total_normal += normalize((world_normal * bone_weights[i]).xyz);
-        }
-    }
-
     // Calculate wind effect
-    float height_factor = total_position.y; // Assuming Y is up
-    float wind_effect = sin(time * wind_speed + total_position.x * 0.5 + total_position.z * 0.5 + random_offset) * wind_strength * height_factor;
+    float height_factor = position.y; // Assuming Y is up
+    float wind_effect = sin(time * wind_speed + position.x * 0.5 + position.z * 0.5 + random_offset) * wind_strength * height_factor;
 
     // Apply wind to position
     vec3 wind_offset = wind_direction * wind_effect;
-    vec3 wind_pos = total_position + wind_offset;
+    vec3 wind_pos = position + wind_offset;
     mat4 modelview = view_matrix * model_matrix;
 
     gl_Position = projection_matrix * modelview * vec4(wind_pos, 1.0);
-    v_world_position = (model_matrix * vec4(total_position, 1.0)).xyz;
-    v_vertex_normal = transpose(inverse(mat3(modelview))) * total_normal;
+    v_world_position = (model_matrix * vec4(position, 1.0)).xyz;
+    v_vertex_normal = transpose(inverse(mat3(modelview))) * normal;
     v_view_direction = normalize(camera_position - v_world_position);
-    v_modelView_pos = -(modelview * vec4(total_position, 1.0)).xyz;
+    v_modelView_pos = -(modelview * vec4(position, 1.0)).xyz;
     v_vertex_color = color;
-    v_position = total_position;
+    v_position = position;
     v_model_matrix = model_matrix;
     v_vertex_texcoord = texcoord;
 }

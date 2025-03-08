@@ -160,10 +160,26 @@ impl Texture {
             height: image_dimensions.1,
             binary_data: None,
             tileable: false,
-            name: None
+            name: Some("PinkTexture".to_string())
         }
     }
 
+    pub fn colored_texture(display: &glium::Display<WindowSurface>, color: [u8; 4], name: Option<String>) -> Self {
+        let image = image::RgbaImage::from_pixel(1, 1, image::Rgba(color));
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        let n = name.unwrap_or_else(|| "COLORED".to_string());
+        Self {
+            texture,
+            path: n.clone(),
+            width: image_dimensions.0,
+            height: image_dimensions.1,
+            binary_data: None,
+            tileable: false,
+            name: Some(n)
+        }
+    }
 
 }
 
