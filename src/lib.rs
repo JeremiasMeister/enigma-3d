@@ -47,6 +47,10 @@ pub fn init_default(app_state: &mut AppState) {
     app_state.set_fps(60);
     app_state.set_max_buffers(3);
 
+    if app_state.get_camera().is_none(){
+        app_state.set_camera(Camera::default());
+    }
+
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
         Arc::new(default_events::select_object),
