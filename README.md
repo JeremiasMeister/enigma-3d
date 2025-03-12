@@ -31,6 +31,8 @@ The current release should include most of the base features, but it might be a 
 When it comes to running the examples they are hidden behind a feature flag due to its size, which would bloat the package. After cloning the repository onto your machine, running `cargo run --example=engine --features=example` or `cargo run --example=chessboard --features=example` should to the trick.
 Cargo should take care of all the dependencies for you.
 
+You can find a no-cut tutorial series on enigma-3d on my YouTube channel: https://youtube.com/playlist?list=PLheMI-GTxzlQQ8mYQQSXrSLxUziGqAHMp&si=usk-C3MHyYuPZCE2
+
 **The Chessboard Example**
 ![image](https://github.com/user-attachments/assets/59d69fc6-e6ba-4854-a7bd-d266bd52855e)
 **The Chessboard Example with a Geometry Grass shader for the ground and a Tree wind shader**
