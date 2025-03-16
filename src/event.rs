@@ -2,7 +2,7 @@ use std::sync::Arc;
 use crate::AppState;
 
 // winit event re-export
-use winit::event::*;
+pub use winit::event::*;
 
 #[derive(Copy, Clone)]
 pub enum EventCharacteristic {

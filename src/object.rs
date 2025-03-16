@@ -15,7 +15,7 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 use crate::animation::{AnimationState, MAX_BONES};
-use crate::logging::{EnigmaError, EnigmaWarning};
+use crate::logging::{EnigmaError, EnigmaMessage, EnigmaWarning};
 
 pub struct ObjectInstance {
     pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
@@ -509,7 +509,7 @@ impl Object {
         &mut self.skeleton
     }
 
-    pub fn try_fix_object(&mut self) -> Result<(), EnigmaError> {
+    pub fn try_fix_object(&mut self) -> Result<EnigmaMessage, EnigmaError> {
         let mut errors = EnigmaError::new(None, true);
         if let Some(skeleton) = &mut self.skeleton {
             match skeleton.try_fix() {
@@ -521,7 +521,7 @@ impl Object {
         if !errors.is_empty() {
             Err(errors)
         } else {
-            Ok(())
+            Ok(EnigmaMessage::new(Some(&smart_format!("Nothing to Repair on Object {:?}", self.get_name())), true))
         }
     }
 
