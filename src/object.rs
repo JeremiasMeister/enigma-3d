@@ -11,6 +11,7 @@ use uuid::Uuid;
 use std::fs::File;
 use std::io::BufReader;
 use glium::uniforms::UniformBuffer;
+use gltf::iter::Animations;
 use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
@@ -403,6 +404,14 @@ impl Object {
                 looping,
             });
         }
+    }
+
+    pub fn stop_animation(&mut self) {
+        self.current_animation = None;
+    }
+
+    pub fn get_current_animation(&self) -> &Option<AnimationState> {
+        &self.current_animation
     }
 
     pub fn update(&mut self, delta_time: f32) {
