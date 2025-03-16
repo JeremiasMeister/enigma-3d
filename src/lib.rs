@@ -17,7 +17,7 @@ use crate::data::AppStateData;
 use crate::event::EventModifiers;
 use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightEmissionType};
-use crate::logging::{EnigmaError, EnigmaMessage};
+use crate::logging::{EnigmaError, EnigmaMessage, EnigmaWarning};
 use crate::material::Material;
 use crate::object::{Object, ObjectInstance};
 use crate::postprocessing::PostProcessingEffect;
@@ -46,6 +46,10 @@ pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
     app_state.set_fps(60);
     app_state.set_max_buffers(3);
+
+    if app_state.get_camera().is_none(){
+        app_state.set_camera(Camera::default());
+    }
 
     app_state.inject_event(
         event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
@@ -535,6 +539,22 @@ impl AppState {
         self.skybox = Some(skybox);
     }
 
+    pub fn set_skybox_from_texture(&mut self, texture: Texture, event_loop: &EventLoop){
+        let mut material = crate::material::Material::unlit(event_loop.get_display_clone(), false);
+        material.set_name("INTERNAL::SkyBox");
+
+        material.set_texture(texture, crate::material::TextureType::Albedo);
+        // create a default object
+        let mut object = Object::load_from_gltf_resource(resources::skybox(), None);
+        // set the material
+        object.add_material(material.uuid);
+        object.get_shapes_mut()[0].set_material_from_object_list(0);
+        object.name = "Skybox".to_string();
+        object.transform.set_scale([1.0, 1.0, 1.0]);
+        self.add_material(material);
+        self.set_skybox(object);
+    }
+
     pub fn get_skybox(&self) -> &Option<object::Object> {
         &self.skybox
     }
@@ -568,8 +588,29 @@ impl EventLoop {
     }
 
     pub fn spawn_skybox(&mut self, app_state: &mut AppState) -> (crate::object::Object, texture::Texture) {
+        if let Some(current_skybox_object) = app_state.get_skybox().clone() {
+            // If we have an existing skybox, try to get its texture
+            if let Some(texture_uuid) = current_skybox_object.get_materials().first() {
+                if let Some(material) = app_state.get_material(texture_uuid) {
+                    if let Some(texture) = &material.albedo {
+                        // Successfully found texture, clone it and return with the existing object
+                        return (
+                            current_skybox_object,
+                            texture.get_texture_clone(self.get_display_reference())
+                        );
+                    }
+                }
+            }
+
+            // If we reached here, we couldn't get the texture from the existing skybox
+            let mut logger = EnigmaWarning::new(None, true);
+            logger.extent("Failed to get texture from existing skybox. Creating default skybox...");
+            logger.log();
+        }
+
         let mut material = crate::material::Material::unlit(self.display.clone(), false);
         material.set_name("INTERNAL::SkyBox");
+
         material.set_texture_from_resource(resources::skybox_texture(), crate::material::TextureType::Albedo);
 
         // create a default object
@@ -586,7 +627,6 @@ impl EventLoop {
         app_state.add_material(material);
         // skybox texture
         let skybox_texture = texture::Texture::from_resource(&self.display, resources::skybox_texture());
-
         (object, skybox_texture)
     }
 

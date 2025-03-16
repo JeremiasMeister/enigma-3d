@@ -422,7 +422,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + '_ {
+    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + 'a {
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 
         glium::uniform! {

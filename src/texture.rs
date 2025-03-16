@@ -22,6 +22,7 @@ pub struct TextureSerializer {
     height: u32,
     tileable: bool,
     binary_data: Option<Vec<u8>>,
+    name: Option<String>
 }
 
 pub struct Texture {
@@ -31,6 +32,7 @@ pub struct Texture {
     pub height: u32,
     pub tileable: bool,
     pub binary_data: Option<Vec<u8>>,
+    pub name: Option<String>
 }
 
 impl Texture {
@@ -39,13 +41,16 @@ impl Texture {
         let image_dimensions = image.dimensions();
         let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
         let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        let path_obj = Path::new(path);
+        let filename = path_obj.file_name().expect("failed to get filename from path. it might be a folder");
         Self {
             texture,
             path: String::from(path),
             width: image_dimensions.0,
             height: image_dimensions.1,
             binary_data: None,
-            tileable: false
+            tileable: false,
+            name: Some(filename.to_string_lossy().into_owned())
         }
     }
 
@@ -73,7 +78,8 @@ impl Texture {
             width: serializer.width,
             height: serializer.height,
             binary_data: None,
-            tileable: serializer.tileable
+            tileable: serializer.tileable,
+            name: serializer.name
         };
     }
 
@@ -83,7 +89,8 @@ impl Texture {
             width: self.width,
             height: self.height,
             binary_data: self.binary_data.clone(),
-            tileable: self.tileable
+            tileable: self.tileable,
+            name: self.name.clone()
         }
     }
 
@@ -109,7 +116,8 @@ impl Texture {
             width: dimensions.0,
             height: dimensions.1,
             binary_data: Some(data.to_vec()),
-            tileable: false
+            tileable: false,
+            name: None,
         }
     }
 
@@ -131,6 +139,7 @@ impl Texture {
                         height: self.height,
                         binary_data: None,
                         tileable: self.tileable,
+                        name: self.name.clone()
                     };
                 }
             }
@@ -150,10 +159,27 @@ impl Texture {
             width: image_dimensions.0,
             height: image_dimensions.1,
             binary_data: None,
-            tileable: false
+            tileable: false,
+            name: Some("PinkTexture".to_string())
         }
     }
 
+    pub fn colored_texture(display: &glium::Display<WindowSurface>, color: [u8; 4], name: Option<String>) -> Self {
+        let image = image::RgbaImage::from_pixel(1, 1, image::Rgba(color));
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions);
+        let texture = glium::texture::SrgbTexture2d::new(display, image).unwrap();
+        let n = name.unwrap_or_else(|| "COLORED".to_string());
+        Self {
+            texture,
+            path: n.clone(),
+            width: image_dimensions.0,
+            height: image_dimensions.1,
+            binary_data: None,
+            tileable: false,
+            name: Some(n)
+        }
+    }
 
 }
 
