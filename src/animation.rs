@@ -1,5 +1,5 @@
 use std::vec::Vec;
-use nalgebra::{Matrix, Matrix4, Quaternion, UnitQuaternion, Vector3};
+use nalgebra::{Matrix4, Quaternion, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use crate::logging::EnigmaError;
 use crate::smart_format;

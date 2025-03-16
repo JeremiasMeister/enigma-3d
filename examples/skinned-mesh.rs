@@ -1,12 +1,8 @@
 use std::sync::Arc;
-use egui::Key::N;
 use winit::event::VirtualKeyCode;
-use enigma_3d::camera::Camera;
-use enigma_3d::{AppState, EventLoop, example_resources, init_default, light, material, object, resources};
+use enigma_3d::{AppState, EventLoop, example_resources, init_default};
 use enigma_3d::event::EventCharacteristic;
-use enigma_3d::light::LightEmissionType;
-use enigma_3d::logging::{EnigmaError, EnigmaMessage};
-use enigma_3d::material::{Material, TextureType};
+use enigma_3d::material::Material;
 use enigma_3d::object::Object;
 
 pub fn debug_single_bone(app_state: &mut AppState){

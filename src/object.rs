@@ -11,7 +11,6 @@ use uuid::Uuid;
 use std::fs::File;
 use std::io::BufReader;
 use glium::uniforms::UniformBuffer;
-use gltf::iter::Animations;
 use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
