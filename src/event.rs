@@ -1,12 +1,15 @@
 use std::sync::Arc;
 use crate::AppState;
 
+// winit event re-export
+use winit::event::*;
+
 #[derive(Copy, Clone)]
 pub enum EventCharacteristic {
-    KeyPress(winit::event::VirtualKeyCode),
-    MousePress(winit::event::MouseButton),
-    MouseDown(winit::event::MouseButton),
-    MouseScroll(winit::event::MouseScrollDelta),
+    KeyPress(VirtualKeyCode),
+    MousePress(MouseButton),
+    MouseDown(MouseButton),
+    MouseScroll(MouseScrollDelta),
     //TODO: impl more events
 }
 
