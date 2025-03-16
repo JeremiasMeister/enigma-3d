@@ -151,6 +151,9 @@ pub fn skinned_knight() -> &'static [u8] {
 }
 
 #[cfg(feature = "examples")]
+pub fn skinned_wiggle() -> &'static [u8] { include_bytes!("res/models/skinned-mesh/wiggle.glb")}
+
+#[cfg(feature = "examples")]
 pub fn skinned_knight_albedo() -> &'static [u8] { include_bytes!("res/textures/skinned-mesh/knight_albedo.png") }
 
 #[cfg(feature = "examples")]

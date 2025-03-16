@@ -1,5 +1,5 @@
 use std::vec::Vec;
-use nalgebra::{Matrix4};
+use nalgebra::{Matrix, Matrix4, Quaternion, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use crate::logging::EnigmaError;
 use crate::smart_format;
@@ -96,7 +96,7 @@ impl Skeleton {
 pub enum AnimationTransform {
     Translation([f32; 3]),
     Rotation([f32;4]),
-    Scale([f32;3])
+    Scale([f32;3]),
 }
 
 #[derive(Clone)]
@@ -118,6 +118,23 @@ impl AnimationKeyframe {
         Self {
             time: serializer.time,
             transform: serializer.transform
+        }
+    }
+
+    pub fn get_matrix(&self) -> Matrix4<f32> {
+        match &self.transform {
+            AnimationTransform::Translation(translation) => {
+                Matrix4::new_translation(&Vector3::new(translation[0], translation[1], translation[2]))
+            },
+            AnimationTransform::Rotation(quaternion) => {
+                let quat = UnitQuaternion::new_normalize(
+                    Quaternion::new(quaternion[3], quaternion[0], quaternion[1], quaternion[2])
+                );
+                quat.to_homogeneous()
+            },
+            AnimationTransform::Scale(scale) => {
+                Matrix4::new_nonuniform_scaling(&Vector3::new(scale[0], scale[1], scale[2]))
+            }
         }
     }
 }
