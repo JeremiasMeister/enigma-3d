@@ -108,55 +108,55 @@ fn main() {
 
     // add events
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::A),
         Arc::new(rotate_left),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::D),
         Arc::new(rotate_right),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
         Arc::new(rotate_up),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::S),
         Arc::new(rotate_down),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::E),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::E),
         Arc::new(roll_right),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Q),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Q),
         Arc::new(roll_left),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Space),
         Arc::new(spawn_object),
         None,
     );
 
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::S),
         Arc::new(save_app_state),
         Some(EventModifiers::new(true, false, false)),
     );
 
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::O),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::O),
         Arc::new(load_app_state),
         Some(EventModifiers::new(true, false, false)),
     );
 
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::N),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::N),
         Arc::new(reset),
         Some(EventModifiers::new(true, false, false)),
     );
