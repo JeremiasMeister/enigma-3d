@@ -52,12 +52,12 @@ pub fn init_default(app_state: &mut AppState) {
     }
 
     app_state.inject_event(
-        event::EventCharacteristic::MousePress(winit::event::MouseButton::Left),
+        event::EventCharacteristic::MousePress(event::MouseButton::Left),
         Arc::new(default_events::select_object),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::MousePress(winit::event::MouseButton::Right),
+        event::EventCharacteristic::MousePress(event::MouseButton::Right),
         Arc::new(default_events::select_object_add),
         None,
     );
@@ -69,37 +69,37 @@ pub fn init_default(app_state: &mut AppState) {
     app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
 
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::W),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
         Arc::new(default_events::camera_fly_forward),
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::A),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::A),
         Arc::new(default_events::camera_fly_left),
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::S),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::S),
         Arc::new(default_events::camera_fly_backward),
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::D),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::D),
         Arc::new(default_events::camera_fly_right),
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Space),
         Arc::new(default_events::camera_up),
         Some(EventModifiers::new(false, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(winit::event::VirtualKeyCode::Space),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Space),
         Arc::new(default_events::camera_down),
         Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::MouseDown(winit::event::MouseButton::Right),
+        event::EventCharacteristic::MouseDown(event::MouseButton::Right),
         Arc::new(default_events::camera_rotate),
         Some(EventModifiers::new(true, false, false)),
     );

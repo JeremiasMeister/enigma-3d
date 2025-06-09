@@ -1,6 +1,5 @@
 use std::sync::Arc;
-use winit::event::VirtualKeyCode;
-use enigma_3d::{AppState, EventLoop, example_resources, init_default};
+use enigma_3d::{AppState, event, EventLoop, example_resources, init_default};
 use enigma_3d::event::EventCharacteristic;
 use enigma_3d::material::Material;
 use enigma_3d::object::Object;
@@ -77,8 +76,8 @@ fn main() {
     app_state.add_object(wiggle);
 
     // functions
-    app_state.inject_event(EventCharacteristic::KeyPress(VirtualKeyCode::P),Arc::new(print_rig_data), None);
-    app_state.inject_event(EventCharacteristic::KeyPress(VirtualKeyCode::X), Arc::new(toggle_animation), None);
+    app_state.inject_event(EventCharacteristic::KeyPress(event::VirtualKeyCode::P),Arc::new(print_rig_data), None);
+    app_state.inject_event(EventCharacteristic::KeyPress(event::VirtualKeyCode::X), Arc::new(toggle_animation), None);
 
 
     event_loop.run(app_state.convert_to_arc_mutex());
