@@ -20,6 +20,7 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - loading resources from the `include_bytes!` and `include_str!` macro to include them in the built application
 - adding and carrying an arbitrary amount of data within the `AppState`
 - serialize currently loaded `AppState` to json and inject serialized `AppState` into running one.
+- simple Audio implementation to trigger oneshot or loop-able audio from resources or a file.
 - Optimization: Textures are cached
 - Optimization: Materials are shared in between Objects and managed via the `AppState`
 - Optimisation: Cloned Objects are batched into one Draw Call via GPU Instancing 
