@@ -322,10 +322,13 @@ impl Object {
         self.skeleton.is_some() && !self.animations.is_empty()
     }
 
+    #[allow(unreachable_code)]
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
-        let mut bone_transform_data = BoneTransforms {
+        let bone_transform_data = BoneTransforms {
             bone_transforms: [[[1.0; 4]; 4]; MAX_BONES],
         };
+        // temporary returning empty buffer. skeletal meshes are not working in this version so no need to do calculations
+        return UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer");
 
         if let (Some(skeleton), Some(anim_state)) = (&self.skeleton, &self.current_animation) {
             if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
