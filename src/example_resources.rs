@@ -161,3 +161,10 @@ pub fn skinned_knight_normal() -> &'static [u8] { include_bytes!("res/textures/s
 
 #[cfg(feature = "examples")]
 pub fn skinned_knight_roughness() -> &'static [u8] { include_bytes!("res/textures/skinned-mesh/knight_roughness.png") }
+
+// audio
+#[cfg(feature = "examples")]
+pub fn click_sound() -> &'static [u8] { include_bytes!("res/sounds/click-sound.ogg")}
+
+#[cfg(feature = "examples")]
+pub fn background_music() -> &'static [u8] { include_bytes!("res/sounds/background-audio.ogg")}

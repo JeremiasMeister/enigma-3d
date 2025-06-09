@@ -8,9 +8,11 @@ use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
 use glium::uniforms::UniformBuffer;
 use serde::{Deserialize, Serialize};
+use serde::de::Unexpected::Str;
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
+use crate::audio::{AudioClip, AudioEngine};
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MouseState;
 use crate::data::AppStateData;
@@ -41,6 +43,7 @@ pub mod data;
 pub mod example_resources;
 pub mod animation;
 pub mod logging;
+pub mod audio;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
@@ -141,6 +144,8 @@ pub struct AppState {
     last_frame_time: Instant,
     is_mouse_down: bool,
     pub state_data: Vec<AppStateData>,
+    audio_engine: AudioEngine,
+    audio_clips:  HashMap<String, AudioClip>
 }
 
 pub struct EventLoop {
@@ -177,7 +182,33 @@ impl AppState {
             last_event_time: Instant::now(),
             last_frame_time: Instant::now(),
             is_mouse_down: false,
+            audio_engine: AudioEngine::new(),
+            audio_clips: HashMap::new()
         }
+    }
+
+    pub fn add_audio(&mut self, clip: AudioClip){
+        if self.audio_clips.contains_key(&clip.name){
+            EnigmaError::new(Some("Cannot add audio clip, since it is already added"), true).log();
+            return;
+        }
+        self.audio_clips.insert(clip.name.to_string(), clip);
+    }
+
+    pub fn play_audio_once(&mut self, name: &str){
+        self.audio_engine.play_clip_once(name, &self.audio_clips);
+    }
+
+    pub fn play_audio_loop(&mut self, name: &str) {
+        self.audio_engine.play_clip_loop(name, &self.audio_clips);
+    }
+
+    pub fn stop_audio(&mut self, name: &str) {
+        self.audio_engine.stop_clip(name);
+    }
+
+    pub fn toggle_pause_audio(&mut self, name: &str) {
+        self.audio_engine.toggle_pause_clip(name);
     }
 
     fn setup_skybox_instance(&self, display: &Display<WindowSurface>, sky_box_matrix: &Option<[[f32; 4]; 4]>) -> Option<(Uuid, object::ObjectInstance)> {

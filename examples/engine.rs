@@ -8,6 +8,7 @@ use enigma_3d::AppState;
 use enigma_3d::example_resources;
 use rand::Rng;
 use enigma_3d::event::EventModifiers;
+use enigma_3d::audio::AudioClip;
 
 fn rotate_left(app_state: &mut AppState) {
     for object in app_state.get_selected_objects_mut() {
@@ -69,6 +70,7 @@ fn spawn_object(app_state: &mut AppState) {
             object.transform.set_scale([0.3, 0.3, 0.3]);
 
             app_state.add_object(object);
+            app_state.play_audio_once("spawn_click");
         }
         None => {
             println!("No display found, could not spawn object");
@@ -328,6 +330,15 @@ fn main() {
     app_state.add_state_data("intdata", Box::new(10i32));
     app_state.add_state_data("stringdata", Box::new("Hello World".to_string() as String));
     app_state.add_state_data("booldata", Box::new(true as bool));
+
+    // adding some audio
+    let background_sound = AudioClip::from_resource(example_resources::background_music(), "background_music");
+    let spawn_click = AudioClip::from_resource(example_resources::click_sound(), "spawn_click");
+    app_state.add_audio(background_sound);
+    app_state.add_audio(spawn_click);
+    // trigger background music
+    app_state.play_audio_loop("background_music");
+
 
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
