@@ -46,7 +46,8 @@ You can find a no-cut tutorial series on enigma-3d on my YouTube channel: https:
 ### Example Game:
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
 I just recently gave it an upgrade to the newest enigma-3d version, v0.2.13
-![image](https://github.com/user-attachments/assets/ead4d635-5be1-4eef-bd72-4d01e1189657)
+![Screenshot 2025-06-10 075524](https://github.com/user-attachments/assets/c7c1ccc2-7dac-4e62-bfa0-c654e82e011b)
+
 
 
 ### engine.rs example, main function:
