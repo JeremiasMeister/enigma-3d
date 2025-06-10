@@ -8,7 +8,6 @@ use glium::glutin::surface::WindowSurface;
 use glium::{Display, Surface, Texture2d, uniform};
 use glium::uniforms::UniformBuffer;
 use serde::{Deserialize, Serialize};
-use serde::de::Unexpected::Str;
 use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
@@ -209,6 +208,10 @@ impl AppState {
 
     pub fn toggle_pause_audio(&mut self, name: &str) {
         self.audio_engine.toggle_pause_clip(name);
+    }
+
+    pub fn set_audio_volume(&mut self, name: &str, volume: f32){
+        self.audio_engine.set_clip_volume(name, volume);
     }
 
     fn setup_skybox_instance(&self, display: &Display<WindowSurface>, sky_box_matrix: &Option<[[f32; 4]; 4]>) -> Option<(Uuid, object::ObjectInstance)> {
