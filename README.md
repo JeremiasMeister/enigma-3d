@@ -66,20 +66,23 @@ fn main() {
 
     // create a material and assign the UV checker texture from resources
     let mut material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), false);
-    material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    material.set_texture_from_resource(example_resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
     material.set_name("opaque_mat");
 
     let mut transparent_material = enigma_3d::material::Material::lit_pbr(event_loop.get_display_clone(), true);
     transparent_material.set_transparency_strength(0.2);
-    transparent_material.set_texture_from_resource(resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
+    transparent_material.set_texture_from_resource(example_resources::uv_checker(), enigma_3d::material::TextureType::Albedo);
     transparent_material.set_name("transparent_mat");
 
 
     // create an object, and load the Suzanne model from resources
-    let mut object = Object::load_from_gltf_resource(resources::suzanne());
+    let mut object = Object::load_from_gltf_resource(example_resources::suzanne(), None);
 
     // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material.uuid);
+
+    /// this step is optional, if you only have one shape in the object, but if you have multiple you might want to assign
+    /// the material to the correct shape
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     // set the name and position of the object
@@ -111,37 +114,37 @@ fn main() {
 
     // add events
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::A),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Left),
         Arc::new(rotate_left),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::D),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Right),
         Arc::new(rotate_right),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Up),
         Arc::new(rotate_up),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::S),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Down),
         Arc::new(rotate_down),
         None,
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::E),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Right),
         Arc::new(roll_right),
-        None,
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Q),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Left),
         Arc::new(roll_left),
-        None,
+        Some(EventModifiers::new(true, false, false)),
     );
     app_state.inject_event(
-        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::Space),
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::E),
         Arc::new(spawn_object),
         None,
     );
@@ -169,9 +172,11 @@ fn main() {
     app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing effects
-    //app_state.add_post_process(Box::new(enigma::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::lens_dirt::LensDirt::new(&event_loop.display, resources::lens_dirt_texture(), 2.0, [800.0, 800.0], 2.0)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.2, 0.5, [0.0, 0.0, 0.0], 0.8)));
+
 
     //add one ui function to the app state. multiple ui functions can be added modularly
     app_state.inject_gui(Arc::new(enigma_ui_function));
@@ -183,7 +188,17 @@ fn main() {
     app_state.add_state_data("stringdata", Box::new("Hello World".to_string() as String));
     app_state.add_state_data("booldata", Box::new(true as bool));
 
+    // adding some audio
+    let background_sound = AudioClip::from_resource(example_resources::background_music(), "background_music");
+    let spawn_click = AudioClip::from_resource(example_resources::click_sound(), "spawn_click");
+    app_state.add_audio(background_sound);
+    app_state.add_audio(spawn_click);
+    // trigger background music
+    app_state.play_audio_loop("background_music");
+
+
     // run the event loop
     event_loop.run(app_state.convert_to_arc_mutex());
 }
+
 ```

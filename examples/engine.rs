@@ -225,6 +225,9 @@ fn main() {
 
     // set the material to the suzan object to the first shape (submesh) slot
     object.add_material(material.uuid);
+
+    /// this step is optional, if you only have one shape in the object, but if you have multiple you might want to assign
+    /// the material to the correct shape
     object.get_shapes_mut()[0].set_material_from_object_list(0);
 
     // set the name and position of the object
@@ -314,7 +317,6 @@ fn main() {
     app_state.inject_update_function(Arc::new(print_data));
 
     // add post processing effects
-    //app_state.add_post_process(Box::new(enigma_3d::postprocessing::grayscale::GrayScale::new(&event_loop.display.clone())));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.9, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.8, [1.0, 0.0, 0.0])));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::lens_dirt::LensDirt::new(&event_loop.display, resources::lens_dirt_texture(), 2.0, [800.0, 800.0], 2.0)));
