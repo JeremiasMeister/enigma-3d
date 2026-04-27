@@ -76,3 +76,12 @@ Objects that share the same `instance_id` (set by cloning an object) are batched
 ### Render resources
 
 Shaders live in `src/res/shader/` as `.glsl` files embedded at compile time via `build.rs`. Textures and models for the engine itself (skybox, icon) are in `src/res/`. The `build.rs` script generates `resources.rs` with `include_bytes!` accessors for all embedded assets.
+
+### Skeletal animation
+
+Fully implemented. Key details:
+- `Skeleton.root_transform` — world-space transform of the armature node (parent of root joints). Applied to root bones instead of identity so IBMs cancel correctly. Handles Blender's Z-up→Y-up correction (90° X + 0.01 scale) automatically.
+- `Bone.node_index` — GLTF node index used to match animation channels. Distinct from `bone.id` (joint array index). `bone.parent_id` is also a joint array index.
+- `BoneTransforms` in `geometry.rs` — `implement_uniform_block!` crashes in debug mode (glium-0.33 null pointer bug). Uses a manual `UniformBlock` impl with `matches` returning `Ok(())`.
+- GLSL uniform block requires `layout(std140)` for glium's `UniformBuffer` binding to work.
+- `get_uniforms` in `material.rs` must pass both `BoneTransforms` buffer and `has_skeleton` to the shader — easy to accidentally leave disabled.
