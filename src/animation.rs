@@ -10,6 +10,7 @@ pub(crate) const MAX_BONES: usize = 128;
 pub struct Bone {
     pub name: String,
     pub id: usize,
+    pub node_index: usize,
     pub parent_id: Option<usize>,
     pub inverse_bind_pose: Matrix4<f32>
 }
@@ -18,6 +19,7 @@ pub struct Bone {
 pub struct BoneSerializer {
     pub name: String,
     pub id: usize,
+    pub node_index: usize,
     pub parent_id: Option<usize>,
     pub inverse_bind_pose: [[f32;4];4]
 }
@@ -27,6 +29,7 @@ impl Bone {
         BoneSerializer {
             name: self.name.clone(),
             id: self.id,
+            node_index: self.node_index,
             parent_id: self.parent_id,
             inverse_bind_pose: self.inverse_bind_pose.into()
         }
@@ -36,6 +39,7 @@ impl Bone {
         Self {
             name: serializer.name,
             id: serializer.id,
+            node_index: serializer.node_index,
             parent_id: serializer.parent_id,
             inverse_bind_pose: Matrix4::from(serializer.inverse_bind_pose)
         }

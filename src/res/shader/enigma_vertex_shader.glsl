@@ -38,19 +38,31 @@ uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 
 uniform bool has_skeleton;
-uniform BoneTransforms {
+layout(std140) uniform BoneTransforms {
     mat4 bone_transforms[128];
 };
 
 void main() {
+    vec3 local_position = position;
+    vec3 local_normal = normal;
+
+    if (has_skeleton) {
+        mat4 skin_matrix = bone_transforms[bone_indices.x] * bone_weights.x
+                         + bone_transforms[bone_indices.y] * bone_weights.y
+                         + bone_transforms[bone_indices.z] * bone_weights.z
+                         + bone_transforms[bone_indices.w] * bone_weights.w;
+        local_position = (skin_matrix * vec4(position, 1.0)).xyz;
+        local_normal = normalize((skin_matrix * vec4(normal, 0.0)).xyz);
+    }
+
     mat4 modelview = view_matrix * model_matrix;
-    gl_Position = projection_matrix * modelview * vec4(position, 1.0);
+    gl_Position = projection_matrix * modelview * vec4(local_position, 1.0);
     v_model_matrix = model_matrix;
-    v_position = position;
-    v_world_position = (model_matrix * vec4(position, 1.0)).xyz;
-    v_vertex_normal = transpose(inverse(mat3(modelview))) * normal;
+    v_position = local_position;
+    v_world_position = (model_matrix * vec4(local_position, 1.0)).xyz;
+    v_vertex_normal = transpose(inverse(mat3(modelview))) * local_normal;
     v_view_direction = normalize(v_world_position - camera_position);
-    v_modelView_pos = -(modelview * vec4(position, 1.0)).xyz;
+    v_modelView_pos = -(modelview * vec4(local_position, 1.0)).xyz;
     v_object_position = vec3(model_matrix[3]);
     v_vertex_color = color;
     v_vertex_texcoord = texcoord;

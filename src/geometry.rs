@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use glium::{implement_uniform_block, implement_vertex};
+use glium::implement_vertex;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,24 @@ use serde::{Deserialize, Serialize};
 pub struct BoneTransforms {
     pub bone_transforms: [[[f32; 4]; 4]; 128]
 }
-implement_uniform_block!(BoneTransforms, bone_transforms);
+impl glium::uniforms::UniformBlock for BoneTransforms {
+    fn matches(_layout: &glium::program::BlockLayout, _base_offset: usize) -> Result<(), glium::uniforms::LayoutMismatchError> {
+        Ok(())
+    }
+    fn build_layout(base_offset: usize) -> glium::program::BlockLayout {
+        glium::program::BlockLayout::Struct {
+            members: vec![
+                ("bone_transforms".to_owned(), glium::program::BlockLayout::Array {
+                    content: Box::new(glium::program::BlockLayout::BasicType {
+                        ty: glium::uniforms::UniformType::FloatMat4,
+                        offset_in_buffer: base_offset,
+                    }),
+                    length: 128,
+                }),
+            ],
+        }
+    }
+}
 
 #[derive(Copy, Clone)]
 pub struct InstanceAttribute {

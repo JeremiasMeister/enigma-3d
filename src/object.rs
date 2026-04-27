@@ -15,7 +15,7 @@ use nalgebra_glm::normalize;
 use obj::{load_obj, Obj};
 use serde::{Deserialize, Serialize};
 use crate::animation::{AnimationState, MAX_BONES};
-use crate::logging::{EnigmaError, EnigmaMessage, EnigmaWarning};
+use crate::logging::{EnigmaError, EnigmaMessage};
 
 pub struct ObjectInstance {
     pub vertex_buffers: Vec<(glium::vertex::VertexBufferAny, usize)>,
@@ -322,30 +322,25 @@ impl Object {
         self.skeleton.is_some() && !self.animations.is_empty()
     }
 
-    #[allow(unreachable_code)]
     pub fn get_bone_transform_buffer(&self, display: &Display<WindowSurface>) -> UniformBuffer<BoneTransforms> {
-        let bone_transform_data = BoneTransforms {
-            bone_transforms: [[[1.0; 4]; 4]; MAX_BONES],
+        let identity = [[1.0f32, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+        let mut bone_transform_data = BoneTransforms {
+            bone_transforms: [identity; MAX_BONES],
         };
-        // temporary returning empty buffer. skeletal meshes are not working in this version so no need to do calculations
-        return UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer");
 
         if let (Some(skeleton), Some(anim_state)) = (&self.skeleton, &self.current_animation) {
             if let Some(animation) = self.animations.get(anim_state.name.as_str()) {
                 let mut global_transforms = vec![Matrix4::identity(); skeleton.bones.len()];
 
                 for (i, bone) in skeleton.bones.iter().enumerate() {
-                    let local_transform = self.interpolate_keyframes(animation, i, anim_state.time);
+                    let local_transform = self.interpolate_bone(animation, bone.node_index, anim_state.time);
                     let parent_transform: Matrix4<f32> = bone.parent_id
                         .map(|id| global_transforms[id])
                         .unwrap_or_else(Matrix4::identity);
 
                     global_transforms[i] = parent_transform * local_transform;
                     let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
-
                     bone_transform_data.bone_transforms[i] = final_transform.into();
-
-                    EnigmaWarning::new(Some(smart_format!("Bone {}: {}", i, final_transform).as_str()), true).log();
                 }
             }
         }
@@ -353,47 +348,66 @@ impl Object {
         UniformBuffer::new(display, bone_transform_data).expect("Failed to create BoneTransform Buffer")
     }
 
-    fn interpolate_keyframes(&self, animation: &animation::Animation, bone_id: usize, time: f32) -> Matrix4<f32> {
-        if let Some(channel) = animation.channels.iter().find(|c| c.bone_id == bone_id) {
-            let mut prev_keyframe = &channel.keyframes[0];
-            let mut next_keyframe = prev_keyframe;
+    fn interpolate_bone(&self, animation: &animation::Animation, node_index: usize, time: f32) -> Matrix4<f32> {
+        let mut translation = Matrix4::identity();
+        let mut rotation = Matrix4::identity();
+        let mut scale = Matrix4::identity();
 
-            for keyframe in &channel.keyframes {
-                if keyframe.time > time {
-                    next_keyframe = keyframe;
-                    break;
-                }
-                prev_keyframe = keyframe;
+        for channel in animation.channels.iter().filter(|c| c.bone_id == node_index) {
+            if channel.keyframes.is_empty() { continue; }
+            let m = Self::interpolate_channel(channel, time);
+            match &channel.keyframes[0].transform {
+                animation::AnimationTransform::Translation(_) => translation = m,
+                animation::AnimationTransform::Rotation(_) => rotation = m,
+                animation::AnimationTransform::Scale(_) => scale = m,
             }
+        }
 
-            let t = (time - prev_keyframe.time) / (next_keyframe.time - prev_keyframe.time);
+        translation * rotation * scale
+    }
 
-            match (&prev_keyframe.transform, &next_keyframe.transform) {
-                (animation::AnimationTransform::Translation(prev), animation::AnimationTransform::Translation(next)) => {
-                    let interpolated = Vector3::new(
-                        prev[0] + (next[0] - prev[0]) * t,
-                        prev[1] + (next[1] - prev[1]) * t,
-                        prev[2] + (next[2] - prev[2]) * t,
-                    );
-                    Matrix4::new_translation(&interpolated)
-                }
-                (animation::AnimationTransform::Rotation(prev), animation::AnimationTransform::Rotation(next)) => {
-                    let prev_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(prev[3], prev[0], prev[1], prev[2]));
-                    let next_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(next[3], next[0], next[1], next[2]));
-                    prev_quat.slerp(&next_quat, t).to_homogeneous()
-                }
-                (animation::AnimationTransform::Scale(prev), animation::AnimationTransform::Scale(next)) => {
-                    let interpolated = Vector3::new(
-                        prev[0] + (next[0] - prev[0]) * t,
-                        prev[1] + (next[1] - prev[1]) * t,
-                        prev[2] + (next[2] - prev[2]) * t,
-                    );
-                    Matrix4::new_nonuniform_scaling(&interpolated)
-                }
-                _ => Matrix4::identity(),
+    fn interpolate_channel(channel: &animation::AnimationChannel, time: f32) -> Matrix4<f32> {
+        let mut prev_keyframe = &channel.keyframes[0];
+        let mut next_keyframe = prev_keyframe;
+
+        for keyframe in &channel.keyframes {
+            if keyframe.time > time {
+                next_keyframe = keyframe;
+                break;
             }
+            prev_keyframe = keyframe;
+        }
+
+        let duration = next_keyframe.time - prev_keyframe.time;
+        let t = if duration > 0.0 {
+            ((time - prev_keyframe.time) / duration).clamp(0.0, 1.0)
         } else {
-            Matrix4::identity()
+            0.0
+        };
+
+        match (&prev_keyframe.transform, &next_keyframe.transform) {
+            (animation::AnimationTransform::Translation(prev), animation::AnimationTransform::Translation(next)) => {
+                let interpolated = Vector3::new(
+                    prev[0] + (next[0] - prev[0]) * t,
+                    prev[1] + (next[1] - prev[1]) * t,
+                    prev[2] + (next[2] - prev[2]) * t,
+                );
+                Matrix4::new_translation(&interpolated)
+            }
+            (animation::AnimationTransform::Rotation(prev), animation::AnimationTransform::Rotation(next)) => {
+                let prev_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(prev[3], prev[0], prev[1], prev[2]));
+                let next_quat = UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(next[3], next[0], next[1], next[2]));
+                prev_quat.slerp(&next_quat, t).to_homogeneous()
+            }
+            (animation::AnimationTransform::Scale(prev), animation::AnimationTransform::Scale(next)) => {
+                let interpolated = Vector3::new(
+                    prev[0] + (next[0] - prev[0]) * t,
+                    prev[1] + (next[1] - prev[1]) * t,
+                    prev[2] + (next[2] - prev[2]) * t,
+                );
+                Matrix4::new_nonuniform_scaling(&interpolated)
+            }
+            _ => Matrix4::identity(),
         }
     }
 
@@ -652,11 +666,17 @@ impl Object {
             }
         }
 
+        let joint_node_indices: Vec<usize> = joints.iter().map(|j| j.index()).collect();
+
         let bones = joints.into_iter().enumerate().zip(inverse_bind_matrices).map(|((id, joint), ibm)| {
+            let node_idx = joint.index();
+            let parent_id = parent_map.get(&node_idx)
+                .and_then(|parent_node_idx| joint_node_indices.iter().position(|&ni| ni == *parent_node_idx));
             animation::Bone {
                 name: joint.name().unwrap_or("").to_string(),
                 id,
-                parent_id: parent_map.get(&joint.index()).cloned(),
+                node_index: node_idx,
+                parent_id,
                 inverse_bind_pose: ibm,
             }
         }).collect();
