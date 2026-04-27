@@ -43,6 +43,7 @@ pub mod example_resources;
 pub mod animation;
 pub mod logging;
 pub mod audio;
+pub mod shadow;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
