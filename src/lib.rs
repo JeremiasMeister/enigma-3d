@@ -145,7 +145,9 @@ pub struct AppState {
     is_mouse_down: bool,
     pub state_data: Vec<AppStateData>,
     audio_engine: AudioEngine,
-    audio_clips:  HashMap<String, AudioClip>
+    audio_clips:  HashMap<String, AudioClip>,
+    pub shadow_resolution: u32,
+    pub shadow_distance: f32,
 }
 
 pub struct EventLoop {
@@ -183,7 +185,9 @@ impl AppState {
             last_frame_time: Instant::now(),
             is_mouse_down: false,
             audio_engine: AudioEngine::new(),
-            audio_clips: HashMap::new()
+            audio_clips: HashMap::new(),
+            shadow_resolution: 1024,
+            shadow_distance: 50.0,
         }
     }
 
@@ -597,6 +601,22 @@ impl AppState {
     pub fn get_skybox_mut(&mut self) -> &mut Option<object::Object> {
         &mut self.skybox
     }
+
+    pub fn set_shadow_resolution(&mut self, resolution: crate::light::ShadowResolution) {
+        self.shadow_resolution = resolution.value();
+    }
+
+    pub fn get_shadow_resolution(&self) -> u32 {
+        self.shadow_resolution
+    }
+
+    pub fn set_shadow_distance(&mut self, distance: f32) {
+        self.shadow_distance = distance;
+    }
+
+    pub fn get_shadow_distance(&self) -> f32 {
+        self.shadow_distance
+    }
 }
 
 impl EventLoop {
@@ -985,5 +1005,27 @@ impl EventLoop {
                 _ => (),
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::light::ShadowResolution;
+
+    #[test]
+    fn appstate_shadow_defaults() {
+        let s = AppState::new();
+        assert_eq!(s.get_shadow_resolution(), 1024);
+        assert_eq!(s.get_shadow_distance(), 50.0);
+    }
+
+    #[test]
+    fn appstate_shadow_setters() {
+        let mut s = AppState::new();
+        s.set_shadow_resolution(ShadowResolution::High);
+        assert_eq!(s.get_shadow_resolution(), 2048);
+        s.set_shadow_distance(75.0);
+        assert_eq!(s.get_shadow_distance(), 75.0);
     }
 }
