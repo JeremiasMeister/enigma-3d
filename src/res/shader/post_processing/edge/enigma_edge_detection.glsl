@@ -1,4 +1,4 @@
-#version 450 core
+#version 330 core
 
 #define MIN_DEPTH 0.995
 

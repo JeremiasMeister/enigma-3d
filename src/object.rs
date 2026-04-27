@@ -336,7 +336,7 @@ impl Object {
                     let local_transform = self.interpolate_bone(animation, bone.node_index, anim_state.time);
                     let parent_transform: Matrix4<f32> = bone.parent_id
                         .map(|id| global_transforms[id])
-                        .unwrap_or_else(Matrix4::identity);
+                        .unwrap_or(skeleton.root_transform);
 
                     global_transforms[i] = parent_transform * local_transform;
                     let final_transform: Matrix4<f32> = global_transforms[i] * bone.inverse_bind_pose;
@@ -681,7 +681,29 @@ impl Object {
             }
         }).collect();
 
-        animation::Skeleton { bones }
+        // Compute the world-space transform of the node that is the parent of the root joint(s).
+        // This is needed because IBMs are baked in world space but our hierarchy starts from
+        // the joint root, which may have an ancestor with a non-identity transform (e.g., Blender's
+        // Z-up → Y-up correction and unit scale applied to the armature node).
+        let root_joint_node_idx = joint_node_indices.first().copied().unwrap_or(0);
+        let root_transform = if let Some(&armature_idx) = parent_map.get(&root_joint_node_idx) {
+            let nodes: Vec<gltf::Node> = document.nodes().collect();
+            // Walk from armature up to the scene root, accumulating transforms.
+            let mut chain = Vec::new();
+            let mut current = armature_idx;
+            loop {
+                chain.push(Matrix4::from(nodes[current].transform().matrix()));
+                match parent_map.get(&current) {
+                    Some(&p) => current = p,
+                    None => break,
+                }
+            }
+            chain.iter().rev().fold(Matrix4::identity(), |acc, m| acc * m)
+        } else {
+            Matrix4::identity()
+        };
+
+        animation::Skeleton { bones, root_transform }
     }
 
     fn load_animation_internal(anim: &gltf::Animation, buffers: &[gltf::buffer::Data], padding: usize, multiplier: f32) -> animation::Animation {

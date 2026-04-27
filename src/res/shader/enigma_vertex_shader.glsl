@@ -52,7 +52,8 @@ void main() {
                          + bone_transforms[bone_indices.z] * bone_weights.z
                          + bone_transforms[bone_indices.w] * bone_weights.w;
         local_position = (skin_matrix * vec4(position, 1.0)).xyz;
-        local_normal = normalize((skin_matrix * vec4(normal, 0.0)).xyz);
+        vec3 skinned_n = (skin_matrix * vec4(normal, 0.0)).xyz;
+        local_normal = length(skinned_n) > 0.0001 ? normalize(skinned_n) : normal;
     }
 
     mat4 modelview = view_matrix * model_matrix;

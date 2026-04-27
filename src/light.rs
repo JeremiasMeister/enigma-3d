@@ -35,6 +35,10 @@ impl Light {
         }
     }
 
+    pub fn default() -> Self {
+        Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 1.0, None, true)
+    }
+
     pub fn is_directional(&self) -> bool {
         self.direction != [0.0, 0.0, 0.0]
     }

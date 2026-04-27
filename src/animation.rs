@@ -49,16 +49,21 @@ impl Bone {
 #[derive(Clone)]
 pub struct Skeleton {
     pub bones: Vec<Bone>,
+    /// World-space transform of the node that is the parent of the root joint(s).
+    /// Applied as the base transform for root bones during skinning.
+    pub root_transform: Matrix4<f32>,
 }
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SkeletonSerializer {
     pub bones: Vec<BoneSerializer>,
+    pub root_transform: [[f32; 4]; 4],
 }
 
 impl Skeleton {
     pub fn to_serializer(&self) -> SkeletonSerializer {
         SkeletonSerializer {
-            bones: self.bones.iter().map(|x| x.to_serializer()).collect()
+            bones: self.bones.iter().map(|x| x.to_serializer()).collect(),
+            root_transform: self.root_transform.into(),
         }
     }
 
@@ -69,7 +74,8 @@ impl Skeleton {
             bones.push(bone);
         }
         Self {
-            bones
+            bones,
+            root_transform: Matrix4::from(serializer.root_transform),
         }
     }
     pub fn validate(&self) -> Result<(), EnigmaError> {
