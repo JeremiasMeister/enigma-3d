@@ -66,6 +66,18 @@ pub fn fragment_unlit_shader() -> &'static str {
     include_str!("res/shader/enigma_fragment_unlit.glsl")
 }
 
+pub fn shadow_depth_vert_shader() -> &'static str {
+    include_str!("res/shader/shadow_depth_vert.glsl")
+}
+
+pub fn shadow_depth_dir_frag_shader() -> &'static str {
+    include_str!("res/shader/shadow_depth_dir_frag.glsl")
+}
+
+pub fn shadow_depth_point_frag_shader() -> &'static str {
+    include_str!("res/shader/shadow_depth_point_frag.glsl")
+}
+
 // textures
 pub fn skybox_texture() -> &'static [u8] {
     include_bytes!("res/textures/skybox.png")
