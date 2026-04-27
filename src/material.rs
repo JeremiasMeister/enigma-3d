@@ -9,6 +9,7 @@ use crate::{resources, shader, texture};
 use crate::camera::Camera;
 use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightBlock};
+use crate::shadow::ShadowMaps;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MaterialSerializer {
@@ -422,8 +423,15 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture) -> impl glium::uniforms::Uniforms + 'a {
+    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture, shadow_maps: &'a ShadowMaps) -> impl glium::uniforms::Uniforms + 'a {
         let light_block = Material::light_block_from_vec(lights, ambient_light);
+
+        let cast_shadow_vec: [f32; 4] = [
+            if lights.get(0).map(|l| l.cast_shadow).unwrap_or(false) { 1.0 } else { 0.0 },
+            if lights.get(1).map(|l| l.cast_shadow).unwrap_or(false) { 1.0 } else { 0.0 },
+            if lights.get(2).map(|l| l.cast_shadow).unwrap_or(false) { 1.0 } else { 0.0 },
+            if lights.get(3).map(|l| l.cast_shadow).unwrap_or(false) { 1.0 } else { 0.0 },
+        ];
 
         glium::uniform! {
             time: self.time,
@@ -509,7 +517,21 @@ impl Material {
             ambient_light_intensity: light_block.ambient_intensity,
             skybox: &skybox.texture,
             BoneTransforms: bone_transforms,
-            has_skeleton: has_skeleton
+            has_skeleton: has_skeleton,
+            shadow_map_0: shadow_maps.directional_maps[0].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_map_1: shadow_maps.directional_maps[1].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_map_2: shadow_maps.directional_maps[2].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_map_3: shadow_maps.directional_maps[3].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_point_0: shadow_maps.point_maps[0].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_point_1: shadow_maps.point_maps[1].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_point_2: shadow_maps.point_maps[2].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_point_3: shadow_maps.point_maps[3].as_ref().unwrap_or(&shadow_maps.dummy).sampled(),
+            shadow_light_space_0: shadow_maps.light_space_matrices[0],
+            shadow_light_space_1: shadow_maps.light_space_matrices[1],
+            shadow_light_space_2: shadow_maps.light_space_matrices[2],
+            shadow_light_space_3: shadow_maps.light_space_matrices[3],
+            shadow_far_planes: shadow_maps.point_far_planes,
+            light_cast_shadow: cast_shadow_vec
         }
     }
     fn tex_raw_from_array(color: [f32; 4]) -> RawImage2d<'static, u8> {
