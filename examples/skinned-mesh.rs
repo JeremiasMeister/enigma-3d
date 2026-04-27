@@ -48,10 +48,10 @@ pub fn print_rig_data(app_state: &mut AppState) {
 
 fn toggle_animation(app_state: &mut AppState){
     match app_state.get_object_mut("Knight") {
-        Some(wiggle) => {
-            match wiggle.get_current_animation() {
-                Some(_) => wiggle.stop_animation(),
-                None => wiggle.play_animation("Armature|mixamo.com|Layer0", true)
+        Some(knight) => {
+            match knight.get_current_animation() {
+                Some(_) => knight.stop_animation(),
+                None => knight.play_animation("Armature|mixamo.com|Layer0", true)
             }
         }
         None => ()

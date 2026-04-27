@@ -3,7 +3,7 @@ use egui::ScrollArea;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, EventLoop, resources, example_resources, shader, material, object, texture};
-use enigma_3d::material::Material;
+use enigma_3d::material::{Material, TextureType};
 
 fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
     egui::Window::new("Enigma - Chessboard Example")
@@ -275,6 +275,28 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop) {
     app_state.add_material(figures_black_material);
 }
 
+fn initialize_knight(app_state: &mut AppState, event_loop: &EventLoop) {
+    let mut knight = Object::load_from_gltf_resource(example_resources::skinned_knight(), None);
+    knight.set_name("Knight".to_string());
+    match knight.try_fix_object() {
+        Ok(m) => m.log(),
+        Err(e) => e.log()
+    }
+    knight.transform.set_position([0.0,-1.5,-12.0]);
+    knight.transform.set_rotation([0.0,15.0,0.0]);
+    knight.transform.set_scale([3.0,3.0,3.0]);
+    knight.play_animation("Armature|mixamo.com|Layer0", true);
+
+    let mut mat = Material::lit_pbr(event_loop.get_display_clone(), false);
+    mat.set_texture_from_resource(example_resources::skinned_knight_albedo(), TextureType::Albedo);
+    mat.set_texture_from_resource(example_resources::skinned_knight_normal(), TextureType::Normal);
+    mat.set_texture_from_resource(example_resources::skinned_knight_roughness(), TextureType::Roughness);
+    knight.add_material(mat.uuid);
+
+    app_state.add_material(mat);
+    app_state.add_object(knight);
+}
+
 fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     // ground_material with geometry grass shader
     //let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
@@ -351,16 +373,17 @@ fn main() {
     //initialize board and landscape
     initialize_board(&mut app_state, &event_loop);
     initialize_landscape(&mut app_state, &event_loop);
+    initialize_knight(&mut app_state, &event_loop);
     // create a bunch of lights
-    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, None, false);
-    let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, false);
-    let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, false);
-    let light4 = enigma_3d::light::Light::new([-2.5, 0.0, -9.5], [1.0, 0.0, 0.0], 300.0, None, false);
+    let light1 = enigma_3d::light::Light::new([1.0, 1.0, 5.0], [0.0, 1.0, 0.0], 100.0, None, true);
+    let light2 = enigma_3d::light::Light::new([5.0, 1.0, 1.0], [1.0, 0.0, 0.0], 100.0, None, true);
+    let light3 = enigma_3d::light::Light::new([-5.0, 1.0, 1.0], [0.0, 0.0, 1.0], 100.0, None, true);
+    let light4 = enigma_3d::light::Light::new([-2.5, 0.0, -9.5], [1.0, 0.0, 0.0], 300.0, None, true);
 
     let light5 = enigma_3d::light::Light::new([1.0, 2.0, -8.0], [0.0, 1.0, 0.0], 100.0, None, false);
     let light6 = enigma_3d::light::Light::new([5.0, 2.0, -8.0], [1.0, 0.0, 0.0], 100.0, None, false);
 
-    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.2, None, false);
+    let ambient_light = enigma_3d::light::Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.4, None, false);
 
     // add the lights to the app state
     app_state.add_light(light1, enigma_3d::light::LightEmissionType::Source);
