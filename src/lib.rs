@@ -917,20 +917,21 @@ impl EventLoop {
                                         let has_skeleton = object.get_skeleton().is_some();
                                         let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
                                             .expect("Missing bone transforms in shadow pass");
-                                        for (buffer, _mat_index) in object_instance.vertex_buffers.iter() {
-                                            let indices = match object_instance.index_buffers.first() { Some(i) => i, None => continue };
+                                        for ((buffer, _mat_index), indices) in object_instance.vertex_buffers.iter()
+                                            .zip(object_instance.index_buffers.iter())
+                                        {
                                             let uniforms = glium::uniform! {
                                                 light_space_matrix: lsm,
                                                 has_skeleton: has_skeleton,
                                                 BoneTransforms: bone_transform,
                                             };
-                                            let _ = fb.draw(
+                                            fb.draw(
                                                 (buffer, object_instance.instance_attributes.per_instance().unwrap()),
                                                 indices,
                                                 &shadow_dir_program,
                                                 &uniforms,
                                                 &shadow_draw_params,
-                                            );
+                                            ).expect("Failed to draw shadow pass");
                                         }
                                     }
                                 }
@@ -994,8 +995,9 @@ impl EventLoop {
                                         let has_skeleton = object.get_skeleton().is_some();
                                         let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
                                             .expect("Missing bone transforms in shadow pass");
-                                        for (buffer, _mat_index) in object_instance.vertex_buffers.iter() {
-                                            let indices = match object_instance.index_buffers.first() { Some(i) => i, None => continue };
+                                        for ((buffer, _mat_index), indices) in object_instance.vertex_buffers.iter()
+                                            .zip(object_instance.index_buffers.iter())
+                                        {
                                             let uniforms = glium::uniform! {
                                                 light_space_matrix: lsm,
                                                 has_skeleton: has_skeleton,
@@ -1003,13 +1005,13 @@ impl EventLoop {
                                                 light_pos: lp,
                                                 far_plane: far_plane,
                                             };
-                                            let _ = fb.draw(
+                                            fb.draw(
                                                 (buffer, object_instance.instance_attributes.per_instance().unwrap()),
                                                 indices,
                                                 &shadow_point_program,
                                                 &uniforms,
                                                 &face_draw_params,
-                                            );
+                                            ).expect("Failed to draw shadow pass");
                                         }
                                     }
                                 }
