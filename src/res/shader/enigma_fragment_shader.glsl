@@ -104,7 +104,7 @@ float dir_shadow(sampler2D shadow_map, mat4 light_space, vec3 world_pos) {
     vec4 ls = light_space * vec4(world_pos, 1.0);
     vec3 proj = ls.xyz / ls.w;
     proj = proj * 0.5 + 0.5;
-    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z > 1.0) {
+    if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z < 0.0 || proj.z > 1.0) {
         return 1.0;
     }
     float stored = texture(shadow_map, proj.xy).r;
@@ -116,16 +116,16 @@ vec2 cube_atlas_uv(vec3 dir) {
     float s, t, major, col, row;
     if (a.x >= a.y && a.x >= a.z) {
         major = a.x;
-        if (dir.x > 0.0) { col = 0.0; row = 2.0; s = -dir.z; t = -dir.y; }
-        else              { col = 1.0; row = 2.0; s =  dir.z; t = -dir.y; }
+        if (dir.x > 0.0) { col = 0.0; row = 0.0; s = -dir.z; t = -dir.y; }
+        else              { col = 1.0; row = 0.0; s =  dir.z; t = -dir.y; }
     } else if (a.y >= a.x && a.y >= a.z) {
         major = a.y;
         if (dir.y > 0.0) { col = 0.0; row = 1.0; s =  dir.x; t =  dir.z; }
         else              { col = 1.0; row = 1.0; s =  dir.x; t = -dir.z; }
     } else {
         major = a.z;
-        if (dir.z > 0.0) { col = 0.0; row = 0.0; s =  dir.x; t = -dir.y; }
-        else              { col = 1.0; row = 0.0; s = -dir.x; t = -dir.y; }
+        if (dir.z > 0.0) { col = 0.0; row = 2.0; s =  dir.x; t = -dir.y; }
+        else              { col = 1.0; row = 2.0; s = -dir.x; t = -dir.y; }
     }
     vec2 face_uv = (vec2(s, t) / major + 1.0) * 0.5;
     return vec2((col + face_uv.x) * 0.5, (row + face_uv.y) / 3.0);
