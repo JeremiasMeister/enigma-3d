@@ -100,7 +100,8 @@ vec4 calculatePBRColor(vec3 viewDir) {
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 
-    vec3 result = vec3(0.0);
+    vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
+    vec3 result = ambient;
     for(int i = 0; i < light_amount; i++) {
         // Light calculations for each active light
         vec4 lightDirUniform = vec4(light_direction[i]);
@@ -129,13 +130,10 @@ vec4 calculatePBRColor(vec3 viewDir) {
         float denominator = 4.0 * max(dot(normal, viewDir), 0.0) * NdotL + 0.0001;
         vec3 specular = numerator / denominator;
 
-        // Ambient and diffuse lighting
-        vec3 ambient = ambient_light_color * ambient_light_intensity * albedo;
         vec3 diffuse = kD * albedo / PI;
         vec3 reflection = (diffuse + specular) * radiance * NdotL;
 
-        // Accumulate result from this light
-        result += ambient + reflection;
+        result += reflection;
     }
 
     // Calculate reflection vector for environmental lighting
