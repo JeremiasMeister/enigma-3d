@@ -6,6 +6,26 @@ pub enum LightEmissionType {
     Ambient,
 }
 
+pub enum ShadowResolution {
+    Low,
+    Medium,
+    High,
+    Ultra,
+    Custom(u32),
+}
+
+impl ShadowResolution {
+    pub fn value(&self) -> u32 {
+        match self {
+            ShadowResolution::Low => 512,
+            ShadowResolution::Medium => 1024,
+            ShadowResolution::High => 2048,
+            ShadowResolution::Ultra => 4096,
+            ShadowResolution::Custom(v) => *v,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct LightSerializer {
     pub position: [f32; 3],
@@ -89,3 +109,17 @@ impl std::fmt::Debug for LightBlock {
 
 glium::implement_uniform_block!(Light, position, color, intensity, direction, cast_shadow);
 glium::implement_uniform_block!(LightBlock, position, directions, cast_shadow, color, intensity, amount, ambient_color, ambient_intensity);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shadow_resolution_values() {
+        assert_eq!(ShadowResolution::Low.value(), 512);
+        assert_eq!(ShadowResolution::Medium.value(), 1024);
+        assert_eq!(ShadowResolution::High.value(), 2048);
+        assert_eq!(ShadowResolution::Ultra.value(), 4096);
+        assert_eq!(ShadowResolution::Custom(333).value(), 333);
+    }
+}
