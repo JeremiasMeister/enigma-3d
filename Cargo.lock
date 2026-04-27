@@ -648,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "enigma-3d"
-version = "0.2.14"
+version = "0.2.15"
 dependencies = [
  "chrono",
  "colored",
