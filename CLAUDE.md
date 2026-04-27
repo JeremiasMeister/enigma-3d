@@ -85,3 +85,12 @@ Fully implemented. Key details:
 - `BoneTransforms` in `geometry.rs` — `implement_uniform_block!` crashes in debug mode (glium-0.33 null pointer bug). Uses a manual `UniformBlock` impl with `matches` returning `Ok(())`.
 - GLSL uniform block requires `layout(std140)` for glium's `UniformBuffer` binding to work.
 - `get_uniforms` in `material.rs` must pass both `BoneTransforms` buffer and `has_skeleton` to the shader — easy to accidentally leave disabled.
+
+### Shadow system
+
+Hard shadows for up to 4 source lights (directional + point), implemented in `src/shadow.rs`. Key details:
+- **Point light maps** use an R32F `Texture2d` 2×3 atlas instead of `DepthCubemap` — glium 0.33 cannot render to individual cubemap faces as depth attachments.
+- Atlas layout: face order +X/−X/+Y/−Y/+Z/−Z; col = face%2, row = face/2; `glium::Rect.bottom = row * res` (OpenGL origin at bottom).
+- **Shadow depth vertex shader** (`shadow_depth_vert.glsl`) uses `in mat4 model_matrix` — a per-instance vertex attribute, NOT a uniform. Matches the main vertex shader's instancing pattern.
+- **Bias** in `enigma_fragment_shader.glsl` is slope-scale: `max(0.005 * (1.0 - n·l), 0.0002)`. A constant bias causes distance-dependent floating artifacts because it ignores surface slope.
+- `get_uniforms` in `material.rs` accepts `shadow_maps: &ShadowMaps` as last parameter; 15 shadow uniforms bound; unused slots fall back to `shadow_maps.dummy` (1×1 white texture).
