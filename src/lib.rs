@@ -12,6 +12,8 @@ use uuid::Uuid;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use crate::audio::{AudioClip, AudioEngine};
+use crate::shadow::ShadowMaps;
+use crate::shadow::{directional_light_space_matrix, view_matrix, perspective_90_matrix, mat4_mul, CUBE_FACE_DIRS, face_viewport};
 use crate::camera::{Camera, CameraSerializer};
 use crate::collision_world::MouseState;
 use crate::data::AppStateData;
@@ -724,6 +726,22 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
+        let mut shadow_maps = ShadowMaps::new(&self.display, temp_app_state.shadow_resolution);
+
+        let shadow_dir_program = glium::Program::from_source(
+            &self.display,
+            resources::shadow_depth_vert_shader(),
+            resources::shadow_depth_dir_frag_shader(),
+            None,
+        ).expect("Failed to compile directional shadow shader");
+
+        let shadow_point_program = glium::Program::from_source(
+            &self.display,
+            resources::shadow_depth_vert_shader(),
+            resources::shadow_depth_point_frag_shader(),
+            None,
+        ).expect("Failed to compile point shadow shader");
+
         //dropping modified appstate
         drop(temp_app_state);
 
@@ -846,6 +864,161 @@ impl EventLoop {
                     let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
                     let bone_uniform_buffers: std::collections::HashMap<Uuid, UniformBuffer<BoneTransforms>> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.get_bone_transform_buffer(&self.display))).collect();
                     let object_instances = app_state.setup_instances(&self.display, &model_matrices);
+
+                    // --- Shadow pass ---
+                    if shadow_maps.resolution != app_state.shadow_resolution {
+                        shadow_maps = ShadowMaps::new(&self.display, app_state.shadow_resolution);
+                    }
+                    shadow_maps.clear();
+
+                    let shadow_draw_params = glium::DrawParameters {
+                        depth: glium::Depth {
+                            test: glium::draw_parameters::DepthTest::IfLess,
+                            write: true,
+                            ..Default::default()
+                        },
+                        backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                        ..Default::default()
+                    };
+
+                    let cam_pos: [f32; 3] = match camera {
+                        Some(ref c) => { let p = c.transform.get_position(); [p.x, p.y, p.z] }
+                        None => [0.0, 0.0, 0.0],
+                    };
+
+                    for (light_index, light_item) in light.iter().enumerate().take(4) {
+                        if !light_item.cast_shadow { continue; }
+
+                        if light_item.is_directional() {
+                            // --- Directional shadow map ---
+                            let half = app_state.shadow_distance;
+                            let lsm = directional_light_space_matrix(light_item.direction, cam_pos, half);
+                            shadow_maps.light_space_matrices[light_index] = lsm;
+
+                            let shadow_tex = glium::texture::Texture2d::empty_with_format(
+                                &self.display,
+                                glium::texture::UncompressedFloatFormat::F32,
+                                glium::texture::MipmapsOption::NoMipmap,
+                                shadow_maps.resolution,
+                                shadow_maps.resolution,
+                            ).expect("Failed to create directional shadow texture");
+
+                            {
+                                let mut fb = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(
+                                    &self.display,
+                                    &shadow_tex,
+                                    &shadow_maps.dir_depth_rb,
+                                ).expect("Failed to create directional shadow framebuffer");
+                                fb.clear_color_and_depth((1.0, 0.0, 0.0, 1.0), 1.0);
+
+                                for (instance_id, object_instance) in object_instances.iter() {
+                                    if let Some(object) = app_state.get_object_by_uuid(instance_id) {
+                                        if object.get_materials().is_empty() { continue; }
+                                        let has_skeleton = object.get_skeleton().is_some();
+                                        let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
+                                            .expect("Missing bone transforms in shadow pass");
+                                        for (buffer, _mat_index) in object_instance.vertex_buffers.iter() {
+                                            let indices = match object_instance.index_buffers.first() { Some(i) => i, None => continue };
+                                            let uniforms = glium::uniform! {
+                                                light_space_matrix: lsm,
+                                                has_skeleton: has_skeleton,
+                                                BoneTransforms: bone_transform,
+                                            };
+                                            let _ = fb.draw(
+                                                (buffer, object_instance.instance_attributes.per_instance().unwrap()),
+                                                indices,
+                                                &shadow_dir_program,
+                                                &uniforms,
+                                                &shadow_draw_params,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            shadow_maps.directional_maps[light_index] = Some(shadow_tex);
+
+                        } else {
+                            // --- Point light shadow map (atlas) ---
+                            let far_plane = 100.0f32;
+                            shadow_maps.point_far_planes[light_index] = far_plane;
+                            let res = shadow_maps.resolution;
+
+                            let atlas_tex = glium::texture::Texture2d::empty_with_format(
+                                &self.display,
+                                glium::texture::UncompressedFloatFormat::F32,
+                                glium::texture::MipmapsOption::NoMipmap,
+                                res * 2,
+                                res * 3,
+                            ).expect("Failed to create point shadow atlas texture");
+
+                            // Clear entire atlas to 1.0 (no shadow) before rendering faces
+                            {
+                                let mut clear_fb = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(
+                                    &self.display,
+                                    &atlas_tex,
+                                    &shadow_maps.point_depth_rb,
+                                ).expect("Failed to create atlas clear framebuffer");
+                                clear_fb.clear_color_and_depth((1.0, 0.0, 0.0, 1.0), 1.0);
+                            }
+
+                            let near = 0.1f32;
+                            let proj = perspective_90_matrix(near, far_plane);
+                            let lp = light_item.position;
+
+                            for face in 0..6usize {
+                                let (dir, up) = CUBE_FACE_DIRS[face];
+                                let view = view_matrix(&lp, &dir, &up);
+                                let lsm = mat4_mul(proj, view);
+                                let viewport = face_viewport(face, res);
+
+                                let face_draw_params = glium::DrawParameters {
+                                    depth: glium::Depth {
+                                        test: glium::draw_parameters::DepthTest::IfLess,
+                                        write: true,
+                                        ..Default::default()
+                                    },
+                                    backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+                                    viewport: Some(viewport),
+                                    ..Default::default()
+                                };
+
+                                let mut fb = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(
+                                    &self.display,
+                                    &atlas_tex,
+                                    &shadow_maps.point_depth_rb,
+                                ).expect("Failed to create point shadow framebuffer");
+
+                                for (instance_id, object_instance) in object_instances.iter() {
+                                    if let Some(object) = app_state.get_object_by_uuid(instance_id) {
+                                        if object.get_materials().is_empty() { continue; }
+                                        let has_skeleton = object.get_skeleton().is_some();
+                                        let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
+                                            .expect("Missing bone transforms in shadow pass");
+                                        for (buffer, _mat_index) in object_instance.vertex_buffers.iter() {
+                                            let indices = match object_instance.index_buffers.first() { Some(i) => i, None => continue };
+                                            let uniforms = glium::uniform! {
+                                                light_space_matrix: lsm,
+                                                has_skeleton: has_skeleton,
+                                                BoneTransforms: bone_transform,
+                                                light_pos: lp,
+                                                far_plane: far_plane,
+                                            };
+                                            let _ = fb.draw(
+                                                (buffer, object_instance.instance_attributes.per_instance().unwrap()),
+                                                indices,
+                                                &shadow_point_program,
+                                                &uniforms,
+                                                &face_draw_params,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            shadow_maps.point_maps[light_index] = Some(atlas_tex);
+                        }
+                    }
+                    // --- End shadow pass ---
+
                     // render objects opaque
                     let opaque_rendering_parameter = glium::DrawParameters {
                         depth: glium::Depth {
@@ -871,7 +1044,7 @@ impl EventLoop {
                                             if material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in opaque draw")), indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
@@ -911,7 +1084,7 @@ impl EventLoop {
                                         let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
                                         match app_state.get_material(mat_uuid) {
                                             Some(material) => {
-                                                let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &skybox_bone_buffer, false, skybox_texture);
+                                                let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &skybox_bone_buffer, false, skybox_texture, &shadow_maps);
                                                 render_target.draw((buffer, instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in skybox draw")), indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                                             }
                                             None => ()
@@ -943,7 +1116,7 @@ impl EventLoop {
                                             if !material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in transparent draw")), indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
