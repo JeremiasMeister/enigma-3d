@@ -25,6 +25,7 @@ void main() {
         local_pos = (skin * vec4(position, 1.0)).xyz;
     }
 
-    v_world_pos = (model_matrix * vec4(local_pos, 1.0)).xyz;
-    gl_Position = light_space_matrix * model_matrix * vec4(local_pos, 1.0);
+    vec4 world = model_matrix * vec4(local_pos, 1.0);
+    v_world_pos = world.xyz;
+    gl_Position = light_space_matrix * world;
 }
