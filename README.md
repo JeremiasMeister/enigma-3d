@@ -23,7 +23,9 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - simple Audio implementation to trigger oneshot or loop-able audio from resources or a file.
 - Optimization: Textures are cached
 - Optimization: Materials are shared in between Objects and managed via the `AppState`
-- Optimisation: Cloned Objects are batched into one Draw Call via GPU Instancing 
+- Optimisation: Cloned Objects are batched into one Draw Call via GPU Instancing
+- Skeletal Animation
+- PointLight & Directional Light Shadowcasting for up to 4 Lights per Object
 
 ### How to Install and Run:
 Installing the Library in its latest release is quite straight forward, you should be able to just run `cargo add enigma-3d`. from there, you have access to the library for your codebase.
