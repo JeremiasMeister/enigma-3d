@@ -100,15 +100,17 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float dir_shadow(sampler2D shadow_map, mat4 light_space, vec3 world_pos) {
+float dir_shadow(sampler2D shadow_map, mat4 light_space, vec3 world_pos, vec3 normal, vec3 light_dir) {
     vec4 ls = light_space * vec4(world_pos, 1.0);
     vec3 proj = ls.xyz / ls.w;
     proj = proj * 0.5 + 0.5;
     if (proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0 || proj.z < 0.0 || proj.z > 1.0) {
         return 1.0;
     }
+    float n_dot_l = max(dot(normal, normalize(light_dir)), 0.0);
+    float bias = max(0.005 * (1.0 - n_dot_l), 0.0002);
     float stored = texture(shadow_map, proj.xy).r;
-    return (proj.z - 0.0005 > stored) ? 0.0 : 1.0;
+    return (proj.z - bias > stored) ? 0.0 : 1.0;
 }
 
 vec2 cube_atlas_uv(vec3 dir) {
@@ -131,25 +133,28 @@ vec2 cube_atlas_uv(vec3 dir) {
     return vec2((col + face_uv.x) * 0.5, (row + face_uv.y) / 3.0);
 }
 
-float point_shadow(sampler2D atlas, vec3 world_pos, vec3 light_pos, float far_plane) {
+float point_shadow(sampler2D atlas, vec3 world_pos, vec3 light_pos, float far_plane, vec3 normal) {
     vec3 dir = world_pos - light_pos;
     float current = length(dir) / far_plane;
+    float n_dot_l = max(dot(normal, normalize(-dir)), 0.0);
+    float bias = max(0.005 * (1.0 - n_dot_l), 0.0002);
     vec2 uv = cube_atlas_uv(dir);
     float stored = texture(atlas, uv).r;
-    return (current - 0.0005 > stored) ? 0.0 : 1.0;
+    return (current - bias > stored) ? 0.0 : 1.0;
 }
 
-float compute_shadow(int i, vec3 world_pos, vec3 light_pos) {
+float compute_shadow(int i, vec3 world_pos, vec3 light_pos, vec3 normal) {
     if (light_cast_shadow[i] < 0.5) return 1.0;
     bool is_dir = (light_direction[i].w == 1.0);
-    if (i == 0) return is_dir ? dir_shadow(shadow_map_0, shadow_light_space_0, world_pos)
-                              : point_shadow(shadow_point_0, world_pos, light_pos, shadow_far_planes[0]);
-    if (i == 1) return is_dir ? dir_shadow(shadow_map_1, shadow_light_space_1, world_pos)
-                              : point_shadow(shadow_point_1, world_pos, light_pos, shadow_far_planes[1]);
-    if (i == 2) return is_dir ? dir_shadow(shadow_map_2, shadow_light_space_2, world_pos)
-                              : point_shadow(shadow_point_2, world_pos, light_pos, shadow_far_planes[2]);
-    if (i == 3) return is_dir ? dir_shadow(shadow_map_3, shadow_light_space_3, world_pos)
-                              : point_shadow(shadow_point_3, world_pos, light_pos, shadow_far_planes[3]);
+    vec3 ldir = is_dir ? light_direction[i].xyz : normalize(light_pos - world_pos);
+    if (i == 0) return is_dir ? dir_shadow(shadow_map_0, shadow_light_space_0, world_pos, normal, ldir)
+                              : point_shadow(shadow_point_0, world_pos, light_pos, shadow_far_planes[0], normal);
+    if (i == 1) return is_dir ? dir_shadow(shadow_map_1, shadow_light_space_1, world_pos, normal, ldir)
+                              : point_shadow(shadow_point_1, world_pos, light_pos, shadow_far_planes[1], normal);
+    if (i == 2) return is_dir ? dir_shadow(shadow_map_2, shadow_light_space_2, world_pos, normal, ldir)
+                              : point_shadow(shadow_point_2, world_pos, light_pos, shadow_far_planes[2], normal);
+    if (i == 3) return is_dir ? dir_shadow(shadow_map_3, shadow_light_space_3, world_pos, normal, ldir)
+                              : point_shadow(shadow_point_3, world_pos, light_pos, shadow_far_planes[3], normal);
     return 1.0;
 }
 
@@ -202,7 +207,7 @@ vec4 calculatePBRColor(vec3 viewDir) {
         vec3 diffuse = kD * albedo / PI;
         vec3 reflection = (diffuse + specular) * radiance * NdotL;
 
-        float shadow = compute_shadow(i, world_position, light_position[i].xyz);
+        float shadow = compute_shadow(i, world_position, light_position[i].xyz, normal);
         result += reflection * shadow;
     }
 
