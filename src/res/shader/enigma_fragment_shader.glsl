@@ -108,7 +108,7 @@ float dir_shadow(sampler2D shadow_map, mat4 light_space, vec3 world_pos) {
         return 1.0;
     }
     float stored = texture(shadow_map, proj.xy).r;
-    return (proj.z - 0.005 > stored) ? 0.0 : 1.0;
+    return (proj.z - 0.0005 > stored) ? 0.0 : 1.0;
 }
 
 vec2 cube_atlas_uv(vec3 dir) {
@@ -136,7 +136,7 @@ float point_shadow(sampler2D atlas, vec3 world_pos, vec3 light_pos, float far_pl
     float current = length(dir) / far_plane;
     vec2 uv = cube_atlas_uv(dir);
     float stored = texture(atlas, uv).r;
-    return (current - 0.005 > stored) ? 0.0 : 1.0;
+    return (current - 0.0005 > stored) ? 0.0 : 1.0;
 }
 
 float compute_shadow(int i, vec3 world_pos, vec3 light_pos) {
