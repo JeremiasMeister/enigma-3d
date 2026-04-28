@@ -1129,9 +1129,18 @@ impl EventLoop {
                         }
                     }
 
-                    // execute post processing#
+                    // execute post processing
+                    // Each effect reads from a ping-pong buffer (not from `texture` directly),
+                    // because `framebuffer` is backed by `texture` — sampling from a texture
+                    // that is simultaneously attached as a render target is undefined in OpenGL.
+                    let pp_src_idx = buffer_textures.len() - 1;
                     for process in app_state.get_post_processes() {
-                        process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &texture, &depth_texture, &buffer_textures);
+                        {
+                            let mut pp_fb = glium::framebuffer::SimpleFrameBuffer::new(&self.display, &buffer_textures[pp_src_idx]).expect("Failed to create post-process ping-pong framebuffer");
+                            let copy_uniforms = uniform! { scene: &*texture };
+                            pp_fb.draw(&screen_vert_rect, &screen_indices_rect, &screen_program, &copy_uniforms, &Default::default()).expect("Failed to copy to ping-pong buffer");
+                        }
+                        process.render(&app_state, &screen_vert_rect, &screen_indices_rect, &mut framebuffer, &buffer_textures[pp_src_idx], &depth_texture, &buffer_textures);
                     }
 
                     // drawing to screen

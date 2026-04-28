@@ -3,6 +3,7 @@ use egui::ScrollArea;
 use enigma_3d::object::Object;
 use enigma_3d::camera::Camera;
 use enigma_3d::{AppState, EventLoop, resources, example_resources, shader, material, object, texture};
+use enigma_3d::audio::AudioClip;
 use enigma_3d::material::{Material, TextureType};
 
 fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
@@ -105,6 +106,7 @@ fn initialize_board(app_state: &mut AppState, event_loop: &EventLoop) {
     obj_board.add_material(board_material.uuid);
     obj_board.get_shapes_mut()[0].set_material_from_object_list(0);
     obj_board.transform.set_position([0.0, -1.5, -6.0]);
+    obj_board.set_collision(false);
 
     let mut obj_bishop_white_1 = Object::load_from_gltf_resource(example_resources::chess_bishop_gltf(), None);
     obj_bishop_white_1.set_name("obj_bishop_white_1".to_string());
@@ -399,10 +401,15 @@ fn main() {
     let camera = Camera::new(Some([-4.3, 3.0, 1.8]), Some([-9.3, -14.01, 0.0]), Some(90.0), Some(16. / 9.), Some(0.01), Some(1024.));
     app_state.set_camera(camera);
 
+    // audio
+    let background_sound = AudioClip::from_resource(example_resources::background_music(), "background_music");
+    app_state.add_audio(background_sound);
+    app_state.play_audio_loop("background_music");
+
     // add post processing effects
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.999, 15)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::depth_fog::DepthFog::new(&event_loop.display, 0.2, 60.0, 500.0, [0.3, 0.3, 0.75], 1.0)));
-    app_state.add_post_process(Box::new(enigma_3d::postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.2, 0.5, [0.0, 0.0, 0.0], 0.8)));
+    app_state.add_post_process(Box::new(enigma_3d::postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.3, [0.0, 0.0, 0.0], 0.8)));
     app_state.add_post_process(Box::new(enigma_3d::postprocessing::lens_dirt::LensDirt::new(&event_loop.display, resources::lens_dirt_texture(), 2.0, [800.0, 800.0], 2.0)));
 
     //add one ui function to the app state. multiple ui functions can be added modular

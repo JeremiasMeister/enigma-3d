@@ -66,12 +66,20 @@ impl PostProcessingEffect for Vignette {
             opacity: self.opacity,
         };
 
+        let params = glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::DepthTest::Overwrite,
+                write: false,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         target.draw(
             vertex_buffer,
             index_buffer,
             &self.program,
             &uniforms,
-            &Default::default(),
+            &params,
         ).unwrap();
     }
 }

@@ -97,6 +97,14 @@ impl PostProcessingEffect for Bloom {
                 .minify_filter(glium::uniforms::MinifySamplerFilter::LinearMipmapLinear)
                 .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear),
         };
-        target.draw(vertex_buffer, index_buffer, &self.program_combine, &uniforms, &Default::default()).unwrap();
+        let params = glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::DepthTest::Overwrite,
+                write: false,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        target.draw(vertex_buffer, index_buffer, &self.program_combine, &uniforms, &params).unwrap();
     }
 }

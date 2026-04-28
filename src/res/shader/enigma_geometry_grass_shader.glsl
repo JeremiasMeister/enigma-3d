@@ -28,9 +28,9 @@ uniform vec3 camera_position;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
 
-const float BLADE_HEIGHT = 0.5;
+const float BLADE_HEIGHT = 0.3;
 const float BLADE_HEIGHT_RANDOM = 0.9;
-const float BLADE_WIDTH = 0.1;
+const float BLADE_WIDTH = 0.3;
 const int BLADE_SEGMENTS = 2;
 const int BLADES_PER_TRIANGLE = 32;
 const float MAX_OFFSET = 0.2;

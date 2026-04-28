@@ -49,7 +49,7 @@ impl PostProcessingEffect for DepthFog {
         let params = glium::DrawParameters {
             blend: glium::Blend::alpha_blending(),
             depth: glium::Depth {
-                test: glium::DepthTest::IfLess,
+                test: glium::DepthTest::Overwrite,
                 write: false,
                 ..Default::default()
             },
