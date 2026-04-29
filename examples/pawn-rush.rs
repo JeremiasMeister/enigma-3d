@@ -84,13 +84,30 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     app_state.add_material(terrain_mat);
     app_state.add_material(tree_mat_opaque);
     app_state.add_material(tree_mat_transparent);
-    app_state.add_material(knight_mat);
     app_state.add_material(pawn_mat);
     app_state.add_material(proj_mat);
 
     app_state.add_object(terrain);
-    app_state.add_object(tree);
-    app_state.add_object(knight);
+
+    let tree_positions: [([f32; 3], [f32; 3], f32); 5] = [
+        ([-6.0, -2.0, -14.0], [0.0,   0.0, 0.0], 2.0),
+        ([ 8.0, -2.0, -10.0], [0.0,  40.0, 0.0], 1.8),
+        ([-12.0,-2.0,  -4.0], [0.0, -20.0, 0.0], 2.2),
+        ([ 5.0, -2.0,  10.0], [0.0,  70.0, 0.0], 1.6),
+        ([-4.0, -2.0,  14.0], [0.0, 150.0, 0.0], 2.4),
+    ];
+    for (pos, rot, scale) in &tree_positions {
+        let mut t = Object::load_from_gltf_resource(example_resources::tree(), None);
+        t.set_collision(false);
+        t.add_material(tree_mat_opaque.uuid);
+        t.add_material(tree_mat_transparent.uuid);
+        t.get_shapes_mut()[0].set_material_from_object_list(1);
+        t.get_shapes_mut()[1].set_material_from_object_list(0);
+        t.transform.set_position(*pos);
+        t.transform.set_rotation(*rot);
+        t.transform.set_scale([*scale, *scale, *scale]);
+        app_state.add_object(t);
+    }
 }
 
 const WAVE_INTERVAL: f32 = 8.0;
@@ -99,7 +116,8 @@ const PROJECTILE_SPEED: f32 = 20.0;
 const PROJECTILE_MAX_RANGE: f32 = 35.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
-const PAWN_SPAWN_RADIUS: f32 = 18.0;
+const PAWN_SPAWN_RADIUS: f32 = 30.0;
+const PAWN_DETECTION_RADIUS: f32 = 15.0;
 const PAWN_CAPTURE_RADIUS: f32 = 2.5;
 
 #[derive(Clone, PartialEq)]
@@ -199,6 +217,11 @@ fn game_update(app_state: &mut AppState) {
     let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
     let cam_pos = app_state.camera.map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
 
+    // sun follows camera
+    if let Some(sun) = app_state.light.first_mut() {
+        sun.position = [cam_pos[0], cam_pos[1] + 10.0, cam_pos[2]];
+    }
+
     // wave timer
     gs.wave_timer += dt;
     if gs.wave_timer >= WAVE_INTERVAL {
@@ -207,14 +230,14 @@ fn game_update(app_state: &mut AppState) {
         spawn_wave(app_state, &mut gs);
     }
 
-    // move pawns toward camera (XZ plane only)
+    // move pawns toward camera only when within detection radius
     for uuid in &gs.pawn_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
             let pos = obj.transform.get_position();
             let dx = cam_pos[0] - pos.x;
             let dz = cam_pos[2] - pos.z;
             let len = (dx * dx + dz * dz).sqrt();
-            if len > 0.01 {
+            if len < PAWN_DETECTION_RADIUS && len > 0.01 {
                 let step = PAWN_SPEED * wave_speed * dt / len;
                 obj.transform.move_dir_array([dx * step, 0.0, dz * step]);
             }
