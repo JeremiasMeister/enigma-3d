@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use enigma_3d::{AppState, EventLoop, example_resources, resources};
+use enigma_3d::ui;
 use enigma_3d::camera::Camera;
 use enigma_3d::material::{Material, TextureType};
 use enigma_3d::object::Object;
@@ -147,6 +148,61 @@ fn find_material_uuid(app_state: &AppState, name: &str) -> Uuid {
         .uuid
 }
 
+fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
+    let count = 3 + gs.wave;
+    for i in 0..count {
+        let x = -3.5 + (i as f32 % 8.0) * 1.0;
+        let mut pawn = Object::load_from_gltf_resource(example_resources::chess_pawn_gltf(), None);
+        pawn.set_name(format!("pawn_{i}"));
+        pawn.set_collision(false);
+        pawn.add_material(gs.pawn_material_uuid);
+        pawn.get_shapes_mut()[0].set_material_from_object_list(0);
+        pawn.transform.set_position([x, -1.15, PAWN_SPAWN_Z]);
+        let uuid = pawn.get_unique_id();
+        gs.pawn_ids.push(uuid);
+        app_state.add_object(pawn);
+    }
+}
+
+fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
+    let to_remove: Vec<Uuid> = gs.pawn_ids.iter()
+        .chain(gs.projectile_ids.iter().map(|(id, _, _)| id))
+        .copied()
+        .collect();
+    app_state.objects.retain(|o| !to_remove.contains(&o.get_unique_id()));
+
+    gs.reset();
+    spawn_wave(app_state, gs);
+}
+
+fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
+    let mut gs = match app_state.get_state_data_value::<GameState>("game_state") {
+        Some(g) => g.clone(),
+        None => return,
+    };
+
+    if gs.phase == GamePhase::Menu {
+        ui::Window::new("Pawn Rush")
+            .anchor(ui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .resizable(false)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.heading("PAWN RUSH");
+                ui.separator();
+                ui.label("Chess pawns are marching toward you.");
+                ui.label("Left-click to fire. Stop them before they reach you.");
+                ui.label("You have \u{2665}\u{2665}\u{2665} lives.");
+                ui.separator();
+                if ui.button("  Start Game  ").clicked() {
+                    reset_game(app_state, &mut gs);
+                    gs.phase = GamePhase::Playing;
+                }
+            });
+    }
+
+    app_state.set_state_data_value("game_state", Box::new(gs));
+}
+
 fn main() {
     let event_loop = EventLoop::new("Pawn Rush", 1080, 720);
     let mut app_state = AppState::new();
@@ -195,6 +251,8 @@ fn main() {
     app_state.add_post_process(Box::new(
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
+
+    app_state.inject_gui(Arc::new(pawn_rush_ui));
 
     event_loop.run(app_state.convert_to_arc_mutex());
 }
