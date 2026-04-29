@@ -80,7 +80,6 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     let mut proj_mat = Material::unlit(event_loop.get_display_clone(), false);
     proj_mat.set_name("mat_projectile");
     proj_mat.set_color([1.0, 0.55, 0.0]);
-    proj_mat.set_transparency_strength(1.0);
 
     app_state.add_material(terrain_mat);
     app_state.add_material(tree_mat_opaque);
@@ -94,22 +93,16 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     app_state.add_object(knight);
 }
 
-#[allow(dead_code)]
 const WAVE_INTERVAL: f32 = 8.0;
-#[allow(dead_code)]
 const PAWN_SPEED: f32 = 1.2;
-#[allow(dead_code)]
 const PROJECTILE_SPEED: f32 = 20.0;
-#[allow(dead_code)]
 const PROJECTILE_MAX_RANGE: f32 = 35.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
-#[allow(dead_code)]
 const PAWN_DEATH_Z: f32 = 5.0;
 const PAWN_SPAWN_Z: f32 = -14.0;
 
 #[derive(Clone, PartialEq)]
-#[allow(dead_code)]
 enum GamePhase { Menu, Playing, GameOver }
 
 #[derive(Clone)]
@@ -123,7 +116,6 @@ struct GameState {
     projectile_ids: Vec<(Uuid, [f32; 3], f32, f32)>,
     pawn_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
-    #[allow(dead_code)]
     projectile_material_uuid: Uuid,
 }
 
