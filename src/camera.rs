@@ -24,7 +24,7 @@ pub struct Camera {
     pub far: f32,
     pub view: [[f32; 4]; 4],
     pub projection: [[f32; 4]; 4],
-    pub components: HashMap<TypeId, Box<dyn Any>>,
+    components: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Clone for Camera {
@@ -280,5 +280,38 @@ impl Camera {
             .remove(&TypeId::of::<T>())
             .and_then(|b| b.downcast::<T>().ok())
             .map(|b| *b)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_camera() -> Camera {
+        Camera::new(None, None, None, None, None, None)
+    }
+
+    #[test]
+    fn camera_component_set_and_get() {
+        let mut c = test_camera();
+        c.set_component(42u32);
+        assert_eq!(c.get_component::<u32>(), Some(&42u32));
+    }
+
+    #[test]
+    fn camera_component_remove_returns_value() {
+        let mut c = test_camera();
+        c.set_component(7u32);
+        assert_eq!(c.remove_component::<u32>(), Some(7u32));
+        assert_eq!(c.get_component::<u32>(), None);
+    }
+
+    #[test]
+    fn camera_component_clone_isolation() {
+        let mut c = test_camera();
+        c.set_component(99u32);
+        let cloned = c.clone();
+        assert_eq!(cloned.get_component::<u32>(), None);
+        assert_eq!(c.get_component::<u32>(), Some(&99u32));
     }
 }

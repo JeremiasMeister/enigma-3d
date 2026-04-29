@@ -43,7 +43,7 @@ pub struct Light {
     pub intensity: f32,
     pub direction: [f32; 3],
     pub cast_shadow: bool,
-    pub components: HashMap<TypeId, Box<dyn Any>>,
+    components: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Clone for Light {
@@ -164,5 +164,33 @@ mod tests {
         assert_eq!(ShadowResolution::High.value(), 2048);
         assert_eq!(ShadowResolution::Ultra.value(), 4096);
         assert_eq!(ShadowResolution::Custom(333).value(), 333);
+    }
+
+    fn test_light() -> Light {
+        Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 1.0, None, false)
+    }
+
+    #[test]
+    fn light_component_set_and_get() {
+        let mut l = test_light();
+        l.set_component(42u32);
+        assert_eq!(l.get_component::<u32>(), Some(&42u32));
+    }
+
+    #[test]
+    fn light_component_remove_returns_value() {
+        let mut l = test_light();
+        l.set_component(7u32);
+        assert_eq!(l.remove_component::<u32>(), Some(7u32));
+        assert_eq!(l.get_component::<u32>(), None);
+    }
+
+    #[test]
+    fn light_component_clone_isolation() {
+        let mut l = test_light();
+        l.set_component(99u32);
+        let cloned = l.clone();
+        assert_eq!(cloned.get_component::<u32>(), None);
+        assert_eq!(l.get_component::<u32>(), Some(&99u32));
     }
 }
