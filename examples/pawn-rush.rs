@@ -297,24 +297,64 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
         None => return,
     };
 
-    if gs.phase == GamePhase::Menu {
-        ui::Window::new("Pawn Rush")
-            .anchor(ui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .resizable(false)
-            .collapsible(false)
-            .show(ctx, |ui| {
-                ui.heading("PAWN RUSH");
-                ui.separator();
-                ui.label("Chess pawns are marching toward you.");
-                ui.label("Left-click to fire. Stop them before they reach you.");
-                ui.label("You have ♥♥♥ lives.");
-                ui.separator();
-                if ui.button("  Start Game  ").clicked() {
-                    reset_game(app_state, &mut gs);
-                    gs.phase = GamePhase::Playing;
-                }
-            });
-        app_state.set_state_data_value("game_state", Box::new(gs));
+    match gs.phase {
+        GamePhase::Menu => {
+            ui::Window::new("Pawn Rush")
+                .anchor(ui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .resizable(false)
+                .collapsible(false)
+                .show(ctx, |ui| {
+                    ui.heading("PAWN RUSH");
+                    ui.separator();
+                    ui.label("Chess pawns are marching toward you.");
+                    ui.label("Left-click to fire. Stop them before they reach you.");
+                    ui.label("You have ♥♥♥ lives.");
+                    ui.separator();
+                    if ui.button("  Start Game  ").clicked() {
+                        reset_game(app_state, &mut gs);
+                        gs.phase = GamePhase::Playing;
+                    }
+                });
+            app_state.set_state_data_value("game_state", Box::new(gs));
+        }
+
+        GamePhase::Playing => {
+            ui::Window::new("HUD")
+                .anchor(ui::Align2::LEFT_TOP, [10.0, 10.0])
+                .resizable(false)
+                .collapsible(false)
+                .title_bar(false)
+                .show(ctx, |ui| {
+                    ui.label(format!("Score: {}", gs.score));
+                    ui.label(format!("Wave:  {}", gs.wave));
+                    let filled = "♥".repeat(gs.lives as usize);
+                    let empty = "♡".repeat(STARTING_LIVES.saturating_sub(gs.lives) as usize);
+                    ui.label(format!("{}{}", filled, empty));
+                });
+        }
+
+        GamePhase::GameOver => {
+            ui::Window::new("Game Over")
+                .anchor(ui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .resizable(false)
+                .collapsible(false)
+                .show(ctx, |ui| {
+                    ui.heading("GAME OVER");
+                    ui.separator();
+                    ui.label(format!("Final Score: {}", gs.score));
+                    ui.label(format!("Waves survived: {}", gs.wave.saturating_sub(1)));
+                    ui.separator();
+                    if ui.button("  Play Again  ").clicked() {
+                        reset_game(app_state, &mut gs);
+                        gs.phase = GamePhase::Playing;
+                    }
+                    if ui.button("  Main Menu  ").clicked() {
+                        reset_game(app_state, &mut gs);
+                        gs.phase = GamePhase::Menu;
+                    }
+                });
+            app_state.set_state_data_value("game_state", Box::new(gs));
+        }
     }
 }
 
