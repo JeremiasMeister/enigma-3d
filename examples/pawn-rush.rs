@@ -167,6 +167,7 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         pawn.add_material(gs.pawn_material_uuid);
         pawn.get_shapes_mut()[0].set_material_from_object_list(0);
         pawn.transform.set_position([x, -1.15, z]);
+        pawn.transform.set_scale([3.0, 3.0, 3.0]);
         let uuid = pawn.get_unique_id();
         gs.pawn_ids.push(uuid);
         app_state.add_object(pawn);
@@ -338,6 +339,11 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
         }
 
         GamePhase::Playing => {
+            ui::Area::new("crosshair")
+                .anchor(ui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(ui::RichText::new("⊕").size(22.0).color(ui::Color32::WHITE));
+                });
             ui::Window::new("HUD")
                 .anchor(ui::Align2::LEFT_TOP, [10.0, 10.0])
                 .resizable(false)
@@ -487,8 +493,8 @@ fn main() {
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
 
-    app_state.add_state_data("camera_move_speed", Box::new(20.0f32));
-    app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
+    app_state.add_state_data("camera_move_speed", Box::new(50.0f32));
+    app_state.add_state_data("camera_rotate_speed", Box::new(0.5f32));
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
         Arc::new(default_events::camera_fly_forward),
