@@ -65,6 +65,21 @@ fn walk_right(app_state: &mut AppState) {
     }
 }
 
+// ── Component data structs ────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct PawnData {
+    speed_mult: f32,
+    kind: PieceKind,
+}
+
+#[derive(Clone)]
+struct ProjectileData {
+    velocity: [f32; 3],
+    distance: f32,
+    speed: f32,
+}
+
 // ── Scene setup ───────────────────────────────────────────────────────────────
 
 fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
@@ -280,10 +295,8 @@ struct GameState {
     lives: u32,
     wave: u32,
     wave_timer: f32,
-    /// (uuid, velocity_xyz, distance_traveled, speed)
-    projectile_ids: Vec<(Uuid, [f32; 3], f32, f32)>,
-    /// (uuid, speed_multiplier, kind)
-    pawn_ids: Vec<(Uuid, f32, PieceKind)>,
+    projectile_ids: Vec<Uuid>,
+    pawn_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
     projectile_material_uuid: Uuid,
     volume: f32,
@@ -359,14 +372,15 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         piece.transform.set_position([x, -1.15, z]);
         piece.transform.set_scale([sc, sc, sc]);
         let uuid = piece.get_unique_id();
-        gs.pawn_ids.push((uuid, kind.speed_mult(), kind));
+        piece.set_component(PawnData { speed_mult: kind.speed_mult(), kind });
+        gs.pawn_ids.push(uuid);
         app_state.add_object(piece);
     }
 }
 
 fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
-    let to_remove: Vec<Uuid> = gs.pawn_ids.iter().map(|(id, _, _)| *id)
-        .chain(gs.projectile_ids.iter().map(|(id, _, _, _)| *id))
+    let to_remove: Vec<Uuid> = gs.pawn_ids.iter().copied()
+        .chain(gs.projectile_ids.iter().copied())
         .collect();
     app_state.objects.retain(|o| !to_remove.contains(&o.get_unique_id()));
     gs.reset();
@@ -431,20 +445,21 @@ fn game_update(app_state: &mut AppState) {
     // Camera-local "down" = -camera_up = -cross(fwd, right), so the cube stays
     // locked to the lower-right corner of the view frustum regardless of pitch.
     if let Some(wid) = weapon_uuid {
-        if let Some(cam) = app_state.camera.as_ref() {
+        // Extract all camera data before taking a mutable borrow on app_state
+        let weapon_data = app_state.camera.as_ref().map(|cam| {
             let cp = cam.get_position();
             let cf = cam.calculate_direction_vector();
-
-            // screen-right = cross(fwd, world_up) = (-cf[2], 0, cf[0])
-            // (opposite sign to cross(world_up, fwd) — engine looks along +Z, not -Z)
             let rx = -cf[2];
             let rz =  cf[0];
             let r_len = (rx * rx + rz * rz).sqrt();
             let (rx, rz) = if r_len > 0.001 { (rx / r_len, rz / r_len) } else { (-1.0, 0.0) };
-
-            // camera-local up directly from transform (correct for any pitch/yaw)
             let cam_up = cam.transform.up();
+            let rot_x = cam.transform.rotation.x.to_degrees();
+            let rot_y = cam.transform.rotation.y.to_degrees();
+            (cp, cf, rx, rz, cam_up, rot_x, rot_y)
+        });
 
+        if let Some((cp, cf, rx, rz, cam_up, rot_x, rot_y)) = weapon_data {
             const FWD: f32   = 0.40;
             const RIGHT: f32 = 0.20;
             const DOWN: f32  = 0.13;
@@ -456,11 +471,7 @@ fn game_update(app_state: &mut AppState) {
                     let wz = cp[2] + rz * RIGHT - cam_up.z * DOWN + cf[2] * FWD;
                     weapon.transform.set_position([wx, wy, wz]);
                     // match camera yaw+pitch, then roll -22° to tilt handle toward corner
-                    weapon.transform.set_rotation([
-                        cam.transform.rotation.x.to_degrees(),
-                        cam.transform.rotation.y.to_degrees(),
-                        -22.0,
-                    ]);
+                    weapon.transform.set_rotation([rot_x, rot_y, -22.0]);
                 } else {
                     weapon.transform.set_position([0.0, -1000.0, 0.0]);
                 }
@@ -489,7 +500,7 @@ fn game_update(app_state: &mut AppState) {
     // ── Aimed-at detection ────────────────────────────────────────────────────
     let mut new_aimed: Option<Uuid> = None;
     let mut best_dot = AIM_DOT_THRESHOLD;
-    for (uuid, _, _) in &gs.pawn_ids {
+    for uuid in &gs.pawn_ids {
         if let Some(obj) = app_state.get_object_by_uuid(uuid) {
             let pos = obj.transform.get_position();
             let to_x = pos.x - cam_pos[0];
@@ -508,7 +519,11 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Move pawns ────────────────────────────────────────────────────────────
     let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
-    for (uuid, speed_mult, _) in &gs.pawn_ids {
+    for uuid in &gs.pawn_ids {
+        let speed_mult = app_state.get_object_by_uuid(uuid)
+            .and_then(|o| o.get_component::<PawnData>())
+            .map(|d| d.speed_mult)
+            .unwrap_or(1.0);
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
             let pos = obj.transform.get_position();
             let dx = cam_pos[0] - pos.x;
@@ -523,8 +538,8 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Escaped pawns (reach camera) ──────────────────────────────────────────
     let escaped: Vec<Uuid> = gs.pawn_ids.iter()
-        .filter(|(uuid, _, _)| {
-            app_state.get_object_by_uuid(uuid)
+        .filter(|uuid| {
+            app_state.get_object_by_uuid(*uuid)
                 .map(|o| {
                     let pos = o.transform.get_position();
                     let dx = pos.x - cam_pos[0];
@@ -533,12 +548,12 @@ fn game_update(app_state: &mut AppState) {
                 })
                 .unwrap_or(false)
         })
-        .map(|(id, _, _)| *id)
+        .copied()
         .collect();
 
     gs.lives = gs.lives.saturating_sub(escaped.len() as u32);
     app_state.objects.retain(|o| !escaped.contains(&o.get_unique_id()));
-    gs.pawn_ids.retain(|(id, _, _)| !escaped.contains(id));
+    gs.pawn_ids.retain(|id| !escaped.contains(id));
 
     if gs.lives == 0 {
         gs.phase = GamePhase::GameOver;
@@ -547,23 +562,28 @@ fn game_update(app_state: &mut AppState) {
     }
 
     // ── Move projectiles ──────────────────────────────────────────────────────
-    for (uuid, vel, dist, speed) in &mut gs.projectile_ids {
+    for uuid in &gs.projectile_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
+            let (vel, spd) = obj.get_component::<ProjectileData>()
+                .map(|d| (d.velocity, d.speed))
+                .unwrap_or(([0.0; 3], 0.0));
             obj.transform.move_dir_array([vel[0] * dt, vel[1] * dt, vel[2] * dt]);
-            *dist += *speed * dt;
+            if let Some(data) = obj.get_component_mut::<ProjectileData>() {
+                data.distance += spd * dt;
+            }
         }
     }
 
     // ── Collision detection ───────────────────────────────────────────────────
     let proj_bbs: Vec<(Uuid, BoundingBox)> = gs.projectile_ids.iter()
-        .filter_map(|(uuid, _, _, _)| {
+        .filter_map(|uuid| {
             app_state.get_object_by_uuid_mut(*uuid)
                 .map(|o| (*uuid, o.get_bounding_box()))
         })
         .collect();
 
     let pawn_bbs: Vec<(Uuid, BoundingBox)> = gs.pawn_ids.iter()
-        .filter_map(|(uuid, _, _)| {
+        .filter_map(|uuid| {
             app_state.get_object_by_uuid_mut(*uuid)
                 .map(|o| (*uuid, o.get_bounding_box()))
         })
@@ -586,17 +606,22 @@ fn game_update(app_state: &mut AppState) {
     }
 
     app_state.objects.retain(|o| !kill_projectiles.contains(&o.get_unique_id()));
-    gs.projectile_ids.retain(|(id, _, _, _)| !kill_projectiles.contains(id));
+    gs.projectile_ids.retain(|id| !kill_projectiles.contains(id));
     app_state.objects.retain(|o| !kill_pawns.contains(&o.get_unique_id()));
-    gs.pawn_ids.retain(|(id, _, _)| !kill_pawns.contains(id));
+    gs.pawn_ids.retain(|id| !kill_pawns.contains(id));
 
     // ── Expire out-of-range projectiles ───────────────────────────────────────
     let expired: Vec<Uuid> = gs.projectile_ids.iter()
-        .filter(|(_, _, d, _)| *d > PROJECTILE_MAX_RANGE)
-        .map(|(id, _, _, _)| *id)
+        .filter(|uuid| {
+            app_state.get_object_by_uuid(*uuid)
+                .and_then(|o| o.get_component::<ProjectileData>())
+                .map(|d| d.distance > PROJECTILE_MAX_RANGE)
+                .unwrap_or(false)
+        })
+        .copied()
         .collect();
     app_state.objects.retain(|o| !expired.contains(&o.get_unique_id()));
-    gs.projectile_ids.retain(|(id, _, _, _)| !expired.contains(id));
+    gs.projectile_ids.retain(|id| !expired.contains(id));
 
     app_state.set_state_data_value("game_state", Box::new(gs));
 }
@@ -765,9 +790,10 @@ fn fire_projectile(app_state: &mut AppState) {
     proj.get_shapes_mut()[0].set_material_from_object_list(0);
     proj.transform.set_position(cam_pos);
 
-    let uuid = proj.get_unique_id();
     let speed = (velocity[0]*velocity[0] + velocity[1]*velocity[1] + velocity[2]*velocity[2]).sqrt();
-    gs.projectile_ids.push((uuid, velocity, 0.0, speed));
+    proj.set_component(ProjectileData { velocity, distance: 0.0, speed });
+    let uuid = proj.get_unique_id();
+    gs.projectile_ids.push(uuid);
     app_state.add_object(proj);
     app_state.play_audio_once("hit");
     app_state.set_state_data_value("game_state", Box::new(gs));
