@@ -117,6 +117,7 @@ struct GameState {
     pawn_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
     projectile_material_uuid: Uuid,
+    volume: f32,
 }
 
 impl GameState {
@@ -131,6 +132,7 @@ impl GameState {
             pawn_ids: Vec::new(),
             pawn_material_uuid: pawn_mat,
             projectile_material_uuid: proj_mat,
+            volume: 1.0,
         }
     }
 
@@ -141,6 +143,7 @@ impl GameState {
         self.wave_timer = 0.0;
         self.projectile_ids.clear();
         self.pawn_ids.clear();
+        // volume intentionally not reset — persists across games
     }
 }
 
@@ -316,7 +319,15 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
                     ui.separator();
                     ui.label("Chess pawns are marching toward you.");
                     ui.label("Left-click to fire. Stop them before they reach you.");
-                    ui.label("You have ♥♥♥ lives.");
+                    ui.label("WASD to move. You have ♥♥♥ lives.");
+                    ui.separator();
+                    ui.label("Volume");
+                    let prev_volume = gs.volume;
+                    ui.add(ui::Slider::new(&mut gs.volume, 0.0..=1.0).show_value(false));
+                    if (gs.volume - prev_volume).abs() > f32::EPSILON {
+                        app_state.set_audio_volume("bgm", gs.volume);
+                        app_state.set_audio_volume("hit", gs.volume);
+                    }
                     ui.separator();
                     if ui.button("  Start Game  ").clicked() {
                         reset_game(app_state, &mut gs);
