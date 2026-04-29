@@ -297,6 +297,43 @@ impl Object {
         aabb
     }
 
+    pub fn cube(half_extent: f32) -> Self {
+        let h = half_extent;
+        // Each face: (normal, [4 corners in CCW order when viewed from outside])
+        let faces: [([f32; 3], [[f32; 3]; 4]); 6] = [
+            ([0.0, 0.0, 1.0],  [[-h, -h,  h], [ h, -h,  h], [ h,  h,  h], [-h,  h,  h]]), // +Z
+            ([0.0, 0.0, -1.0], [[ h, -h, -h], [-h, -h, -h], [-h,  h, -h], [ h,  h, -h]]), // -Z
+            ([1.0, 0.0, 0.0],  [[ h, -h,  h], [ h, -h, -h], [ h,  h, -h], [ h,  h,  h]]), // +X
+            ([-1.0, 0.0, 0.0], [[-h, -h, -h], [-h, -h,  h], [-h,  h,  h], [-h,  h, -h]]), // -X
+            ([0.0, 1.0, 0.0],  [[-h,  h,  h], [ h,  h,  h], [ h,  h, -h], [-h,  h, -h]]), // +Y
+            ([0.0, -1.0, 0.0], [[-h, -h, -h], [ h, -h, -h], [ h, -h,  h], [-h, -h,  h]]), // -Y
+        ];
+        let uvs = [[0.0_f32, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        for (face_idx, (normal, corners)) in faces.iter().enumerate() {
+            let base = (face_idx * 4) as u32;
+            for (i, corner) in corners.iter().enumerate() {
+                vertices.push(Vertex {
+                    position: *corner,
+                    texcoord: uvs[i],
+                    color: [1.0, 1.0, 1.0],
+                    normal: *normal,
+                    bone_indices: [0, 0, 0, 0],
+                    bone_weights: [0.0, 0.0, 0.0, 0.0],
+                });
+            }
+            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+
+        let mut object = Object::new(Some("cube".to_string()));
+        object.add_shape(Shape::from_vertices_indices(vertices, indices));
+        object.calculate_bounding_box();
+        object
+    }
+
     pub fn default() -> Self {
         let mut object = Object::new(None);
         object.add_shape(Shape::default());
@@ -910,5 +947,32 @@ impl Transform {
         result.set_scale(scale.into());
         result.set_rotation(rotation.into());
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cube_vertex_count() {
+        let mut cube = Object::cube(1.0);
+        assert_eq!(cube.get_shapes_mut()[0].vertices.len(), 24);
+    }
+
+    #[test]
+    fn cube_index_count() {
+        let mut cube = Object::cube(1.0);
+        assert_eq!(cube.get_shapes_mut()[0].indices.len(), 36);
+    }
+
+    #[test]
+    fn cube_bounding_box_half_extents() {
+        let mut cube = Object::cube(1.0);
+        let bb = cube.get_bounding_box();
+        // width/height/depth are full extents = 2 * half_extent
+        assert!((bb.width - 2.0).abs() < 1e-4, "width = {}", bb.width);
+        assert!((bb.height - 2.0).abs() < 1e-4, "height = {}", bb.height);
+        assert!((bb.depth - 2.0).abs() < 1e-4, "depth = {}", bb.depth);
     }
 }
