@@ -1,3 +1,4 @@
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::vec::Vec;
 use glium::Display;
@@ -49,6 +50,7 @@ pub struct Object {
     animations: HashMap<String, animation::Animation>,
     skeleton: Option<animation::Skeleton>,
     current_animation: Option<AnimationState>,
+    components: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Clone for Object {
@@ -78,6 +80,7 @@ impl Clone for Object {
         new_object.cloned_id = self.unique_id;
         new_object.animations = self.animations.clone();
         new_object.skeleton = self.skeleton.clone();
+        new_object.components = HashMap::new();
         new_object
     }
 }
@@ -177,6 +180,7 @@ impl Object {
             animations: HashMap::new(),
             skeleton: None,
             current_animation: None,
+            components: HashMap::new(),
         };
         object.calculate_bounding_box();
         object
@@ -240,6 +244,28 @@ impl Object {
 
     pub fn get_collision(&self) -> &bool {
         &self.collision
+    }
+
+    pub fn set_component<T: Any + 'static>(&mut self, component: T) {
+        self.components.insert(TypeId::of::<T>(), Box::new(component));
+    }
+
+    pub fn get_component<T: Any + 'static>(&self) -> Option<&T> {
+        self.components.get(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_ref::<T>())
+    }
+
+    pub fn get_component_mut<T: Any + 'static>(&mut self) -> Option<&mut T> {
+        self.components.get_mut(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_mut::<T>())
+    }
+
+    pub fn has_component<T: Any + 'static>(&self) -> bool {
+        self.components.contains_key(&TypeId::of::<T>())
+    }
+
+    pub fn remove_component<T: Any + 'static>(&mut self) -> bool {
+        self.components.remove(&TypeId::of::<T>()).is_some()
     }
 
     pub fn get_unique_id(&self) -> Uuid {
