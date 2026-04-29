@@ -70,6 +70,8 @@ fn walk_right(app_state: &mut AppState) {
 #[derive(Clone)]
 struct PawnData {
     speed_mult: f32,
+    wander_dir: [f32; 2],   // normalized XZ direction
+    wander_timer: f32,       // seconds until next direction change
 }
 
 #[derive(Clone)]
@@ -239,7 +241,7 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const WAVE_INTERVAL: f32 = 8.0;
-const PAWN_SPEED: f32 = 1.2;
+const PAWN_SPEED: f32 = 4.0;
 const PROJECTILE_SPEED: f32 = 80.0;
 const PROJECTILE_MAX_RANGE: f32 = 80.0;
 const MAX_PROJECTILES: usize = 20;
@@ -247,7 +249,7 @@ const STARTING_LIVES: u32 = 3;
 const ARENA_HALF: f32 = 55.0;   // 110×110 play area
 const WALL_HEIGHT: f32 = 5.0;
 const WALL_THICK: f32 = 0.6;
-const PAWN_DETECTION_RADIUS: f32 = 15.0;
+const PAWN_DETECTION_RADIUS: f32 = 25.0;
 const PAWN_CAPTURE_RADIUS: f32 = 2.5;
 const AIM_DOT_THRESHOLD: f32 = 0.97;
 const CAMERA_HEIGHT: f32 = 3.5;
@@ -401,7 +403,12 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         piece.transform.set_position([x, -1.15, z]);
         piece.transform.set_scale([sc, sc, sc]);
         let uuid = piece.get_unique_id();
-        piece.set_component(PawnData { speed_mult: kind.speed_mult() });
+        let angle = rng.gen_range(0.0f32..std::f32::consts::TAU);
+        piece.set_component(PawnData {
+            speed_mult: kind.speed_mult(),
+            wander_dir: [angle.cos(), angle.sin()],
+            wander_timer: rng.gen_range(0.5f32..1.5f32),
+        });
         gs.pawn_ids.push(uuid);
         app_state.add_object(piece);
     }
@@ -562,19 +569,51 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Move pawns ────────────────────────────────────────────────────────────
     let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
+    let mut rng = rand::thread_rng();
     for uuid in &gs.pawn_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
-            let speed_mult = obj.get_component::<PawnData>()
-                .map(|d| d.speed_mult)
-                .unwrap_or(1.0);
             let pos = obj.transform.get_position();
             let dx = cam_pos[0] - pos.x;
             let dz = cam_pos[2] - pos.z;
-            let len = (dx * dx + dz * dz).sqrt();
-            if len < PAWN_DETECTION_RADIUS && len > 0.01 {
-                let step = PAWN_SPEED * wave_speed * speed_mult * dt / len;
-                obj.transform.move_dir_array([dx * step, 0.0, dz * step]);
+            let dist = (dx * dx + dz * dz).sqrt();
+
+            // Read current wander state (copy out so borrow ends)
+            let (speed_mult, mut wdir, mut wtimer) = obj
+                .get_component::<PawnData>()
+                .map(|d| (d.speed_mult, d.wander_dir, d.wander_timer))
+                .unwrap_or((1.0, [1.0, 0.0], 1.0));
+
+            let (move_x, move_z) = if dist < PAWN_DETECTION_RADIUS {
+                // Chase: move directly toward player
+                if dist > 0.01 { (dx / dist, dz / dist) } else { (0.0, 0.0) }
+            } else {
+                // Wander: tick timer, bounce off walls, pick new dir when expired
+                wtimer -= dt;
+
+                let wall_inner = ARENA_HALF - WALL_THICK / 2.0 - 0.5;
+                if pos.x < -wall_inner { wdir[0] =  wdir[0].abs(); }
+                if pos.x >  wall_inner { wdir[0] = -wdir[0].abs(); }
+                if pos.z < -wall_inner { wdir[1] =  wdir[1].abs(); }
+                if pos.z >  wall_inner { wdir[1] = -wdir[1].abs(); }
+
+                if wtimer <= 0.0 {
+                    let angle = rng.gen_range(0.0f32..std::f32::consts::TAU);
+                    wdir = [angle.cos(), angle.sin()];
+                    wtimer = rng.gen_range(0.8f32..2.0f32);
+                }
+
+                (wdir[0], wdir[1])
+            };
+
+            // Write back updated wander state
+            if let Some(data) = obj.get_component_mut::<PawnData>() {
+                data.wander_dir = wdir;
+                data.wander_timer = wtimer;
             }
+
+            // Apply movement
+            let step = PAWN_SPEED * wave_speed * speed_mult * dt;
+            obj.transform.move_dir_array([move_x * step, 0.0, move_z * step]);
         }
     }
 
