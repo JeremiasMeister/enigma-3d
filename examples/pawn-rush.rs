@@ -377,6 +377,23 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
     }
 }
 
+fn fps_look(app_state: &mut AppState) {
+    if app_state.modifiers.ctrl {
+        return;
+    }
+    let delta = app_state.get_mouse_state().get_delta();
+    let sensitivity = app_state.get_state_data_value::<f32>("camera_rotate_speed")
+        .copied()
+        .unwrap_or(2.0)
+        * app_state.delta_time;
+    if let Some(cam) = app_state.get_camera_mut() {
+        cam.transform.rotation.y -= delta.0 as f32 * sensitivity;
+        cam.transform.rotation.x -= delta.1 as f32 * sensitivity;
+        cam.transform.rotation.x = cam.transform.rotation.x
+            .clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
+    }
+}
+
 fn fire_projectile(app_state: &mut AppState) {
     let mut gs = match app_state.get_state_data_value::<GameState>("game_state") {
         Some(g) => g.clone(),
@@ -470,7 +487,8 @@ fn main() {
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
 
-    app_state.add_state_data("camera_move_speed", Box::new(8.0f32));
+    app_state.add_state_data("camera_move_speed", Box::new(20.0f32));
+    app_state.add_state_data("camera_rotate_speed", Box::new(2.0f32));
     app_state.inject_event(
         event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
         Arc::new(default_events::camera_fly_forward),
@@ -496,6 +514,7 @@ fn main() {
         Arc::new(fire_projectile),
         None,
     );
+    app_state.inject_update_function(Arc::new(fps_look));
     app_state.inject_update_function(Arc::new(game_update));
     app_state.inject_gui(Arc::new(pawn_rush_ui));
 
