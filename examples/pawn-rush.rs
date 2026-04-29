@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use enigma_3d::{AppState, EventLoop, example_resources, resources};
+use enigma_3d::event;
 use enigma_3d::ui;
 use enigma_3d::camera::Camera;
 use enigma_3d::material::{Material, TextureType};
@@ -276,6 +277,41 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
     }
 }
 
+fn fire_projectile(app_state: &mut AppState) {
+    let mut gs = match app_state.get_state_data_value::<GameState>("game_state") {
+        Some(g) => g.clone(),
+        None => return,
+    };
+
+    if gs.phase != GamePhase::Playing {
+        return;
+    }
+
+    let cam = app_state.camera.unwrap();  // Camera is Copy
+    let cam_pos = cam.get_position();     // [f32; 3]
+    let dir = cam.calculate_direction_vector();  // [f32; 3], normalized
+
+    let velocity = [
+        dir[0] * PROJECTILE_SPEED,
+        dir[1] * PROJECTILE_SPEED,
+        dir[2] * PROJECTILE_SPEED,
+    ];
+
+    let mut proj = Object::cube(0.08);
+    proj.set_name("projectile".to_string());
+    proj.set_collision(false);
+    proj.add_material(gs.projectile_material_uuid);
+    proj.get_shapes_mut()[0].set_material_from_object_list(0);
+    proj.transform.set_position(cam_pos);
+
+    let uuid = proj.get_unique_id();
+    gs.projectile_ids.push((uuid, velocity, 0.0));
+    app_state.add_object(proj);
+    app_state.play_audio_once("hit");
+
+    app_state.set_state_data_value("game_state", Box::new(gs));
+}
+
 fn main() {
     let event_loop = EventLoop::new("Pawn Rush", 1080, 720);
     let mut app_state = AppState::new();
@@ -325,6 +361,11 @@ fn main() {
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
 
+    app_state.inject_event(
+        event::EventCharacteristic::MousePress(event::MouseButton::Left),
+        Arc::new(fire_projectile),
+        None,
+    );
     app_state.inject_update_function(Arc::new(game_update));
     app_state.inject_gui(Arc::new(pawn_rush_ui));
 
