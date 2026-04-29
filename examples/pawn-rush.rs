@@ -218,10 +218,10 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
 
     // (position, scale) for N/S/E/W walls
     let wall_defs: [([f32; 3], [f32; 3]); 4] = [
-        ([0.0, -1.25, -ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // north
-        ([0.0, -1.25,  ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // south
-        ([-ARENA_HALF, -1.25, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0]),               // west
-        ([ ARENA_HALF, -1.25, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0]),               // east
+        ([0.0, 0.5, -ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // north
+        ([0.0, 0.5,  ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // south
+        ([-ARENA_HALF, 0.5, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0 + WALL_THICK]),  // west
+        ([ ARENA_HALF, 0.5, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0 + WALL_THICK]),  // east
     ];
 
     for (i, (pos, scale)) in wall_defs.iter().enumerate() {
@@ -244,8 +244,8 @@ const PROJECTILE_SPEED: f32 = 80.0;
 const PROJECTILE_MAX_RANGE: f32 = 80.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
-const ARENA_HALF: f32 = 11.0;   // 22×22 play area
-const WALL_HEIGHT: f32 = 1.5;
+const ARENA_HALF: f32 = 55.0;   // 110×110 play area
+const WALL_HEIGHT: f32 = 5.0;
 const WALL_THICK: f32 = 0.6;
 const PAWN_DETECTION_RADIUS: f32 = 15.0;
 const PAWN_CAPTURE_RADIUS: f32 = 2.5;
@@ -381,8 +381,8 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         PieceKind::Queen, PieceKind::King, PieceKind::Knight,
     ];
 
+    let spawn_inner = ARENA_HALF - WALL_THICK - 0.5;
     for i in 0..count {
-        let spawn_inner = ARENA_HALF - WALL_THICK - 0.5;
         let (x, z) = match rng.gen_range(0u8..4) {
             0 => (rng.gen_range(-spawn_inner..spawn_inner), -spawn_inner),  // north edge
             1 => (rng.gen_range(-spawn_inner..spawn_inner),  spawn_inner),  // south edge
@@ -453,7 +453,7 @@ fn game_update(app_state: &mut AppState) {
     if gs.phase == GamePhase::Playing {
         if let Some(cam) = app_state.get_camera_mut() {
             let p = cam.transform.get_position();
-            let inner = ARENA_HALF - WALL_THICK;
+            let inner = ARENA_HALF - WALL_THICK / 2.0;
             cam.transform.set_position([
                 p.x.clamp(-inner, inner),
                 p.y,
@@ -533,7 +533,7 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Wave timer ────────────────────────────────────────────────────────────
     gs.wave_timer += dt;
-    let current_wave_interval = (WAVE_INTERVAL - gs.wave as f32 * 0.4).max(3.0);
+    let current_wave_interval = (WAVE_INTERVAL - (gs.wave as f32 - 1.0) * 0.4).max(3.0);
     if gs.wave_timer >= current_wave_interval {
         gs.wave_timer = 0.0;
         gs.wave += 1;
