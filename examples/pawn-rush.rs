@@ -368,8 +368,9 @@ fn fire_projectile(app_state: &mut AppState) {
         Some(c) => c,
         None => return,
     };
-    let cam_pos = cam.get_position();     // [f32; 3]
-    let dir = cam.calculate_direction_vector();  // [f32; 3], normalized
+    let cam_pos = cam.get_position();
+    let (_, ray_dir) = app_state.get_mouse_state().get_world_position(&cam);
+    let dir = [ray_dir.x, ray_dir.y, ray_dir.z];
 
     let velocity = [
         dir[0] * PROJECTILE_SPEED,
