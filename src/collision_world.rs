@@ -82,11 +82,16 @@ impl MouseState {
     pub fn update_position(&mut self, new_position: (f64, f64)) {
         self.previous_position = self.current_position;
         self.current_position = new_position;
-        self.delta = (
-            self.current_position.0 - self.previous_position.0,
-            self.current_position.1 - self.previous_position.1,
-        );
     }
+
+    pub fn add_raw_delta(&mut self, dx: f64, dy: f64) {
+        self.delta = (self.delta.0 + dx, self.delta.1 + dy);
+    }
+
+    pub fn reset_delta(&mut self) {
+        self.delta = (0.0, 0.0);
+    }
+
     pub fn get_delta(&self) -> (f64, f64) {
         self.delta
     }

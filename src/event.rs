@@ -7,10 +7,10 @@ pub use winit::event::*;
 #[derive(Copy, Clone)]
 pub enum EventCharacteristic {
     KeyPress(VirtualKeyCode),
+    KeyDown(VirtualKeyCode),
     MousePress(MouseButton),
     MouseDown(MouseButton),
     MouseScroll(MouseScrollDelta),
-    //TODO: impl more events
 }
 
 #[derive(Copy, Clone)]

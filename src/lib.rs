@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use egui_glium::EguiGlium;
@@ -9,7 +9,8 @@ use glium::{Display, Surface, Texture2d, uniform};
 use glium::uniforms::UniformBuffer;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use winit::event::{Event, WindowEvent};
+use winit::event::{DeviceEvent, Event, WindowEvent};
+use winit::window::CursorGrabMode;
 use winit::event_loop::{ControlFlow};
 use crate::audio::{AudioClip, AudioEngine};
 use crate::shadow::ShadowMaps;
@@ -151,6 +152,8 @@ pub struct AppState {
     pub shadow_resolution: u32,
     pub shadow_distance: f32,
     pub modifiers: EventModifiers,
+    pub held_keys: HashSet<event::VirtualKeyCode>,
+    pub cursor_locked: bool,
 }
 
 pub struct EventLoop {
@@ -192,6 +195,8 @@ impl AppState {
             shadow_resolution: 1024,
             shadow_distance: 50.0,
             modifiers: EventModifiers::default(),
+            held_keys: HashSet::new(),
+            cursor_locked: false,
         }
     }
 
@@ -784,6 +789,9 @@ impl EventLoop {
             let skybox_texture = &skybox_texture;
 
             match event {
+                Event::DeviceEvent { event: DeviceEvent::MouseMotion { delta }, .. } => {
+                    app_state.get_mouse_state_mut().add_raw_delta(delta.0, delta.1);
+                }
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => { *control_flow = ControlFlow::Exit; }
                     WindowEvent::Resized(new_size) => {
@@ -823,7 +831,7 @@ impl EventLoop {
                                         }
                                     }
                                 } else if let event::EventCharacteristic::MousePress(_) = characteristic {
-                                    if modifiers == &self.modifiers {
+                                    if state == winit::event::ElementState::Pressed && modifiers == &self.modifiers {
                                         function(&mut app_state);
                                         response.consumed = true;
                                     }
@@ -833,6 +841,13 @@ impl EventLoop {
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
+                        if let Some(key_code) = input.virtual_keycode {
+                            if input.state == winit::event::ElementState::Pressed {
+                                app_state.held_keys.insert(key_code);
+                            } else {
+                                app_state.held_keys.remove(&key_code);
+                            }
+                        }
                         if !response.consumed {
                             for (characteristic, function, modifiers) in event_injections {
                                 if let event::EventCharacteristic::KeyPress(key_code) = characteristic {
@@ -1183,10 +1198,37 @@ impl EventLoop {
                         }
                     }
 
+                    // executing key down events (held keys, fired every frame)
+                    let held: Vec<event::VirtualKeyCode> = app_state.held_keys.iter().copied().collect();
+                    for key in &held {
+                        for (characteristic, function, modifiers) in &event_injections {
+                            if let event::EventCharacteristic::KeyDown(key_code) = characteristic {
+                                if key_code == key && modifiers == &self.modifiers {
+                                    function(&mut app_state);
+                                }
+                            }
+                        }
+                    }
+
                     // executing update functions
                     for function in update_injections {
                         function(&mut app_state);
                     }
+
+                    // sync cursor lock state
+                    if app_state.cursor_locked {
+                        if self.window.set_cursor_grab(CursorGrabMode::Locked).is_err() {
+                            let _ = self.window.set_cursor_grab(CursorGrabMode::Confined);
+                        }
+                        self.window.set_cursor_visible(false);
+                    } else {
+                        let _ = self.window.set_cursor_grab(CursorGrabMode::None);
+                        self.window.set_cursor_visible(true);
+                    }
+
+                    // reset raw delta — consumed by update functions above
+                    app_state.get_mouse_state_mut().reset_delta();
+
                     self.window.request_redraw();
                 }
                 _ => (),
