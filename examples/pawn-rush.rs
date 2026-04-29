@@ -81,6 +81,9 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     proj_mat.set_name("mat_projectile");
     proj_mat.set_color([1.0, 0.55, 0.0]);
 
+    let tree_opaque_uuid = tree_mat_opaque.uuid;
+    let tree_transparent_uuid = tree_mat_transparent.uuid;
+
     app_state.add_material(terrain_mat);
     app_state.add_material(tree_mat_opaque);
     app_state.add_material(tree_mat_transparent);
@@ -99,8 +102,8 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     for (pos, rot, scale) in &tree_positions {
         let mut t = Object::load_from_gltf_resource(example_resources::tree(), None);
         t.set_collision(false);
-        t.add_material(tree_mat_opaque.uuid);
-        t.add_material(tree_mat_transparent.uuid);
+        t.add_material(tree_opaque_uuid);
+        t.add_material(tree_transparent_uuid);
         t.get_shapes_mut()[0].set_material_from_object_list(1);
         t.get_shapes_mut()[1].set_material_from_object_list(0);
         t.transform.set_position(*pos);
