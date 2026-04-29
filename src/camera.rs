@@ -1,3 +1,5 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use crate::object::{Transform, TransformSerializer};
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +15,6 @@ pub struct CameraSerializer {
     projection: [[f32; 4]; 4],
 }
 
-#[derive(Copy, Clone)]
 pub struct Camera {
     pub transform: Transform,
     pub fov: f32,
@@ -23,6 +24,23 @@ pub struct Camera {
     pub far: f32,
     pub view: [[f32; 4]; 4],
     pub projection: [[f32; 4]; 4],
+    pub components: HashMap<TypeId, Box<dyn Any>>,
+}
+
+impl Clone for Camera {
+    fn clone(&self) -> Self {
+        Self {
+            transform: self.transform,
+            fov: self.fov,
+            width: self.width,
+            height: self.height,
+            near: self.near,
+            far: self.far,
+            view: self.view,
+            projection: self.projection,
+            components: HashMap::new(),
+        }
+    }
 }
 
 
@@ -49,6 +67,7 @@ impl Camera {
             far: far.unwrap_or_else(|| 1024.0),
             view: [[0.0; 4]; 4],
             projection: [[0.0; 4]; 4],
+            components: HashMap::new(),
         };
         c.update_matrices();
         c
@@ -68,6 +87,7 @@ impl Camera {
             far: serializer.far,
             view: serializer.view,
             projection: serializer.projection,
+            components: HashMap::new(),
         }
     }
 
@@ -234,5 +254,31 @@ impl Camera {
     pub fn set_far(&mut self, far: f32) {
         self.far = far;
         self.update_matrices();
+    }
+
+    /// Stores `component`, replacing any existing component of the same type.
+    pub fn set_component<T: Any + 'static>(&mut self, component: T) {
+        self.components.insert(TypeId::of::<T>(), Box::new(component));
+    }
+
+    pub fn get_component<T: Any + 'static>(&self) -> Option<&T> {
+        self.components.get(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_ref::<T>())
+    }
+
+    pub fn get_component_mut<T: Any + 'static>(&mut self) -> Option<&mut T> {
+        self.components.get_mut(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_mut::<T>())
+    }
+
+    pub fn has_component<T: Any + 'static>(&self) -> bool {
+        self.components.contains_key(&TypeId::of::<T>())
+    }
+
+    pub fn remove_component<T: Any + 'static>(&mut self) -> Option<T> {
+        self.components
+            .remove(&TypeId::of::<T>())
+            .and_then(|b| b.downcast::<T>().ok())
+            .map(|b| *b)
     }
 }

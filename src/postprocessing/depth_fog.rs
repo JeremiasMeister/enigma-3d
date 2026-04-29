@@ -41,8 +41,8 @@ impl PostProcessingEffect for DepthFog {
             maxDepth: self.max_depth,
             fogColor: self.color,
             opacity: self.opacity,
-            near: app_state.camera.unwrap().near,
-            far: app_state.camera.unwrap().far,
+            near: app_state.camera.as_ref().unwrap().near,
+            far: app_state.camera.as_ref().unwrap().far,
             fogCutoff: self.fog_cutoff,
         };
 

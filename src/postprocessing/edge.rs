@@ -34,8 +34,8 @@ impl PostProcessingEffect for Edge {
             threshold: self.threshold,
             screenSize: [source.width() as f32, source.height() as f32],
             outlineColor: self.color,
-            near: app_state.camera.unwrap().near,
-            far: app_state.camera.unwrap().far,
+            near: app_state.camera.as_ref().unwrap().near,
+            far: app_state.camera.as_ref().unwrap().far,
         };
 
         let params = glium::DrawParameters {

@@ -334,7 +334,7 @@ fn find_material_uuid(app_state: &AppState, name: &str) -> Uuid {
 }
 
 fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
-    let cam_pos = app_state.camera.map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
+    let cam_pos = app_state.camera.as_ref().map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
     let count = 3 + gs.wave;
     let mut rng = rand::thread_rng();
     let all_kinds = [
@@ -383,8 +383,8 @@ fn game_update(app_state: &mut AppState) {
     let weapon_uuid = app_state.get_state_data_value::<Uuid>("weapon_uuid").copied();
 
     let dt = app_state.delta_time;
-    let cam_pos = app_state.camera.map(|c| c.get_position()).unwrap_or([0.0, CAMERA_HEIGHT, 0.0]);
-    let cam_fwd = app_state.camera.map(|c| c.calculate_direction_vector()).unwrap_or([0.0, 0.0, -1.0]);
+    let cam_pos = app_state.camera.as_ref().map(|c| c.get_position()).unwrap_or([0.0, CAMERA_HEIGHT, 0.0]);
+    let cam_fwd = app_state.camera.as_ref().map(|c| c.calculate_direction_vector()).unwrap_or([0.0, 0.0, -1.0]);
 
     // ── Head bob ──────────────────────────────────────────────────────────────
     let is_moving = app_state.held_keys.iter().any(|k| matches!(
@@ -431,7 +431,7 @@ fn game_update(app_state: &mut AppState) {
     // Camera-local "down" = -camera_up = -cross(fwd, right), so the cube stays
     // locked to the lower-right corner of the view frustum regardless of pitch.
     if let Some(wid) = weapon_uuid {
-        if let Some(cam) = app_state.camera {
+        if let Some(cam) = app_state.camera.as_ref() {
             let cp = cam.get_position();
             let cf = cam.calculate_direction_vector();
 
@@ -750,7 +750,7 @@ fn fire_projectile(app_state: &mut AppState) {
     if gs.phase != GamePhase::Playing { return; }
     if gs.projectile_ids.len() >= MAX_PROJECTILES { return; }
 
-    let cam = match app_state.camera {
+    let cam = match app_state.camera.as_ref() {
         Some(c) => c,
         None => return,
     };

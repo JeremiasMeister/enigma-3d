@@ -1,3 +1,5 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use glium::implement_uniform_block;
 use serde::{Deserialize, Serialize};
 
@@ -35,13 +37,26 @@ pub struct LightSerializer {
     pub cast_shadow: bool,
 }
 
-#[derive(Copy, Clone)]
 pub struct Light {
     pub position: [f32; 3],
     pub color: [f32; 3],
     pub intensity: f32,
     pub direction: [f32; 3],
-    pub cast_shadow: bool
+    pub cast_shadow: bool,
+    pub components: HashMap<TypeId, Box<dyn Any>>,
+}
+
+impl Clone for Light {
+    fn clone(&self) -> Self {
+        Self {
+            position: self.position,
+            color: self.color,
+            intensity: self.intensity,
+            direction: self.direction,
+            cast_shadow: self.cast_shadow,
+            components: HashMap::new(),
+        }
+    }
 }
 
 impl Light {
@@ -52,6 +67,7 @@ impl Light {
             intensity,
             direction : direction.unwrap_or_else(|| [0.0, 0.0, 0.0]),
             cast_shadow,
+            components: HashMap::new(),
         }
     }
 
@@ -70,6 +86,7 @@ impl Light {
             intensity: serializer.intensity,
             direction: serializer.direction,
             cast_shadow: serializer.cast_shadow,
+            components: HashMap::new(),
         }
     }
 
@@ -81,6 +98,32 @@ impl Light {
             direction: self.direction,
             cast_shadow: self.cast_shadow,
         }
+    }
+
+    /// Stores `component`, replacing any existing component of the same type.
+    pub fn set_component<T: Any + 'static>(&mut self, component: T) {
+        self.components.insert(TypeId::of::<T>(), Box::new(component));
+    }
+
+    pub fn get_component<T: Any + 'static>(&self) -> Option<&T> {
+        self.components.get(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_ref::<T>())
+    }
+
+    pub fn get_component_mut<T: Any + 'static>(&mut self) -> Option<&mut T> {
+        self.components.get_mut(&TypeId::of::<T>())
+            .and_then(|b| b.downcast_mut::<T>())
+    }
+
+    pub fn has_component<T: Any + 'static>(&self) -> bool {
+        self.components.contains_key(&TypeId::of::<T>())
+    }
+
+    pub fn remove_component<T: Any + 'static>(&mut self) -> Option<T> {
+        self.components
+            .remove(&TypeId::of::<T>())
+            .and_then(|b| b.downcast::<T>().ok())
+            .map(|b| *b)
     }
 }
 

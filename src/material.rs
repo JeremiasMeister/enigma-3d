@@ -376,7 +376,7 @@ impl Material {
         mat
     }
 
-    fn light_block_from_vec(lights: &Vec<Light>, ambient_light: Option<Light>) -> LightBlock {
+    fn light_block_from_vec(lights: &Vec<Light>, ambient_light: Option<&Light>) -> LightBlock {
         let mut light_amount = lights.len() as i32;
         if light_amount > 4 {
             light_amount = 4;
@@ -423,7 +423,7 @@ impl Material {
         }
     }
 
-    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<Light>, camera: Option<Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture, shadow_maps: &'a ShadowMaps) -> impl glium::uniforms::Uniforms + 'a {
+    pub fn get_uniforms<'a>(&'a self, lights: &Vec<Light>, ambient_light: Option<&'a Light>, camera: Option<&'a Camera>, bone_transforms: &'a UniformBuffer<BoneTransforms>, has_skeleton: bool, skybox: &'a texture::Texture, shadow_maps: &'a ShadowMaps) -> impl glium::uniforms::Uniforms + 'a {
         let light_block = Material::light_block_from_vec(lights, ambient_light);
 
         let cast_shadow_vec: [f32; 4] = [

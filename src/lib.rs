@@ -254,9 +254,10 @@ impl AppState {
     fn setup_instances(&mut self, display: &Display<WindowSurface>, model_matrices: &HashMap<Uuid, [[f32; 4]; 4]>) -> HashMap<Uuid, object::ObjectInstance> {
         let mut instances = HashMap::new();
         // sort objects for transparent rendering
+        let cam_pos = self.camera.as_ref().expect("failed to retrieve camera").transform.get_position();
         self.objects.sort_by(|a, b| {
-            let distance_a = (self.camera.expect("failed to retrieve camera").transform.get_position() - a.transform.get_position()).len();
-            let distance_b = (self.camera.expect("failed to retrieve camera").transform.get_position() - b.transform.get_position()).len();
+            let distance_a = (cam_pos - a.transform.get_position()).len();
+            let distance_b = (cam_pos - b.transform.get_position()).len();
             distance_b.partial_cmp(&distance_a).unwrap()
         });
 
@@ -294,7 +295,7 @@ impl AppState {
 
     pub fn to_serializer(&self) -> AppStateSerializer {
         EnigmaMessage::new(Some("An AppState Serializer does not completely serialize the AppState but only scene objects like Objects, Camera, Lights. It does NOT serialize any injections like code in form of functions or GUI!"), true).log();
-        let camera = match self.camera {
+        let camera = match &self.camera {
             Some(camera) => Some(camera.to_serializer()),
             None => None,
         };
@@ -1064,7 +1065,7 @@ impl EventLoop {
                                             if material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light.as_ref(), camera.as_ref(), &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in opaque draw")), indices, &material.program, uniforms, &opaque_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
@@ -1104,7 +1105,7 @@ impl EventLoop {
                                         let mat_uuid: &Uuid = &skybox.get_materials()[*mat_index];
                                         match app_state.get_material(mat_uuid) {
                                             Some(material) => {
-                                                let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &skybox_bone_buffer, false, skybox_texture, &shadow_maps);
+                                                let uniforms = &material.get_uniforms(&closest_lights, ambient_light.as_ref(), camera.as_ref(), &skybox_bone_buffer, false, skybox_texture, &shadow_maps);
                                                 render_target.draw((buffer, instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in skybox draw")), indices, &material.program, uniforms, &skybox_rendering_parameter).expect("Failed to draw object");
                                             }
                                             None => ()
@@ -1136,7 +1137,7 @@ impl EventLoop {
                                             if !material.render_transparent {
                                                 continue;
                                             }
-                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light, camera, &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
+                                            let uniforms = &material.get_uniforms(&closest_lights, ambient_light.as_ref(), camera.as_ref(), &bone_transform, has_skeleton, skybox_texture, &shadow_maps);
                                             render_target.draw((buffer, object_instance.instance_attributes.per_instance().expect("Error, unwrapping per instance in transparent draw")), indices, &material.program, uniforms, &transparent_rendering_parameter).expect("Failed to draw object");
                                         }
                                         None => ()
