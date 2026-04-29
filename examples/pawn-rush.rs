@@ -70,7 +70,6 @@ fn walk_right(app_state: &mut AppState) {
 #[derive(Clone)]
 struct PawnData {
     speed_mult: f32,
-    kind: PieceKind,
 }
 
 #[derive(Clone)]
@@ -372,7 +371,7 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         piece.transform.set_position([x, -1.15, z]);
         piece.transform.set_scale([sc, sc, sc]);
         let uuid = piece.get_unique_id();
-        piece.set_component(PawnData { speed_mult: kind.speed_mult(), kind });
+        piece.set_component(PawnData { speed_mult: kind.speed_mult() });
         gs.pawn_ids.push(uuid);
         app_state.add_object(piece);
     }
@@ -520,11 +519,10 @@ fn game_update(app_state: &mut AppState) {
     // ── Move pawns ────────────────────────────────────────────────────────────
     let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
     for uuid in &gs.pawn_ids {
-        let speed_mult = app_state.get_object_by_uuid(uuid)
-            .and_then(|o| o.get_component::<PawnData>())
-            .map(|d| d.speed_mult)
-            .unwrap_or(1.0);
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
+            let speed_mult = obj.get_component::<PawnData>()
+                .map(|d| d.speed_mult)
+                .unwrap_or(1.0);
             let pos = obj.transform.get_position();
             let dx = cam_pos[0] - pos.x;
             let dz = cam_pos[2] - pos.z;
