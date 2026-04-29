@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use enigma_3d::{AppState, EventLoop, example_resources, resources};
+use enigma_3d::{AppState, EventLoop, example_resources, resources, default_events};
 use enigma_3d::event;
 use enigma_3d::ui;
 use enigma_3d::camera::Camera;
@@ -99,8 +99,8 @@ const PROJECTILE_SPEED: f32 = 20.0;
 const PROJECTILE_MAX_RANGE: f32 = 35.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
-const PAWN_DEATH_Z: f32 = 5.0;
-const PAWN_SPAWN_Z: f32 = -14.0;
+const PAWN_SPAWN_RADIUS: f32 = 18.0;
+const PAWN_CAPTURE_RADIUS: f32 = 2.5;
 
 #[derive(Clone, PartialEq)]
 enum GamePhase { Menu, Playing, GameOver }
@@ -152,15 +152,18 @@ fn find_material_uuid(app_state: &AppState, name: &str) -> Uuid {
 }
 
 fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
+    let cam_pos = app_state.camera.map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
     let count = 3 + gs.wave;
     for i in 0..count {
-        let x = -3.5 + (i as f32 % 8.0) * 1.0;
+        let angle = 2.0 * std::f32::consts::PI * i as f32 / count as f32;
+        let x = cam_pos[0] + PAWN_SPAWN_RADIUS * angle.cos();
+        let z = cam_pos[2] + PAWN_SPAWN_RADIUS * angle.sin();
         let mut pawn = Object::load_from_gltf_resource(example_resources::chess_pawn_gltf(), None);
         pawn.set_name(format!("pawn_{i}"));
         pawn.set_collision(false);
         pawn.add_material(gs.pawn_material_uuid);
         pawn.get_shapes_mut()[0].set_material_from_object_list(0);
-        pawn.transform.set_position([x, -1.15, PAWN_SPAWN_Z]);
+        pawn.transform.set_position([x, -1.15, z]);
         let uuid = pawn.get_unique_id();
         gs.pawn_ids.push(uuid);
         app_state.add_object(pawn);
@@ -190,6 +193,7 @@ fn game_update(app_state: &mut AppState) {
 
     let dt = app_state.delta_time;
     let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
+    let cam_pos = app_state.camera.map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
 
     // wave timer
     gs.wave_timer += dt;
@@ -199,19 +203,31 @@ fn game_update(app_state: &mut AppState) {
         spawn_wave(app_state, &mut gs);
     }
 
-    // move pawns
+    // move pawns toward camera (XZ plane only)
     for uuid in &gs.pawn_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
-            obj.transform.move_dir_array([0.0, 0.0, PAWN_SPEED * wave_speed * dt]);
+            let pos = obj.transform.get_position();
+            let dx = cam_pos[0] - pos.x;
+            let dz = cam_pos[2] - pos.z;
+            let len = (dx * dx + dz * dz).sqrt();
+            if len > 0.01 {
+                let step = PAWN_SPEED * wave_speed * dt / len;
+                obj.transform.move_dir_array([dx * step, 0.0, dz * step]);
+            }
         }
     }
 
-    // pawn death plane — collect escaped UUIDs first, then remove
+    // pawns that reach the camera — collect captured UUIDs first, then remove
     let escaped: Vec<Uuid> = gs.pawn_ids.iter()
         .copied()
         .filter(|uuid| {
             app_state.get_object_by_uuid(uuid)
-                .map(|o| o.transform.get_position().z > PAWN_DEATH_Z)
+                .map(|o| {
+                    let pos = o.transform.get_position();
+                    let dx = pos.x - cam_pos[0];
+                    let dz = pos.z - cam_pos[2];
+                    (dx * dx + dz * dz).sqrt() < PAWN_CAPTURE_RADIUS
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -443,6 +459,27 @@ fn main() {
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
 
+    app_state.add_state_data("camera_move_speed", Box::new(8.0f32));
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::W),
+        Arc::new(default_events::camera_fly_forward),
+        Some(event::EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::S),
+        Arc::new(default_events::camera_fly_backward),
+        Some(event::EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::A),
+        Arc::new(default_events::camera_fly_left),
+        Some(event::EventModifiers::new(false, false, false)),
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::D),
+        Arc::new(default_events::camera_fly_right),
+        Some(event::EventModifiers::new(false, false, false)),
+    );
     app_state.inject_event(
         event::EventCharacteristic::MousePress(event::MouseButton::Left),
         Arc::new(fire_projectile),
