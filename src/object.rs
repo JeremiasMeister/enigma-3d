@@ -366,7 +366,7 @@ impl Object {
             for slice in 0..slices {
                 let a = stack * (slices + 1) + slice;
                 let b = a + slices + 1;
-                indices.extend_from_slice(&[a, b, a + 1, b, b + 1, a + 1]);
+                indices.extend_from_slice(&[a, a + 1, b + 1, a, b + 1, b]);
             }
         }
 
@@ -1030,5 +1030,14 @@ mod tests {
         let mut s = Object::sphere(1.0, 8, 8);
         // stacks * slices * 6 = 8 * 8 * 6 = 384
         assert_eq!(s.get_shapes_mut()[0].indices.len(), 384);
+    }
+
+    #[test]
+    fn sphere_bounding_box_diameter() {
+        let mut s = Object::sphere(1.0, 8, 8);
+        let bb = s.get_bounding_box();
+        assert!((bb.width  - 2.0).abs() < 1e-3, "width = {}",  bb.width);
+        assert!((bb.height - 2.0).abs() < 1e-3, "height = {}", bb.height);
+        assert!((bb.depth  - 2.0).abs() < 1e-3, "depth = {}",  bb.depth);
     }
 }
