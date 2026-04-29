@@ -246,6 +246,7 @@ impl Object {
         &self.collision
     }
 
+    /// Stores `component`, replacing any existing component of the same type.
     pub fn set_component<T: Any + 'static>(&mut self, component: T) {
         self.components.insert(TypeId::of::<T>(), Box::new(component));
     }
@@ -264,8 +265,11 @@ impl Object {
         self.components.contains_key(&TypeId::of::<T>())
     }
 
-    pub fn remove_component<T: Any + 'static>(&mut self) -> bool {
-        self.components.remove(&TypeId::of::<T>()).is_some()
+    pub fn remove_component<T: Any + 'static>(&mut self) -> Option<T> {
+        self.components
+            .remove(&TypeId::of::<T>())
+            .and_then(|b| b.downcast::<T>().ok())
+            .map(|b| *b)
     }
 
     pub fn get_unique_id(&self) -> Uuid {
@@ -1065,5 +1069,77 @@ mod tests {
         assert!((bb.width  - 2.0).abs() < 1e-3, "width = {}",  bb.width);
         assert!((bb.height - 2.0).abs() < 1e-3, "height = {}", bb.height);
         assert!((bb.depth  - 2.0).abs() < 1e-3, "depth = {}",  bb.depth);
+    }
+
+    #[test]
+    fn component_set_and_get() {
+        let mut obj = Object::new(None);
+        obj.set_component(42u32);
+        assert_eq!(obj.get_component::<u32>(), Some(&42u32));
+    }
+
+    #[test]
+    fn component_get_missing_returns_none() {
+        let obj = Object::new(None);
+        assert_eq!(obj.get_component::<u32>(), None);
+    }
+
+    #[test]
+    fn component_get_mut_allows_mutation() {
+        let mut obj = Object::new(None);
+        obj.set_component(10u32);
+        *obj.get_component_mut::<u32>().unwrap() = 99;
+        assert_eq!(obj.get_component::<u32>(), Some(&99u32));
+    }
+
+    #[test]
+    fn component_has() {
+        let mut obj = Object::new(None);
+        assert!(!obj.has_component::<u32>());
+        obj.set_component(1u32);
+        assert!(obj.has_component::<u32>());
+    }
+
+    #[test]
+    fn component_remove_returns_value() {
+        let mut obj = Object::new(None);
+        obj.set_component(7u32);
+        let val = obj.remove_component::<u32>();
+        assert_eq!(val, Some(7u32));
+        assert_eq!(obj.get_component::<u32>(), None);
+    }
+
+    #[test]
+    fn component_remove_absent_returns_none() {
+        let mut obj = Object::new(None);
+        assert_eq!(obj.remove_component::<u32>(), None);
+    }
+
+    #[test]
+    fn component_replace_same_type() {
+        let mut obj = Object::new(None);
+        obj.set_component(1u32);
+        obj.set_component(2u32);
+        assert_eq!(obj.get_component::<u32>(), Some(&2u32));
+    }
+
+    #[test]
+    fn component_two_types_independent() {
+        let mut obj = Object::new(None);
+        obj.set_component(42u32);
+        obj.set_component("hello");
+        assert_eq!(obj.get_component::<u32>(), Some(&42u32));
+        assert_eq!(obj.get_component::<&str>(), Some(&"hello"));
+    }
+
+    #[test]
+    fn component_clone_isolation() {
+        let mut obj = Object::new(None);
+        obj.set_component(99u32);
+        let cloned = obj.clone();
+        // clone starts with empty bag
+        assert_eq!(cloned.get_component::<u32>(), None);
+        // original is unaffected
+        assert_eq!(obj.get_component::<u32>(), Some(&99u32));
     }
 }
