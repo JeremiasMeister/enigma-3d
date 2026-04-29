@@ -327,7 +327,7 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
                 .show(ctx, |ui| {
                     ui.label(format!("Score: {}", gs.score));
                     ui.label(format!("Wave:  {}", gs.wave));
-                    let filled = "♥".repeat(gs.lives as usize);
+                    let filled = "♥".repeat(gs.lives.min(STARTING_LIVES) as usize);
                     let empty = "♡".repeat(STARTING_LIVES.saturating_sub(gs.lives) as usize);
                     ui.label(format!("{}{}", filled, empty));
                 });
