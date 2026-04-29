@@ -334,6 +334,48 @@ impl Object {
         object
     }
 
+    pub fn sphere(radius: f32, stacks: u32, slices: u32) -> Self {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        for stack in 0..=stacks {
+            let phi = std::f32::consts::PI * stack as f32 / stacks as f32; // 0..PI top-to-bottom
+            let y = radius * phi.cos();
+            let r = radius * phi.sin();
+            let v = stack as f32 / stacks as f32;
+
+            for slice in 0..=slices {
+                let theta = 2.0 * std::f32::consts::PI * slice as f32 / slices as f32;
+                let x = r * theta.cos();
+                let z = r * theta.sin();
+                let u = slice as f32 / slices as f32;
+
+                let len = (x * x + y * y + z * z).sqrt().max(1e-6);
+                vertices.push(Vertex {
+                    position: [x, y, z],
+                    texcoord: [u, v],
+                    color: [1.0, 1.0, 1.0],
+                    normal: [x / len, y / len, z / len],
+                    bone_indices: [0, 0, 0, 0],
+                    bone_weights: [0.0, 0.0, 0.0, 0.0],
+                });
+            }
+        }
+
+        for stack in 0..stacks {
+            for slice in 0..slices {
+                let a = stack * (slices + 1) + slice;
+                let b = a + slices + 1;
+                indices.extend_from_slice(&[a, b, a + 1, b, b + 1, a + 1]);
+            }
+        }
+
+        let mut object = Object::new(Some("sphere".to_string()));
+        object.add_shape(Shape::from_vertices_indices(vertices, indices));
+        object.calculate_bounding_box();
+        object
+    }
+
     pub fn default() -> Self {
         let mut object = Object::new(None);
         object.add_shape(Shape::default());
@@ -974,5 +1016,19 @@ mod tests {
         assert!((bb.width - 2.0).abs() < 1e-4, "width = {}", bb.width);
         assert!((bb.height - 2.0).abs() < 1e-4, "height = {}", bb.height);
         assert!((bb.depth - 2.0).abs() < 1e-4, "depth = {}", bb.depth);
+    }
+
+    #[test]
+    fn sphere_vertex_count() {
+        let mut s = Object::sphere(1.0, 8, 8);
+        // (stacks+1) * (slices+1) = 9 * 9 = 81
+        assert_eq!(s.get_shapes_mut()[0].vertices.len(), 81);
+    }
+
+    #[test]
+    fn sphere_index_count() {
+        let mut s = Object::sphere(1.0, 8, 8);
+        // stacks * slices * 6 = 8 * 8 * 6 = 384
+        assert_eq!(s.get_shapes_mut()[0].indices.len(), 384);
     }
 }
