@@ -8,6 +8,8 @@ use enigma_3d::object::Object;
 use enigma_3d::light::{Light, LightEmissionType};
 use enigma_3d::audio::AudioClip;
 use enigma_3d::postprocessing;
+use enigma_3d::collision_world::is_colliding;
+use enigma_3d::geometry::BoundingBox;
 use uuid::Uuid;
 
 fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
@@ -239,6 +241,44 @@ fn game_update(app_state: &mut AppState) {
             *dist += *speed * dt;
         }
     }
+
+    // collision detection — collect bounding boxes, then check pairs
+    let proj_bbs: Vec<(Uuid, BoundingBox)> = gs.projectile_ids.iter()
+        .filter_map(|(uuid, _, _, _)| {
+            app_state.get_object_by_uuid_mut(*uuid)
+                .map(|o| (*uuid, o.get_bounding_box()))
+        })
+        .collect();
+
+    let pawn_bbs: Vec<(Uuid, BoundingBox)> = gs.pawn_ids.iter()
+        .filter_map(|uuid| {
+            app_state.get_object_by_uuid_mut(*uuid)
+                .map(|o| (*uuid, o.get_bounding_box()))
+        })
+        .collect();
+
+    let mut kill_projectiles: Vec<Uuid> = Vec::new();
+    let mut kill_pawns: Vec<Uuid> = Vec::new();
+
+    'outer: for (proj_uuid, proj_bb) in &proj_bbs {
+        for (pawn_uuid, pawn_bb) in &pawn_bbs {
+            if kill_pawns.contains(pawn_uuid) {
+                continue;
+            }
+            if is_colliding(proj_bb, pawn_bb) {
+                kill_projectiles.push(*proj_uuid);
+                kill_pawns.push(*pawn_uuid);
+                gs.score += 1;
+                app_state.play_audio_once("hit");
+                continue 'outer;
+            }
+        }
+    }
+
+    app_state.objects.retain(|o| !kill_projectiles.contains(&o.get_unique_id()));
+    gs.projectile_ids.retain(|(id, _, _, _)| !kill_projectiles.contains(id));
+    app_state.objects.retain(|o| !kill_pawns.contains(&o.get_unique_id()));
+    gs.pawn_ids.retain(|id| !kill_pawns.contains(id));
 
     // remove out-of-range projectiles
     let expired: Vec<Uuid> = gs.projectile_ids.iter()
