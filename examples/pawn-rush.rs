@@ -182,6 +182,77 @@ fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
     spawn_wave(app_state, gs);
 }
 
+fn game_update(app_state: &mut AppState) {
+    let mut gs = match app_state.get_state_data_value::<GameState>("game_state") {
+        Some(g) => g.clone(),
+        None => return,
+    };
+
+    if gs.phase != GamePhase::Playing {
+        return;
+    }
+
+    let dt = app_state.delta_time;
+    let wave_speed = 1.0 + (gs.wave as f32 - 1.0) * 0.2;
+
+    // wave timer
+    gs.wave_timer += dt;
+    if gs.wave_timer >= WAVE_INTERVAL {
+        gs.wave_timer = 0.0;
+        gs.wave += 1;
+        spawn_wave(app_state, &mut gs);
+    }
+
+    // move pawns
+    for uuid in &gs.pawn_ids {
+        if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
+            obj.transform.move_dir_array([0.0, 0.0, PAWN_SPEED * wave_speed * dt]);
+        }
+    }
+
+    // pawn death plane — collect escaped UUIDs first, then remove
+    let escaped: Vec<Uuid> = gs.pawn_ids.iter()
+        .copied()
+        .filter(|uuid| {
+            app_state.get_object_by_uuid(uuid)
+                .map(|o| o.transform.get_position().z > PAWN_DEATH_Z)
+                .unwrap_or(false)
+        })
+        .collect();
+
+    for uuid in &escaped {
+        gs.lives = gs.lives.saturating_sub(1);
+        app_state.objects.retain(|o| o.get_unique_id() != *uuid);
+        gs.pawn_ids.retain(|id| id != uuid);
+    }
+
+    if gs.lives == 0 {
+        gs.phase = GamePhase::GameOver;
+        app_state.set_state_data_value("game_state", Box::new(gs));
+        return;
+    }
+
+    // move projectiles and track distance
+    for (uuid, vel, dist) in &mut gs.projectile_ids {
+        if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
+            obj.transform.move_dir_array([vel[0] * dt, vel[1] * dt, vel[2] * dt]);
+            *dist += PROJECTILE_SPEED * dt;
+        }
+    }
+
+    // remove out-of-range projectiles
+    let expired: Vec<Uuid> = gs.projectile_ids.iter()
+        .filter(|(_, _, d)| *d > PROJECTILE_MAX_RANGE)
+        .map(|(id, _, _)| *id)
+        .collect();
+    for uuid in &expired {
+        app_state.objects.retain(|o| o.get_unique_id() != *uuid);
+        gs.projectile_ids.retain(|(id, _, _)| id != uuid);
+    }
+
+    app_state.set_state_data_value("game_state", Box::new(gs));
+}
+
 fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
     let mut gs = match app_state.get_state_data_value::<GameState>("game_state") {
         Some(g) => g.clone(),
@@ -258,6 +329,7 @@ fn main() {
         postprocessing::vignette::Vignette::new(&event_loop.display.clone(), 0.3, 0.4, [0.0, 0.0, 0.0], 0.85)
     ));
 
+    app_state.inject_update_function(Arc::new(game_update));
     app_state.inject_gui(Arc::new(pawn_rush_ui));
 
     event_loop.run(app_state.convert_to_arc_mutex());
