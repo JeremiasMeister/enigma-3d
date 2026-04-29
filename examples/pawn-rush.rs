@@ -419,8 +419,7 @@ fn fire_projectile(app_state: &mut AppState) {
         None => return,
     };
     let cam_pos = cam.get_position();
-    let (_, ray_dir) = app_state.get_mouse_state().get_world_position(&cam);
-    let dir = [ray_dir.x, ray_dir.y, ray_dir.z];
+    let dir = cam.calculate_direction_vector();
 
     let velocity = [
         dir[0] * PROJECTILE_SPEED,
