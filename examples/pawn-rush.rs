@@ -100,6 +100,7 @@ const PAWN_SPEED: f32 = 1.2;
 const PROJECTILE_SPEED: f32 = 20.0;
 #[allow(dead_code)]
 const PROJECTILE_MAX_RANGE: f32 = 35.0;
+const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
 #[allow(dead_code)]
 const PAWN_DEATH_Z: f32 = 5.0;
@@ -116,8 +117,8 @@ struct GameState {
     lives: u32,
     wave: u32,
     wave_timer: f32,
-    /// (uuid, velocity_xyz, distance_traveled)
-    projectile_ids: Vec<(Uuid, [f32; 3], f32)>,
+    /// (uuid, velocity_xyz, distance_traveled, speed)
+    projectile_ids: Vec<(Uuid, [f32; 3], f32, f32)>,
     pawn_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
     #[allow(dead_code)]
@@ -174,7 +175,7 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
 
 fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
     let to_remove: Vec<Uuid> = gs.pawn_ids.iter()
-        .chain(gs.projectile_ids.iter().map(|(id, _, _)| id))
+        .chain(gs.projectile_ids.iter().map(|(id, _, _, _)| id))
         .copied()
         .collect();
     app_state.objects.retain(|o| !to_remove.contains(&o.get_unique_id()));
@@ -232,20 +233,20 @@ fn game_update(app_state: &mut AppState) {
     }
 
     // move projectiles and track distance
-    for (uuid, vel, dist) in &mut gs.projectile_ids {
+    for (uuid, vel, dist, speed) in &mut gs.projectile_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
             obj.transform.move_dir_array([vel[0] * dt, vel[1] * dt, vel[2] * dt]);
-            *dist += (vel[0]*vel[0] + vel[1]*vel[1] + vel[2]*vel[2]).sqrt() * dt;
+            *dist += *speed * dt;
         }
     }
 
     // remove out-of-range projectiles
     let expired: Vec<Uuid> = gs.projectile_ids.iter()
-        .filter(|(_, _, d)| *d > PROJECTILE_MAX_RANGE)
-        .map(|(id, _, _)| *id)
+        .filter(|(_, _, d, _)| *d > PROJECTILE_MAX_RANGE)
+        .map(|(id, _, _, _)| *id)
         .collect();
     app_state.objects.retain(|o| !expired.contains(&o.get_unique_id()));
-    gs.projectile_ids.retain(|(id, _, _)| !expired.contains(id));
+    gs.projectile_ids.retain(|(id, _, _, _)| !expired.contains(id));
 
     app_state.set_state_data_value("game_state", Box::new(gs));
 }
@@ -287,7 +288,14 @@ fn fire_projectile(app_state: &mut AppState) {
         return;
     }
 
-    let cam = app_state.camera.unwrap();  // Camera is Copy
+    if gs.projectile_ids.len() >= MAX_PROJECTILES {
+        return;
+    }
+
+    let cam = match app_state.camera {
+        Some(c) => c,
+        None => return,
+    };
     let cam_pos = cam.get_position();     // [f32; 3]
     let dir = cam.calculate_direction_vector();  // [f32; 3], normalized
 
@@ -305,7 +313,8 @@ fn fire_projectile(app_state: &mut AppState) {
     proj.transform.set_position(cam_pos);
 
     let uuid = proj.get_unique_id();
-    gs.projectile_ids.push((uuid, velocity, 0.0));
+    let speed = (velocity[0]*velocity[0] + velocity[1]*velocity[1] + velocity[2]*velocity[2]).sqrt();
+    gs.projectile_ids.push((uuid, velocity, 0.0, speed));
     app_state.add_object(proj);
     app_state.play_audio_once("hit");
 
