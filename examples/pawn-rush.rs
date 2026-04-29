@@ -208,6 +208,32 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
         });
     }
     app_state.add_state_data("fireflies", Box::new(firefly_entries));
+
+    // ── Arena walls ───────────────────────────────────────────────────────────
+    let mut wall_mat = Material::lit_pbr(event_loop.get_display_clone(), false);
+    wall_mat.set_name("mat_wall");
+    wall_mat.set_color([0.55, 0.50, 0.42]);
+    let wall_mat_uuid = wall_mat.uuid;
+    app_state.add_material(wall_mat);
+
+    // (position, scale) for N/S/E/W walls
+    let wall_defs: [([f32; 3], [f32; 3]); 4] = [
+        ([0.0, -1.25, -ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // north
+        ([0.0, -1.25,  ARENA_HALF],  [ARENA_HALF * 2.0 + WALL_THICK, WALL_HEIGHT, WALL_THICK]),  // south
+        ([-ARENA_HALF, -1.25, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0]),               // west
+        ([ ARENA_HALF, -1.25, 0.0],  [WALL_THICK, WALL_HEIGHT, ARENA_HALF * 2.0]),               // east
+    ];
+
+    for (i, (pos, scale)) in wall_defs.iter().enumerate() {
+        let mut wall = Object::cube(0.5);
+        wall.set_name(format!("wall_{i}"));
+        wall.set_collision(false);
+        wall.add_material(wall_mat_uuid);
+        wall.get_shapes_mut()[0].set_material_from_object_list(0);
+        wall.transform.set_position(*pos);
+        wall.transform.set_scale(*scale);
+        app_state.add_object(wall);
+    }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -218,7 +244,9 @@ const PROJECTILE_SPEED: f32 = 80.0;
 const PROJECTILE_MAX_RANGE: f32 = 80.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
-const PAWN_SPAWN_RADIUS: f32 = 30.0;
+const ARENA_HALF: f32 = 11.0;   // 22×22 play area
+const WALL_HEIGHT: f32 = 1.5;
+const WALL_THICK: f32 = 0.6;
 const PAWN_DETECTION_RADIUS: f32 = 15.0;
 const PAWN_CAPTURE_RADIUS: f32 = 2.5;
 const AIM_DOT_THRESHOLD: f32 = 0.97;
@@ -346,8 +374,7 @@ fn find_material_uuid(app_state: &AppState, name: &str) -> Uuid {
 }
 
 fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
-    let cam_pos = app_state.camera.as_ref().map(|c| c.get_position()).unwrap_or([0.0, 3.5, 8.0]);
-    let count = 3 + gs.wave;
+    let count = 4 + gs.wave * 2;
     let mut rng = rand::thread_rng();
     let all_kinds = [
         PieceKind::Pawn, PieceKind::Bishop, PieceKind::Rook,
@@ -355,10 +382,13 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
     ];
 
     for i in 0..count {
-        let angle = 2.0 * std::f32::consts::PI * i as f32 / count as f32;
-        let jitter = rng.gen_range(-0.3f32..0.3f32);
-        let x = cam_pos[0] + PAWN_SPAWN_RADIUS * (angle + jitter).cos();
-        let z = cam_pos[2] + PAWN_SPAWN_RADIUS * (angle + jitter).sin();
+        let spawn_inner = ARENA_HALF - WALL_THICK - 0.5;
+        let (x, z) = match rng.gen_range(0u8..4) {
+            0 => (rng.gen_range(-spawn_inner..spawn_inner), -spawn_inner),  // north edge
+            1 => (rng.gen_range(-spawn_inner..spawn_inner),  spawn_inner),  // south edge
+            2 => (-spawn_inner, rng.gen_range(-spawn_inner..spawn_inner)),  // west edge
+            _ => ( spawn_inner, rng.gen_range(-spawn_inner..spawn_inner)),  // east edge
+        };
 
         let kind = all_kinds[rng.gen_range(0..all_kinds.len())];
         let sc = kind.scale();
@@ -417,6 +447,19 @@ fn game_update(app_state: &mut AppState) {
     if let Some(cam) = app_state.get_camera_mut() {
         let p = cam.transform.get_position();
         cam.transform.set_position([p.x, CAMERA_HEIGHT + bob_y, p.z]);
+    }
+
+    // Clamp player inside arena walls
+    if gs.phase == GamePhase::Playing {
+        if let Some(cam) = app_state.get_camera_mut() {
+            let p = cam.transform.get_position();
+            let inner = ARENA_HALF - WALL_THICK;
+            cam.transform.set_position([
+                p.x.clamp(-inner, inner),
+                p.y,
+                p.z.clamp(-inner, inner),
+            ]);
+        }
     }
 
     // lock cursor during gameplay, release in menu/gameover
@@ -490,7 +533,8 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Wave timer ────────────────────────────────────────────────────────────
     gs.wave_timer += dt;
-    if gs.wave_timer >= WAVE_INTERVAL {
+    let current_wave_interval = (WAVE_INTERVAL - gs.wave as f32 * 0.4).max(3.0);
+    if gs.wave_timer >= current_wave_interval {
         gs.wave_timer = 0.0;
         gs.wave += 1;
         spawn_wave(app_state, &mut gs);
