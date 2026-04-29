@@ -220,11 +220,9 @@ fn game_update(app_state: &mut AppState) {
         })
         .collect();
 
-    for uuid in &escaped {
-        gs.lives = gs.lives.saturating_sub(1);
-        app_state.objects.retain(|o| o.get_unique_id() != *uuid);
-        gs.pawn_ids.retain(|id| id != uuid);
-    }
+    gs.lives = gs.lives.saturating_sub(escaped.len() as u32);
+    app_state.objects.retain(|o| !escaped.contains(&o.get_unique_id()));
+    gs.pawn_ids.retain(|id| !escaped.contains(id));
 
     if gs.lives == 0 {
         gs.phase = GamePhase::GameOver;
@@ -236,7 +234,7 @@ fn game_update(app_state: &mut AppState) {
     for (uuid, vel, dist) in &mut gs.projectile_ids {
         if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
             obj.transform.move_dir_array([vel[0] * dt, vel[1] * dt, vel[2] * dt]);
-            *dist += PROJECTILE_SPEED * dt;
+            *dist += (vel[0]*vel[0] + vel[1]*vel[1] + vel[2]*vel[2]).sqrt() * dt;
         }
     }
 
@@ -245,10 +243,8 @@ fn game_update(app_state: &mut AppState) {
         .filter(|(_, _, d)| *d > PROJECTILE_MAX_RANGE)
         .map(|(id, _, _)| *id)
         .collect();
-    for uuid in &expired {
-        app_state.objects.retain(|o| o.get_unique_id() != *uuid);
-        gs.projectile_ids.retain(|(id, _, _)| id != uuid);
-    }
+    app_state.objects.retain(|o| !expired.contains(&o.get_unique_id()));
+    gs.projectile_ids.retain(|(id, _, _)| !expired.contains(id));
 
     app_state.set_state_data_value("game_state", Box::new(gs));
 }
