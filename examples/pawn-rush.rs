@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use enigma_3d::{AppState, EventLoop, example_resources, resources};
 use enigma_3d::camera::Camera;
 use enigma_3d::material::{Material, TextureType};
@@ -5,6 +6,7 @@ use enigma_3d::object::Object;
 use enigma_3d::light::{Light, LightEmissionType};
 use enigma_3d::audio::AudioClip;
 use enigma_3d::postprocessing;
+use uuid::Uuid;
 
 fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     // terrain
@@ -88,12 +90,74 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     app_state.add_object(knight);
 }
 
+const WAVE_INTERVAL: f32 = 8.0;
+const PAWN_SPEED: f32 = 1.2;
+const PROJECTILE_SPEED: f32 = 20.0;
+const PROJECTILE_MAX_RANGE: f32 = 35.0;
+const STARTING_LIVES: u32 = 3;
+const PAWN_DEATH_Z: f32 = 5.0;
+const PAWN_SPAWN_Z: f32 = -14.0;
+
+#[derive(Clone, PartialEq)]
+enum GamePhase { Menu, Playing, GameOver }
+
+#[derive(Clone)]
+struct GameState {
+    phase: GamePhase,
+    score: u32,
+    lives: u32,
+    wave: u32,
+    wave_timer: f32,
+    /// (uuid, velocity_xyz, distance_traveled)
+    projectile_ids: Vec<(Uuid, [f32; 3], f32)>,
+    pawn_ids: Vec<Uuid>,
+    pawn_material_uuid: Uuid,
+    projectile_material_uuid: Uuid,
+}
+
+impl GameState {
+    fn new(pawn_mat: Uuid, proj_mat: Uuid) -> Self {
+        Self {
+            phase: GamePhase::Menu,
+            score: 0,
+            lives: STARTING_LIVES,
+            wave: 1,
+            wave_timer: 0.0,
+            projectile_ids: Vec::new(),
+            pawn_ids: Vec::new(),
+            pawn_material_uuid: pawn_mat,
+            projectile_material_uuid: proj_mat,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.score = 0;
+        self.lives = STARTING_LIVES;
+        self.wave = 1;
+        self.wave_timer = 0.0;
+        self.projectile_ids.clear();
+        self.pawn_ids.clear();
+    }
+}
+
+fn find_material_uuid(app_state: &AppState, name: &str) -> Uuid {
+    app_state.materials.iter()
+        .find(|m| m.name == name)
+        .expect("material not found")
+        .uuid
+}
+
 fn main() {
     let event_loop = EventLoop::new("Pawn Rush", 1080, 720);
     let mut app_state = AppState::new();
     event_loop.set_icon_from_resource(resources::icon());
 
     initialize_scene(&mut app_state, &event_loop);
+
+    let pawn_mat_uuid = find_material_uuid(&app_state, "mat_pawn");
+    let proj_mat_uuid = find_material_uuid(&app_state, "mat_projectile");
+    let gs = GameState::new(pawn_mat_uuid, proj_mat_uuid);
+    app_state.add_state_data("game_state", Box::new(gs));
 
     // lights
     let sun = Light::new([0.0, 8.0, 0.0], [1.0, 0.95, 0.85], 800.0, None, false);
