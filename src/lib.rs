@@ -150,6 +150,7 @@ pub struct AppState {
     audio_clips:  HashMap<String, AudioClip>,
     pub shadow_resolution: u32,
     pub shadow_distance: f32,
+    pub modifiers: EventModifiers,
 }
 
 pub struct EventLoop {
@@ -190,6 +191,7 @@ impl AppState {
             audio_clips: HashMap::new(),
             shadow_resolution: 1024,
             shadow_distance: 50.0,
+            modifiers: EventModifiers::default(),
         }
     }
 
@@ -798,6 +800,7 @@ impl EventLoop {
                         self.modifiers.ctrl = modifiers.ctrl();
                         self.modifiers.shift = modifiers.shift();
                         self.modifiers.alt = modifiers.alt();
+                        app_state.modifiers = self.modifiers;
                     }
                     WindowEvent::CursorMoved { position, .. } => {
                         let response = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
