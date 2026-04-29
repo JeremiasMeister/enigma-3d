@@ -18,6 +18,7 @@ use rand::Rng;
 // XZ so the player can never gain or lose altitude through WASD.
 
 fn walk_forward(app_state: &mut AppState) {
+    if app_state.get_state_data_value::<GameState>("game_state").map(|gs| gs.phase.clone()) != Some(GamePhase::Playing) { return; }
     let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(50.0);
     let dt = app_state.delta_time;
     if let Some(cam) = app_state.get_camera_mut() {
@@ -30,6 +31,7 @@ fn walk_forward(app_state: &mut AppState) {
 }
 
 fn walk_backward(app_state: &mut AppState) {
+    if app_state.get_state_data_value::<GameState>("game_state").map(|gs| gs.phase.clone()) != Some(GamePhase::Playing) { return; }
     let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(50.0);
     let dt = app_state.delta_time;
     if let Some(cam) = app_state.get_camera_mut() {
@@ -42,6 +44,7 @@ fn walk_backward(app_state: &mut AppState) {
 }
 
 fn walk_left(app_state: &mut AppState) {
+    if app_state.get_state_data_value::<GameState>("game_state").map(|gs| gs.phase.clone()) != Some(GamePhase::Playing) { return; }
     let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(50.0);
     let dt = app_state.delta_time;
     if let Some(cam) = app_state.get_camera_mut() {
@@ -54,6 +57,7 @@ fn walk_left(app_state: &mut AppState) {
 }
 
 fn walk_right(app_state: &mut AppState) {
+    if app_state.get_state_data_value::<GameState>("game_state").map(|gs| gs.phase.clone()) != Some(GamePhase::Playing) { return; }
     let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(50.0);
     let dt = app_state.delta_time;
     if let Some(cam) = app_state.get_camera_mut() {
@@ -69,7 +73,9 @@ fn walk_right(app_state: &mut AppState) {
 
 #[derive(Clone)]
 struct PawnData {
+    kind: PieceKind,
     speed_mult: f32,
+    health: i32,
     wander_dir: [f32; 2],   // normalized XZ direction
     wander_timer: f32,       // seconds until next direction change
 }
@@ -79,6 +85,12 @@ struct ProjectileData {
     velocity: [f32; 3],
     distance: f32,
     speed: f32,
+}
+
+#[derive(Clone)]
+struct AmmoPickupData {
+    ammo: u32,
+    bob_phase: f32,
 }
 
 // ── Scene setup ───────────────────────────────────────────────────────────────
@@ -120,32 +132,49 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
 
     let mut proj_mat = Material::unlit(event_loop.get_display_clone(), false);
     proj_mat.set_name("mat_projectile");
-    proj_mat.set_color([1.0, 0.55, 0.0]);
+    proj_mat.set_color([0.82, 0.84, 0.92]);
+
+    let mut pickup_mat = Material::unlit(event_loop.get_display_clone(), false);
+    pickup_mat.set_name("mat_pickup");
+    pickup_mat.set_color([1.0, 0.75, 0.1]);
+    let pickup_mat_uuid = pickup_mat.uuid;
 
     // weapon shares the same unlit material but with a slightly different hue
-    let mut weapon_mat = Material::unlit(event_loop.get_display_clone(), false);
-    weapon_mat.set_name("mat_weapon");
-    weapon_mat.set_color([0.85, 0.65, 0.15]);
-
     let tree_opaque_uuid = tree_mat_opaque.uuid;
     let tree_transparent_uuid = tree_mat_transparent.uuid;
-    let weapon_mat_uuid = weapon_mat.uuid;
 
     app_state.add_material(terrain_mat);
     app_state.add_material(tree_mat_opaque);
     app_state.add_material(tree_mat_transparent);
     app_state.add_material(pawn_mat);
     app_state.add_material(proj_mat);
-    app_state.add_material(weapon_mat);
+    app_state.add_material(pickup_mat);
+    app_state.add_state_data("pickup_mat_uuid", Box::new(pickup_mat_uuid));
 
     app_state.add_object(terrain);
 
-    let tree_positions: [([f32; 3], [f32; 3], f32); 5] = [
-        ([-6.0, -2.0, -14.0], [0.0,   0.0, 0.0], 2.0),
-        ([ 8.0, -2.0, -10.0], [0.0,  40.0, 0.0], 1.8),
-        ([-12.0,-2.0,  -4.0], [0.0, -20.0, 0.0], 2.2),
-        ([ 5.0, -2.0,  10.0], [0.0,  70.0, 0.0], 1.6),
-        ([-4.0, -2.0,  14.0], [0.0, 150.0, 0.0], 2.4),
+    let tree_positions: [([f32; 3], [f32; 3], f32); 18] = [
+        // inner ring
+        ([-6.0,  -2.0, -14.0], [0.0,   0.0, 0.0], 4.5),
+        ([ 8.0,  -2.0, -10.0], [0.0,  40.0, 0.0], 4.2),
+        ([-12.0, -2.0,  -4.0], [0.0, -20.0, 0.0], 4.8),
+        ([ 5.0,  -2.0,  10.0], [0.0,  70.0, 0.0], 4.0),
+        ([-4.0,  -2.0,  14.0], [0.0, 150.0, 0.0], 5.0),
+        // mid ring
+        ([-22.0, -2.0, -30.0], [0.0,  15.0, 0.0], 5.5),
+        ([ 18.0, -2.0, -26.0], [0.0,  80.0, 0.0], 5.0),
+        ([-30.0, -2.0,  -8.0], [0.0, -35.0, 0.0], 6.0),
+        ([ 28.0, -2.0,   6.0], [0.0, 110.0, 0.0], 5.2),
+        ([-18.0, -2.0,  28.0], [0.0, 200.0, 0.0], 5.8),
+        ([ 10.0, -2.0,  32.0], [0.0, -60.0, 0.0], 5.4),
+        // outer ring (near walls)
+        ([-42.0, -2.0, -42.0], [0.0,  25.0, 0.0], 7.0),
+        ([ 38.0, -2.0, -38.0], [0.0,  95.0, 0.0], 6.5),
+        ([-44.0, -2.0,   2.0], [0.0, -10.0, 0.0], 7.5),
+        ([ 42.0, -2.0,  18.0], [0.0, 130.0, 0.0], 6.8),
+        ([-20.0, -2.0,  44.0], [0.0, 175.0, 0.0], 7.2),
+        ([ 22.0, -2.0, -44.0], [0.0,  55.0, 0.0], 6.6),
+        ([  0.0, -2.0,  46.0], [0.0, -80.0, 0.0], 7.0),
     ];
     for (pos, rot, scale) in &tree_positions {
         let mut t = Object::load_from_gltf_resource(example_resources::tree(), None);
@@ -160,53 +189,64 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
         app_state.add_object(t);
     }
 
-    // FPS weapon — thin elongated bar in lower-right of view.
-    // Position is overwritten every frame; start it off-screen.
-    let mut weapon = Object::cube(0.04);
+    // FPS weapon — gun model, positioned in camera-local space every frame.
+    // Start it off-screen; game_update moves it into view during Playing.
+    let mut gun_mat = Material::lit_pbr(event_loop.get_display_clone(), false);
+    gun_mat.set_name("mat_gun");
+    gun_mat.set_color([0.08, 0.08, 0.08]);
+    gun_mat.set_roughness_strength(1.0);
+    gun_mat.set_metallic_strength(0.0);
+    let gun_mat_uuid = gun_mat.uuid;
+    app_state.add_material(gun_mat);
+
+    let mut weapon = Object::load_from_gltf_resource(example_resources::gun_gltf(), None);
     weapon.set_name("weapon".to_string());
     weapon.set_collision(false);
-    weapon.add_material(weapon_mat_uuid);
+    weapon.add_material(gun_mat_uuid);
     weapon.get_shapes_mut()[0].set_material_from_object_list(0);
-    weapon.transform.set_position([-5.0, -1000.0, 0.0]);
-    weapon.transform.set_scale([0.55, 0.4, 2.4]);
+    weapon.transform.set_position([0.0, -1000.0, 0.0]);
+    weapon.transform.set_scale([1.0, 1.0, 1.0]);
     let weapon_uuid = weapon.get_unique_id();
     app_state.add_object(weapon);
     app_state.add_state_data("weapon_uuid", Box::new(weapon_uuid));
 
-    // Fireflies — unlit emissive yellow-green glowing spheres
+    // Fireflies — 20 glowing spheres scattered across the full arena
     let mut firefly_mat = Material::unlit(event_loop.get_display_clone(), false);
     firefly_mat.set_name("mat_firefly");
     firefly_mat.set_color([0.55, 1.0, 0.35]);
     let firefly_mat_uuid = firefly_mat.uuid;
     app_state.add_material(firefly_mat);
 
-    // Scattered base positions for 6 fireflies (x, y, z)
-    let firefly_bases: [[f32; 3]; 6] = [
-        [-5.0, 1.8, -8.0],
-        [ 7.0, 2.2, -6.0],
-        [-9.0, 1.5,  2.0],
-        [ 4.0, 2.5,  6.0],
-        [-3.0, 1.9, 12.0],
-        [ 9.0, 1.7,  3.0],
-    ];
-
+    let spread = ARENA_HALF - WALL_THICK - 2.0;
+    let mut rng = rand::thread_rng();
     let mut firefly_entries: Vec<FireflyEntry> = Vec::new();
-    for (i, base) in firefly_bases.iter().enumerate() {
+    for i in 0..20usize {
+        let bx = rng.gen_range(-spread..spread);
+        let by = rng.gen_range(1.5f32..3.5f32);
+        let bz = rng.gen_range(-spread..spread);
+
         let mut sphere = Object::sphere(0.12, 8, 12);
         sphere.set_name(format!("firefly_{i}"));
         sphere.set_collision(false);
         sphere.add_material(firefly_mat_uuid);
         sphere.get_shapes_mut()[0].set_material_from_object_list(0);
-        sphere.transform.set_position(*base);
+        sphere.transform.set_position([bx, by, bz]);
         let uuid = sphere.get_unique_id();
         app_state.add_object(sphere);
+
+        let light_idx = app_state.light.len();
+        app_state.add_light(
+            Light::new([bx, by, bz], [0.5, 1.0, 0.3], 60.0, None, false),
+            LightEmissionType::Source,
+        );
+
         firefly_entries.push(FireflyEntry {
             uuid,
-            light_idx: 3 + i,   // lights 0=sun 1=fill 2=ambient; fireflies start at 3
-            base_x: base[0],
-            base_y: base[1],
-            base_z: base[2],
-            phase: i as f32 * 1.05,   // stagger phases so they don't bob in sync
+            light_idx,
+            base_x: bx,
+            base_y: by,
+            base_z: bz,
+            phase: i as f32 * 0.63,  // golden-ratio-ish stagger
         });
     }
     app_state.add_state_data("fireflies", Box::new(firefly_entries));
@@ -246,6 +286,12 @@ const PROJECTILE_SPEED: f32 = 80.0;
 const PROJECTILE_MAX_RANGE: f32 = 80.0;
 const MAX_PROJECTILES: usize = 20;
 const STARTING_LIVES: u32 = 3;
+const MAG_SIZE: u32 = 10;
+const STARTING_TOTAL_AMMO: u32 = 50;
+const MAX_TOTAL_AMMO: u32 = 90;
+const RELOAD_TIME: f32 = 1.8;
+const PICKUP_AMMO: u32 = 5;
+const PICKUP_COLLECT_RADIUS: f32 = 2.2;
 const ARENA_HALF: f32 = 55.0;   // 110×110 play area
 const WALL_HEIGHT: f32 = 5.0;
 const WALL_THICK: f32 = 0.6;
@@ -305,6 +351,26 @@ impl PieceKind {
             PieceKind::Knight => example_resources::chess_knight_gltf(),
         }
     }
+    fn max_health(self) -> i32 {
+        match self {
+            PieceKind::Pawn   => 1,
+            PieceKind::Bishop => 2,
+            PieceKind::Knight => 2,
+            PieceKind::Rook   => 3,
+            PieceKind::Queen  => 5,
+            PieceKind::King   => 7,
+        }
+    }
+    fn drop_chance(self) -> f32 {
+        match self {
+            PieceKind::Pawn   => 0.20,
+            PieceKind::Bishop => 0.35,
+            PieceKind::Knight => 0.35,
+            PieceKind::Rook   => 0.50,
+            PieceKind::Queen  => 0.65,
+            PieceKind::King   => 0.80,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -326,12 +392,18 @@ struct GameState {
     wave_timer: f32,
     projectile_ids: Vec<Uuid>,
     pawn_ids: Vec<Uuid>,
+    pickup_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
     projectile_material_uuid: Uuid,
     volume: f32,
     aimed_pawn: Option<Uuid>,
     bob_phase: f32,
     bob_active: f32,
+    recoil: f32,
+    ammo: u32,
+    total_ammo: u32,
+    reloading: bool,
+    reload_timer: f32,
 }
 
 impl GameState {
@@ -344,12 +416,18 @@ impl GameState {
             wave_timer: 0.0,
             projectile_ids: Vec::new(),
             pawn_ids: Vec::new(),
+            pickup_ids: Vec::new(),
             pawn_material_uuid: pawn_mat,
             projectile_material_uuid: proj_mat,
             volume: 1.0,
             aimed_pawn: None,
             bob_phase: 0.0,
             bob_active: 0.0,
+            recoil: 0.0,
+            ammo: MAG_SIZE,
+            total_ammo: STARTING_TOTAL_AMMO,
+            reloading: false,
+            reload_timer: 0.0,
         }
     }
 
@@ -360,9 +438,15 @@ impl GameState {
         self.wave_timer = 0.0;
         self.projectile_ids.clear();
         self.pawn_ids.clear();
+        self.pickup_ids.clear();
         self.aimed_pawn = None;
         self.bob_phase = 0.0;
         self.bob_active = 0.0;
+        self.recoil = 0.0;
+        self.ammo = MAG_SIZE;
+        self.total_ammo = STARTING_TOTAL_AMMO;
+        self.reloading = false;
+        self.reload_timer = 0.0;
     }
 }
 
@@ -405,7 +489,9 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         let uuid = piece.get_unique_id();
         let angle = rng.gen_range(0.0f32..std::f32::consts::TAU);
         piece.set_component(PawnData {
+            kind,
             speed_mult: kind.speed_mult(),
+            health: kind.max_health(),
             wander_dir: [angle.cos(), angle.sin()],
             wander_timer: rng.gen_range(0.5f32..1.5f32),
         });
@@ -414,9 +500,24 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
     }
 }
 
+fn start_reload(gs: &mut GameState) {
+    if gs.reloading || gs.total_ammo == 0 || gs.ammo == MAG_SIZE { return; }
+    gs.reloading = true;
+    gs.reload_timer = RELOAD_TIME;
+}
+
+fn reload_weapon(app_state: &mut AppState) {
+    if let Some(gs) = app_state.get_state_data_value::<GameState>("game_state") {
+        let mut gs = gs.clone();
+        if gs.phase == GamePhase::Playing { start_reload(&mut gs); }
+        app_state.set_state_data_value("game_state", Box::new(gs));
+    }
+}
+
 fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
     let to_remove: Vec<Uuid> = gs.pawn_ids.iter().copied()
         .chain(gs.projectile_ids.iter().copied())
+        .chain(gs.pickup_ids.iter().copied())
         .collect();
     app_state.objects.retain(|o| !to_remove.contains(&o.get_unique_id()));
     gs.reset();
@@ -499,32 +600,84 @@ fn game_update(app_state: &mut AppState) {
             let cp = cam.get_position();
             let cf = cam.calculate_direction_vector();
             let rx = -cf[2];
-            let rz =  cf[0];
-            let r_len = (rx * rx + rz * rz).sqrt();
-            let (rx, rz) = if r_len > 0.001 { (rx / r_len, rz / r_len) } else { (-1.0, 0.0) };
+            let right_z =  cf[0];
+            let r_len = (rx * rx + right_z * right_z).sqrt();
+            let (rx, right_z) = if r_len > 0.001 { (rx / r_len, right_z / r_len) } else { (-1.0, 0.0) };
             let cam_up = cam.transform.up();
-            let rot_x = cam.transform.rotation.x.to_degrees();
-            let rot_y = cam.transform.rotation.y.to_degrees();
-            (cp, cf, rx, rz, cam_up, rot_x, rot_y)
+            let yaw_rad   = cam.transform.rotation.y;
+            let pitch_rad = cam.transform.rotation.x;
+            (cp, cf, rx, right_z, cam_up, yaw_rad, pitch_rad)
         });
 
-        if let Some((cp, cf, rx, rz, cam_up, rot_x, rot_y)) = weapon_data {
-            const FWD: f32   = 0.40;
+        // ── Reload timer ──────────────────────────────────────────────────────
+        if gs.reloading {
+            gs.reload_timer -= dt;
+            if gs.reload_timer <= 0.0 {
+                let needed = MAG_SIZE - gs.ammo;
+                let refill = needed.min(gs.total_ammo);
+                gs.ammo += refill;
+                gs.total_ammo -= refill;
+                gs.reloading = false;
+                gs.reload_timer = 0.0;
+            }
+        }
+
+        let mut muzzle_world: Option<[f32; 3]> = None;
+
+        if let Some((cp, cf, rx, right_z, cam_up, yaw_rad, pitch_rad)) = weapon_data {
+            const FWD: f32   = 0.28;
             const RIGHT: f32 = 0.20;
             const DOWN: f32  = 0.13;
 
+            // Decay recoil
+            gs.recoil = (gs.recoil - dt * 8.0).max(0.0);
+            let fwd_actual = FWD - gs.recoil * 0.10;
+
+            // Reload animation: smooth dip using sin arc (0→1→0 over reload duration)
+            let reload_anim = if gs.reloading {
+                (gs.reload_timer / RELOAD_TIME * std::f32::consts::PI).sin()
+            } else {
+                0.0
+            };
+            let reload_lower = reload_anim * 0.18;   // drop weapon
+
             if let Some(weapon) = app_state.get_object_by_uuid_mut(wid) {
                 if gs.phase == GamePhase::Playing {
-                    let wx = cp[0] + rx * RIGHT - cam_up.x * DOWN + cf[0] * FWD;
-                    let wy = cp[1]              - cam_up.y * DOWN + cf[1] * FWD + bob_y * 0.5;
-                    let wz = cp[2] + rz * RIGHT - cam_up.z * DOWN + cf[2] * FWD;
+                    let wx = cp[0] + rx * RIGHT       - cam_up.x * (DOWN + reload_lower) + cf[0] * fwd_actual;
+                    let wy = cp[1]                    - cam_up.y * (DOWN + reload_lower) + cf[1] * fwd_actual + bob_y * 0.5;
+                    let wz = cp[2] + right_z * RIGHT  - cam_up.z * (DOWN + reload_lower) + cf[2] * fwd_actual;
                     weapon.transform.set_position([wx, wy, wz]);
-                    // match camera yaw+pitch, then roll -22° to tilt handle toward corner
-                    weapon.transform.set_rotation([rot_x, rot_y, -22.0]);
+                    weapon.transform.set_scale([0.22, 0.22, 0.22]);
+
+                    // Zero-roll decomposition: point +X barrel along camera forward without barrel spin.
+                    // Raw yaw/pitch avoids the asin branch discontinuity that caused rolling along barrel length.
+                    let pitch_animated = pitch_rad
+                        + gs.recoil * 18.0_f32.to_radians()
+                        - reload_anim * 55.0_f32.to_radians();
+                    let sy = yaw_rad.sin();
+                    let cy = yaw_rad.cos();
+                    let sp = pitch_animated.sin();
+                    let cp = pitch_animated.cos();
+                    let denom = ((sy * sy * cp * cp) + (sp * sp)).sqrt();
+                    let gx = (cy * sp).atan2(-sy).to_degrees();
+                    let gy = (cy * cp).atan2(denom).to_degrees();
+                    let gz = sp.atan2(-sy * cp).to_degrees();
+                    weapon.transform.set_rotation([gx, gy, gz]);
+
+                    // Muzzle is ~0.30 units forward of the weapon center along view direction
+                    muzzle_world = Some([
+                        wx + cf[0] * 0.30,
+                        wy + cf[1] * 0.30,
+                        wz + cf[2] * 0.30,
+                    ]);
                 } else {
                     weapon.transform.set_position([0.0, -1000.0, 0.0]);
                 }
             }
+        }
+
+        if let Some(mp) = muzzle_world {
+            app_state.set_state_data_value("muzzle_pos", Box::new(mp));
         }
     }
 
@@ -535,7 +688,7 @@ fn game_update(app_state: &mut AppState) {
 
     // ── Sun follows camera ────────────────────────────────────────────────────
     if let Some(sun) = app_state.light.first_mut() {
-        sun.position = [cam_pos[0], cam_pos[1] + 10.0, cam_pos[2]];
+        sun.position = [cam_pos[0], cam_pos[1] + 25.0, cam_pos[2]];
     }
 
     // ── Wave timer ────────────────────────────────────────────────────────────
@@ -611,6 +764,12 @@ fn game_update(app_state: &mut AppState) {
                 data.wander_timer = wtimer;
             }
 
+            // Face movement direction
+            if move_x.abs() > 0.01 || move_z.abs() > 0.01 {
+                let angle = move_x.atan2(move_z).to_degrees();
+                obj.transform.set_rotation([0.0, angle + 90.0, 0.0]);
+            }
+
             // Apply movement
             let step = PAWN_SPEED * wave_speed * speed_mult * dt;
             obj.transform.move_dir_array([move_x * step, 0.0, move_z * step]);
@@ -670,18 +829,38 @@ fn game_update(app_state: &mut AppState) {
         })
         .collect();
 
+    // First pass: find which pawns are hit this frame (one projectile per pawn)
     let mut kill_projectiles: Vec<Uuid> = Vec::new();
-    let mut kill_pawns: Vec<Uuid> = Vec::new();
+    let mut hit_pawns: Vec<Uuid> = Vec::new();
 
     'outer: for (proj_uuid, proj_bb) in &proj_bbs {
         for (pawn_uuid, pawn_bb) in &pawn_bbs {
-            if kill_pawns.contains(pawn_uuid) { continue; }
+            if hit_pawns.contains(pawn_uuid) { continue; }
             if is_colliding(proj_bb, pawn_bb) {
                 kill_projectiles.push(*proj_uuid);
+                hit_pawns.push(*pawn_uuid);
+                app_state.play_audio_once("break");
+                continue 'outer;
+            }
+        }
+    }
+
+    // Second pass: decrement health, collect info for dead pawns
+    let mut kill_pawns: Vec<Uuid> = Vec::new();
+    let mut kill_pawn_info: Vec<([f32; 3], PieceKind)> = Vec::new();
+    for pawn_uuid in &hit_pawns {
+        if let Some(obj) = app_state.get_object_by_uuid_mut(*pawn_uuid) {
+            let pos = obj.transform.get_position();
+            let (dead, kind) = if let Some(data) = obj.get_component_mut::<PawnData>() {
+                data.health -= 1;
+                (data.health <= 0, data.kind)
+            } else {
+                (true, PieceKind::Pawn)
+            };
+            if dead {
+                kill_pawn_info.push(([pos.x, 0.3, pos.z], kind));
                 kill_pawns.push(*pawn_uuid);
                 gs.score += 1;
-                app_state.play_audio_once("hit");
-                continue 'outer;
             }
         }
     }
@@ -690,6 +869,56 @@ fn game_update(app_state: &mut AppState) {
     gs.projectile_ids.retain(|id| !kill_projectiles.contains(id));
     app_state.objects.retain(|o| !kill_pawns.contains(&o.get_unique_id()));
     gs.pawn_ids.retain(|id| !kill_pawns.contains(id));
+
+    // ── Spawn ammo pickups at killed enemy positions (with drop chance) ────────
+    let pickup_mat_uuid = app_state.get_state_data_value::<Uuid>("pickup_mat_uuid").copied();
+    if let Some(mat_uuid) = pickup_mat_uuid {
+        let mut rng = rand::thread_rng();
+        for (pos, kind) in kill_pawn_info {
+            if rng.gen::<f32>() >= kind.drop_chance() { continue; }
+            let mut pickup = Object::load_from_gltf_resource(example_resources::bullet_gltf(), None);
+            pickup.set_name("ammo_pickup".to_string());
+            pickup.set_collision(false);
+            pickup.add_material(mat_uuid);
+            pickup.get_shapes_mut()[0].set_material_from_object_list(0);
+            pickup.transform.set_position(pos);
+            pickup.transform.set_scale([0.3, 0.3, 0.3]);
+            let phase = rng.gen_range(0.0f32..std::f32::consts::TAU);
+            pickup.set_component(AmmoPickupData { ammo: PICKUP_AMMO, bob_phase: phase });
+            let uuid = pickup.get_unique_id();
+            gs.pickup_ids.push(uuid);
+            app_state.add_object(pickup);
+        }
+    }
+
+    // ── Animate pickups + check collection ────────────────────────────────────
+    let t = app_state.time;
+    let mut collected_pickups: Vec<Uuid> = Vec::new();
+    for uuid in &gs.pickup_ids {
+        if let Some(obj) = app_state.get_object_by_uuid_mut(*uuid) {
+            let phase = obj.get_component::<AmmoPickupData>().map(|d| d.bob_phase).unwrap_or(0.0);
+            let base_y = 0.3;
+            let hover_y = base_y + (t * 2.5 + phase).sin() * 0.15;
+            let pos = obj.transform.get_position();
+            obj.transform.set_position([pos.x, hover_y, pos.z]);
+            obj.transform.rotate([0.0, 200.0 * dt, 0.0]);
+
+            let dx = pos.x - cam_pos[0];
+            let dz = pos.z - cam_pos[2];
+            if (dx * dx + dz * dz).sqrt() < PICKUP_COLLECT_RADIUS {
+                collected_pickups.push(*uuid);
+            }
+        }
+    }
+    for uuid in &collected_pickups {
+        if let Some(obj) = app_state.get_object_by_uuid(uuid) {
+            let ammo = obj.get_component::<AmmoPickupData>().map(|d| d.ammo).unwrap_or(0);
+            gs.total_ammo = (gs.total_ammo + ammo).min(MAX_TOTAL_AMMO);
+            app_state.play_audio_once("pickup");
+        }
+    }
+    app_state.objects.retain(|o| !collected_pickups.contains(&o.get_unique_id()));
+    gs.pickup_ids.retain(|id| !collected_pickups.contains(id));
 
     // ── Expire out-of-range projectiles ───────────────────────────────────────
     let expired: Vec<Uuid> = gs.projectile_ids.iter()
@@ -755,6 +984,9 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
                     if (gs.volume - prev_volume).abs() > f32::EPSILON {
                         app_state.set_audio_volume("bgm", gs.volume);
                         app_state.set_audio_volume("hit", gs.volume);
+                        app_state.set_audio_volume("shot", gs.volume);
+                        app_state.set_audio_volume("break", gs.volume);
+                        app_state.set_audio_volume("pickup", gs.volume);
                     }
                     ui.separator();
                     if ui.button(ui::RichText::new("  ▶  Start Game  ").size(16.0)
@@ -787,11 +1019,70 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
                         .color(ui::Color32::from_rgb(240, 200, 80)));
                     ui.label(ui::RichText::new(format!("Wave:  {}", gs.wave))
                         .color(ui::Color32::from_rgb(180, 160, 100)));
-                    let filled = "♥".repeat(gs.lives.min(STARTING_LIVES) as usize);
-                    let empty = "♡".repeat(STARTING_LIVES.saturating_sub(gs.lives) as usize);
-                    ui.label(ui::RichText::new(format!("{}{}", filled, empty))
-                        .color(ui::Color32::from_rgb(220, 60, 60))
-                        .size(16.0));
+                });
+            ui::Window::new("HUD_BOTTOM")
+                .anchor(ui::Align2::LEFT_BOTTOM, [16.0, -16.0])
+                .resizable(false)
+                .collapsible(false)
+                .title_bar(false)
+                .frame(ui::Frame::none()
+                    .fill(ui::Color32::from_rgba_unmultiplied(0, 0, 0, 140))
+                    .inner_margin(ui::Margin::symmetric(14.0, 10.0))
+                    .rounding(8.0))
+                .show(ctx, |ui| {
+                    ui.set_min_width(180.0);
+                    // ── Health bar ───────────────────────────────────────────
+                    ui.label(ui::RichText::new("HEALTH").size(11.0)
+                        .color(ui::Color32::from_rgb(160, 160, 160)));
+                    let health_ratio = gs.lives as f32 / STARTING_LIVES as f32;
+                    let bar_color = if health_ratio > 0.6 {
+                        ui::Color32::from_rgb(80, 200, 80)
+                    } else if health_ratio > 0.3 {
+                        ui::Color32::from_rgb(220, 180, 50)
+                    } else {
+                        ui::Color32::from_rgb(220, 60, 60)
+                    };
+                    let (bar_rect, _) = ui.allocate_exact_size(
+                        ui::Vec2::new(180.0, 10.0),
+                        ui::Sense::hover(),
+                    );
+                    ui.painter().rect_filled(bar_rect, 4.0, ui::Color32::from_rgb(50, 50, 50));
+                    if health_ratio > 0.0 {
+                        let filled = ui::Rect::from_min_size(
+                            bar_rect.min,
+                            ui::Vec2::new(bar_rect.width() * health_ratio, bar_rect.height()),
+                        );
+                        ui.painter().rect_filled(filled, 4.0, bar_color);
+                    }
+                    ui.add_space(6.0);
+                    // ── Ammo ─────────────────────────────────────────────────
+                    if gs.reloading {
+                        ui.label(ui::RichText::new("RELOADING")
+                            .size(28.0)
+                            .color(ui::Color32::from_rgb(220, 160, 50)));
+                    } else {
+                        let ammo_color = if gs.ammo == 0 {
+                            ui::Color32::from_rgb(220, 60, 60)
+                        } else if gs.ammo <= MAG_SIZE / 3 {
+                            ui::Color32::from_rgb(220, 160, 50)
+                        } else {
+                            ui::Color32::WHITE
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(ui::RichText::new(format!("{}", gs.ammo))
+                                .size(48.0)
+                                .color(ammo_color));
+                            ui.vertical(|ui| {
+                                ui.add_space(20.0);
+                                ui.label(ui::RichText::new(format!("/ {}", MAG_SIZE))
+                                    .size(16.0)
+                                    .color(ui::Color32::from_rgb(160, 160, 160)));
+                                ui.label(ui::RichText::new(format!("▪ {}", gs.total_ammo))
+                                    .size(13.0)
+                                    .color(ui::Color32::from_rgb(120, 140, 120)));
+                            });
+                        });
+                    }
                 });
         }
 
@@ -854,6 +1145,12 @@ fn fire_projectile(app_state: &mut AppState) {
     };
 
     if gs.phase != GamePhase::Playing { return; }
+    if gs.reloading { return; }
+    if gs.ammo == 0 {
+        start_reload(&mut gs);
+        app_state.set_state_data_value("game_state", Box::new(gs));
+        return;
+    }
     if gs.projectile_ids.len() >= MAX_PROJECTILES { return; }
 
     let cam = match app_state.camera.as_ref() {
@@ -864,28 +1161,48 @@ fn fire_projectile(app_state: &mut AppState) {
     let dir = cam.calculate_direction_vector();
     let velocity = [dir[0] * PROJECTILE_SPEED, dir[1] * PROJECTILE_SPEED, dir[2] * PROJECTILE_SPEED];
 
-    let mut proj = Object::cube(0.08);
+    let yaw   = dir[0].atan2(dir[2]).to_degrees() + 90.0;
+    let pitch = (-dir[1]).atan2((dir[0]*dir[0] + dir[2]*dir[2]).sqrt()).to_degrees();
+
+    let spawn_pos = app_state.get_state_data_value::<[f32; 3]>("muzzle_pos")
+        .copied()
+        .unwrap_or(cam_pos);
+
+    let mut proj = Object::load_from_gltf_resource(example_resources::bullet_gltf(), None);
     proj.set_name("projectile".to_string());
     proj.set_collision(false);
     proj.add_material(gs.projectile_material_uuid);
     proj.get_shapes_mut()[0].set_material_from_object_list(0);
-    proj.transform.set_position(cam_pos);
+    proj.transform.set_position(spawn_pos);
+    proj.transform.set_scale([0.1, 0.1, 0.1]);
+    proj.transform.set_rotation([pitch, yaw, 0.0]);
 
     let speed = (velocity[0]*velocity[0] + velocity[1]*velocity[1] + velocity[2]*velocity[2]).sqrt();
     proj.set_component(ProjectileData { velocity, distance: 0.0, speed });
     let uuid = proj.get_unique_id();
     gs.projectile_ids.push(uuid);
     app_state.add_object(proj);
-    app_state.play_audio_once("hit");
+    app_state.play_audio_once("shot");
+    gs.recoil = 1.0;
+    gs.ammo -= 1;
+    if gs.ammo == 0 { start_reload(&mut gs); }
     app_state.set_state_data_value("game_state", Box::new(gs));
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
-    let event_loop = EventLoop::new("Pawn Rush", 1080, 720);
+    let event_loop = EventLoop::new("Pawn Rush", 1920, 1080);
     let mut app_state = AppState::new();
     event_loop.set_icon_from_resource(resources::icon());
+
+    // Base lights first — initialize_scene uses light.len() to index firefly lights
+    let sun = Light::new([0.0, 25.0, 0.0], [1.0, 0.95, 0.85], 2500.0, None, false);
+    let fill = Light::new([-5.0, 3.0, 5.0], [0.4, 0.55, 1.0], 200.0, None, false);
+    let ambient = Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.25, None, false);
+    app_state.add_light(sun, LightEmissionType::Source);
+    app_state.add_light(fill, LightEmissionType::Source);
+    app_state.add_light(ambient, LightEmissionType::Ambient);
 
     initialize_scene(&mut app_state, &event_loop);
 
@@ -893,27 +1210,6 @@ fn main() {
     let proj_mat_uuid = find_material_uuid(&app_state, "mat_projectile");
     let gs = GameState::new(pawn_mat_uuid, proj_mat_uuid);
     app_state.add_state_data("game_state", Box::new(gs));
-
-    let sun = Light::new([0.0, 8.0, 0.0], [1.0, 0.95, 0.85], 800.0, None, false);
-    let fill = Light::new([-5.0, 3.0, 5.0], [0.4, 0.55, 1.0], 200.0, None, false);
-    let ambient = Light::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 0.25, None, false);
-    app_state.add_light(sun, LightEmissionType::Source);
-    app_state.add_light(fill, LightEmissionType::Source);
-    app_state.add_light(ambient, LightEmissionType::Ambient);
-
-    // Firefly point lights — indices 3..8 (must match firefly_entries light_idx above)
-    let firefly_light_positions: [[f32; 3]; 6] = [
-        [-5.0, 1.8, -8.0],
-        [ 7.0, 2.2, -6.0],
-        [-9.0, 1.5,  2.0],
-        [ 4.0, 2.5,  6.0],
-        [-3.0, 1.9, 12.0],
-        [ 9.0, 1.7,  3.0],
-    ];
-    for pos in &firefly_light_positions {
-        let fl = Light::new(*pos, [0.5, 1.0, 0.3], 60.0, None, false);
-        app_state.add_light(fl, LightEmissionType::Source);
-    }
 
     let camera = Camera::new(
         Some([0.0, CAMERA_HEIGHT, 8.0]),
@@ -927,8 +1223,14 @@ fn main() {
 
     let bgm = AudioClip::from_resource(example_resources::background_music(), "bgm");
     let hit_sound = AudioClip::from_resource(example_resources::click_sound(), "hit");
+    let shot_sound = AudioClip::from_resource(example_resources::shot_sound(), "shot");
+    let break_sound = AudioClip::from_resource(example_resources::break_sound(), "break");
+    let pickup_sound = AudioClip::from_resource(example_resources::pickup_sound(), "pickup");
     app_state.add_audio(bgm);
     app_state.add_audio(hit_sound);
+    app_state.add_audio(shot_sound);
+    app_state.add_audio(break_sound);
+    app_state.add_audio(pickup_sound);
     app_state.play_audio_loop("bgm");
 
     app_state.add_post_process(Box::new(
@@ -972,6 +1274,11 @@ fn main() {
         event::EventCharacteristic::MousePress(event::MouseButton::Left),
         Arc::new(fire_projectile),
         None,
+    );
+    app_state.inject_event(
+        event::EventCharacteristic::KeyPress(event::VirtualKeyCode::R),
+        Arc::new(reload_weapon),
+        Some(event::EventModifiers::new(false, false, false)),
     );
     app_state.inject_update_function(Arc::new(fps_look));
     app_state.inject_update_function(Arc::new(game_update));

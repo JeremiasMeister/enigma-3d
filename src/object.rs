@@ -698,9 +698,11 @@ impl Object {
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| buffers.get(buffer.index()).map(|data| &data[..]));
 
-                let positions = reader.read_positions().unwrap();
-                let normals = reader.read_normals().unwrap();
-                let tex_coords = reader.read_tex_coords(0).unwrap().into_f32();
+                let positions: Vec<[f32; 3]> = reader.read_positions().unwrap().collect();
+                let normals: Vec<[f32; 3]> = reader.read_normals().unwrap().collect();
+                let raw_tex_coords: Vec<[f32; 2]> = reader.read_tex_coords(0)
+                    .map(|tc| tc.into_f32().collect())
+                    .unwrap_or_else(|| vec![[0.0, 0.0]; positions.len()]);
                 let prim_indices = reader.read_indices().unwrap().into_u32();
 
                 // Read skinning data
@@ -708,7 +710,7 @@ impl Object {
                 let weights = reader.read_weights(0).map(|w| w.into_f32());
 
                 let mut flipped_tex_coords: Vec<[f32; 2]> = Vec::new();
-                for mut tex_coord in tex_coords.into_iter() {
+                for mut tex_coord in raw_tex_coords.into_iter() {
                     tex_coord[1] = 1.0 - tex_coord[1];
                     flipped_tex_coords.push(tex_coord);
                 }
@@ -716,7 +718,7 @@ impl Object {
                 let mut joint_data = joints.map(|j| j.map(|arr| [arr[0] as u32, arr[1] as u32, arr[2] as u32, arr[3] as u32]));
                 let mut weight_data = weights;
 
-                for ((position, normal), tex_coord) in positions.zip(normals).zip(flipped_tex_coords) {
+                for ((position, normal), tex_coord) in positions.into_iter().zip(normals).zip(flipped_tex_coords) {
                     let bone_indices = joint_data.as_mut().and_then(|j| j.next()).unwrap_or([0; 4]);
                     let bone_weight = weight_data.as_mut().and_then(|w| w.next()).unwrap_or([0.0; 4]);
                     let vertex = Vertex {

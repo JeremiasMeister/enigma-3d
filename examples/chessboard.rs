@@ -20,8 +20,8 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
         .default_width(200.0)
         .default_height(200.0)
         .show(ctx, |ui| {
-            let pos = app_state.camera.unwrap().transform.get_position();
-            let rot = app_state.camera.unwrap().transform.get_rotation();
+            let pos = app_state.camera.as_ref().unwrap().transform.get_position();
+            let rot = app_state.camera.as_ref().unwrap().transform.get_rotation();
             let position = format!("Position: {}, {}, {}", pos.x, pos.y, pos.z);
             let rotation = format!("Rotation: {}, {}, {}", rot.x, rot.y, rot.z);
             ui.label(position);

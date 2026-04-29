@@ -42,6 +42,16 @@ pub fn terrain() -> &'static [u8] {
 }
 
 #[cfg(feature = "examples")]
+pub fn gun_gltf() -> &'static [u8] {
+    include_bytes!("res/models/pawn-shooter/gun.glb")
+}
+
+#[cfg(feature = "examples")]
+pub fn bullet_gltf() -> &'static [u8] {
+    include_bytes!("res/models/pawn-shooter/bullet.glb")
+}
+
+#[cfg(feature = "examples")]
 pub fn tree() -> &'static [u8] {
     include_bytes!("res/models/chessboard/tree.glb")
 }
@@ -168,3 +178,12 @@ pub fn click_sound() -> &'static [u8] { include_bytes!("res/sounds/click-sound.o
 
 #[cfg(feature = "examples")]
 pub fn background_music() -> &'static [u8] { include_bytes!("res/sounds/background-audio.ogg")}
+
+#[cfg(feature = "examples")]
+pub fn shot_sound() -> &'static [u8] { include_bytes!("res/sounds/shot.ogg")}
+
+#[cfg(feature = "examples")]
+pub fn break_sound() -> &'static [u8] { include_bytes!("res/sounds/break.ogg")}
+
+#[cfg(feature = "examples")]
+pub fn pickup_sound() -> &'static [u8] { include_bytes!("res/sounds/pickup.ogg")}
