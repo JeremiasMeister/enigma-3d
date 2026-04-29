@@ -91,15 +91,21 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     app_state.add_object(knight);
 }
 
+#[allow(dead_code)]
 const WAVE_INTERVAL: f32 = 8.0;
+#[allow(dead_code)]
 const PAWN_SPEED: f32 = 1.2;
+#[allow(dead_code)]
 const PROJECTILE_SPEED: f32 = 20.0;
+#[allow(dead_code)]
 const PROJECTILE_MAX_RANGE: f32 = 35.0;
 const STARTING_LIVES: u32 = 3;
+#[allow(dead_code)]
 const PAWN_DEATH_Z: f32 = 5.0;
 const PAWN_SPAWN_Z: f32 = -14.0;
 
 #[derive(Clone, PartialEq)]
+#[allow(dead_code)]
 enum GamePhase { Menu, Playing, GameOver }
 
 #[derive(Clone)]
@@ -113,6 +119,7 @@ struct GameState {
     projectile_ids: Vec<(Uuid, [f32; 3], f32)>,
     pawn_ids: Vec<Uuid>,
     pawn_material_uuid: Uuid,
+    #[allow(dead_code)]
     projectile_material_uuid: Uuid,
 }
 
@@ -191,16 +198,15 @@ fn pawn_rush_ui(ctx: &ui::Context, app_state: &mut AppState) {
                 ui.separator();
                 ui.label("Chess pawns are marching toward you.");
                 ui.label("Left-click to fire. Stop them before they reach you.");
-                ui.label("You have \u{2665}\u{2665}\u{2665} lives.");
+                ui.label("You have ♥♥♥ lives.");
                 ui.separator();
                 if ui.button("  Start Game  ").clicked() {
                     reset_game(app_state, &mut gs);
                     gs.phase = GamePhase::Playing;
                 }
             });
+        app_state.set_state_data_value("game_state", Box::new(gs));
     }
-
-    app_state.set_state_data_value("game_state", Box::new(gs));
 }
 
 fn main() {
