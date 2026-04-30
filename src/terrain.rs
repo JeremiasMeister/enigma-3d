@@ -1,6 +1,9 @@
 use glium::glutin::surface::WindowSurface;
 use glium::Display;
+use glium::Surface;
 use crate::resources;
+use crate::camera::Camera;
+use crate::light::Light;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -359,6 +362,73 @@ impl Terrain {
         let lx = (x - self.position[0] + cfg.width  * 0.5) / cell_x;
         let lz = (z - self.position[2] + cfg.depth  * 0.5) / cell_z;
         bilinear_lookup(&self.heightmap, verts, lx, lz)
+    }
+
+    /// Draws all terrain tiles to `target` using the scene camera and lights.
+    pub fn draw(
+        &self,
+        target: &mut impl Surface,
+        camera: &Camera,
+        lights: &[Light],
+        ambient_light: Option<&Light>,
+    ) {
+        let pos = self.position;
+        let model_matrix: [[f32; 4]; 4] = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [pos[0], pos[1], pos[2], 1.0],
+        ];
+        let view_matrix       = camera.get_view_matrix();
+        let projection_matrix = camera.get_projection_matrix();
+
+        // Pack up to 4 lights into mat4 rows (same convention as material.rs)
+        let n = lights.len().min(4);
+        let mut light_pos_arr:   [[f32; 4]; 4] = [[0.0; 4]; 4];
+        let mut light_col_arr:   [[f32; 4]; 4] = [[0.0; 4]; 4];
+        let mut light_int_arr:   [f32; 4]      = [0.0; 4];
+        for i in 0..n {
+            light_pos_arr[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
+            light_col_arr[i] = [lights[i].color[0],    lights[i].color[1],    lights[i].color[2],    0.0];
+            light_int_arr[i] = lights[i].intensity;
+        }
+        let light_amount = n as i32;
+
+        let (amb_color, amb_intensity) = match ambient_light {
+            Some(l) => (l.color, l.intensity),
+            None    => ([0.0f32; 3], 0.0f32),
+        };
+
+        let draw_params = glium::DrawParameters {
+            depth: glium::Depth {
+                test:  glium::draw_parameters::DepthTest::IfLess,
+                write: true,
+                ..Default::default()
+            },
+            backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+            ..Default::default()
+        };
+
+        for tile in &self.tiles {
+            let uniforms = glium::uniform! {
+                model_matrix:            model_matrix,
+                view_matrix:             view_matrix,
+                projection_matrix:       projection_matrix,
+                light_position:          light_pos_arr,
+                light_color:             light_col_arr,
+                light_intensity:         light_int_arr,
+                light_amount:            light_amount,
+                ambient_light_color:     amb_color,
+                ambient_light_intensity: amb_intensity,
+            };
+            target.draw(
+                &tile.vertex_buffer,
+                &tile.index_buffer,
+                &self.program,
+                &uniforms,
+                &draw_params,
+            ).expect("Failed to draw terrain tile");
+        }
     }
 }
 
