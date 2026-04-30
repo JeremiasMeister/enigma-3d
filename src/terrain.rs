@@ -1,9 +1,3 @@
-use glium::glutin::surface::WindowSurface;
-use glium::{Display, Surface};
-use crate::camera::Camera;
-use crate::light::Light;
-use crate::resources;
-
 // ── Config ────────────────────────────────────────────────────────────────────
 
 pub struct TerrainConfig {
