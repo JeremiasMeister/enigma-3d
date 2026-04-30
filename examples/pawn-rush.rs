@@ -1237,9 +1237,6 @@ fn main() {
         postprocessing::bloom::Bloom::new(&event_loop.display.clone(), 0.97, 12)
     ));
     app_state.add_post_process(Box::new(
-        postprocessing::edge::Edge::new(&event_loop.display.clone(), 0.15, [0.8, 0.65, 0.2])
-    ));
-    app_state.add_post_process(Box::new(
         postprocessing::depth_fog::DepthFog::new(&event_loop.display, 0.15, 80.0, 400.0, [0.1, 0.1, 0.2], 1.0)
     ));
     app_state.add_post_process(Box::new(

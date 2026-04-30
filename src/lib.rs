@@ -459,6 +459,46 @@ impl AppState {
         self.objects.push(object);
     }
 
+    pub fn remove_objects(&mut self, uuids: &[Uuid]) {
+        self.objects.retain(|o| !uuids.contains(&o.get_unique_id()));
+    }
+
+    /// Returns the UUID of the object in `candidates` most aligned with the camera forward
+    /// vector, or `None` if no candidate exceeds `dot_threshold` (0.0–1.0; try 0.97 for tight aim).
+    pub fn find_aimed_object(&self, candidates: &[Uuid], dot_threshold: f32) -> Option<Uuid> {
+        let cam = self.camera.as_ref()?;
+        let cam_pos = cam.get_position();
+        let cam_fwd = cam.calculate_direction_vector();
+        let mut best_dot = dot_threshold;
+        let mut result = None;
+        for uuid in candidates {
+            if let Some(obj) = self.get_object_by_uuid(uuid) {
+                let pos = obj.transform.get_position();
+                let to = [pos.x - cam_pos[0], pos.y - cam_pos[1], pos.z - cam_pos[2]];
+                let len = (to[0]*to[0] + to[1]*to[1] + to[2]*to[2]).sqrt();
+                if len < 0.01 { continue; }
+                let dot = cam_fwd[0]*to[0]/len + cam_fwd[1]*to[1]/len + cam_fwd[2]*to[2]/len;
+                if dot > best_dot {
+                    best_dot = dot;
+                    result = Some(*uuid);
+                }
+            }
+        }
+        result
+    }
+
+    /// Clamps the camera's X and Z position to `[-half_extent, half_extent]`, leaving Y unchanged.
+    pub fn clamp_camera_xz(&mut self, half_extent: f32) {
+        if let Some(cam) = self.camera.as_mut() {
+            let p = cam.transform.get_position();
+            cam.transform.set_position([
+                p.x.clamp(-half_extent, half_extent),
+                p.y,
+                p.z.clamp(-half_extent, half_extent),
+            ]);
+        }
+    }
+
     pub fn get_objects(&self) -> &Vec<object::Object> {
         &self.objects
     }

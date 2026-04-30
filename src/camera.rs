@@ -256,6 +256,30 @@ impl Camera {
         self.update_matrices();
     }
 
+    /// Converts a camera-local offset into a world-space position.
+    ///
+    /// Uses the camera's true forward direction and a XZ-projected right vector (no banking
+    /// when looking up/down) with the camera's local up. Useful for attaching objects like
+    /// FPS weapons to the camera view.
+    ///
+    /// - `right`: offset along the camera's horizontal right axis (positive = right)
+    /// - `down`: offset along the camera's up axis, inverted (positive = downward in view)
+    /// - `forward`: offset along the camera's forward axis (positive = forward)
+    pub fn world_point_from_local(&self, right: f32, down: f32, forward: f32) -> [f32; 3] {
+        let cp = self.get_position();
+        let cf = self.calculate_direction_vector();
+        let rx = -cf[2];
+        let rz =  cf[0];
+        let r_len = (rx * rx + rz * rz).sqrt();
+        let (rx, rz) = if r_len > 0.001 { (rx / r_len, rz / r_len) } else { (-1.0, 0.0) };
+        let up = self.transform.up();
+        [
+            cp[0] + rx * right - up.x * down + cf[0] * forward,
+            cp[1]              - up.y * down + cf[1] * forward,
+            cp[2] + rz * right - up.z * down + cf[2] * forward,
+        ]
+    }
+
     /// Stores `component`, replacing any existing component of the same type.
     pub fn set_component<T: Any + 'static>(&mut self, component: T) {
         self.components.insert(TypeId::of::<T>(), Box::new(component));

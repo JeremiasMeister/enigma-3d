@@ -102,6 +102,72 @@ pub fn camera_down(app_state: &mut AppState){
     }
 }
 
+/// Ground-locked WASD movement — projects the camera forward/left vectors onto the XZ plane
+/// so the player cannot gain or lose altitude through WASD while looking up or down.
+pub fn camera_walk_forward(app_state: &mut AppState) {
+    let dt = app_state.delta_time;
+    let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(10.0);
+    if let Some(cam) = app_state.camera.as_mut() {
+        let f = cam.transform.forward();
+        let len = (f.x * f.x + f.z * f.z).sqrt();
+        if len > 0.001 {
+            cam.transform.move_dir_array([-f.x / len * speed * dt, 0.0, -f.z / len * speed * dt]);
+        }
+    }
+}
+
+pub fn camera_walk_backward(app_state: &mut AppState) {
+    let dt = app_state.delta_time;
+    let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(10.0);
+    if let Some(cam) = app_state.camera.as_mut() {
+        let f = cam.transform.forward();
+        let len = (f.x * f.x + f.z * f.z).sqrt();
+        if len > 0.001 {
+            cam.transform.move_dir_array([f.x / len * speed * dt, 0.0, f.z / len * speed * dt]);
+        }
+    }
+}
+
+pub fn camera_walk_left(app_state: &mut AppState) {
+    let dt = app_state.delta_time;
+    let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(10.0);
+    if let Some(cam) = app_state.camera.as_mut() {
+        let l = cam.transform.left();
+        let len = (l.x * l.x + l.z * l.z).sqrt();
+        if len > 0.001 {
+            cam.transform.move_dir_array([l.x / len * speed * dt, 0.0, l.z / len * speed * dt]);
+        }
+    }
+}
+
+pub fn camera_walk_right(app_state: &mut AppState) {
+    let dt = app_state.delta_time;
+    let speed = app_state.get_state_data_value::<f32>("camera_move_speed").copied().unwrap_or(10.0);
+    if let Some(cam) = app_state.camera.as_mut() {
+        let l = cam.transform.left();
+        let len = (l.x * l.x + l.z * l.z).sqrt();
+        if len > 0.001 {
+            cam.transform.move_dir_array([-l.x / len * speed * dt, 0.0, -l.z / len * speed * dt]);
+        }
+    }
+}
+
+/// FPS mouse-look — applies raw mouse delta (pixels, not a rate) to yaw and pitch,
+/// clamping pitch to ±90° to prevent flipping. Reads sensitivity from `camera_rotate_speed`
+/// state data (default 0.002). Does not multiply by delta_time — mouse delta is already
+/// frame-relative.
+pub fn camera_fps_look(app_state: &mut AppState) {
+    if app_state.modifiers.ctrl { return; }
+    let delta = app_state.get_mouse_state().get_delta();
+    let sensitivity = app_state.get_state_data_value::<f32>("camera_rotate_speed").copied().unwrap_or(0.002);
+    if let Some(cam) = app_state.camera.as_mut() {
+        cam.transform.rotation.y -= delta.0 as f32 * sensitivity;
+        cam.transform.rotation.x -= delta.1 as f32 * sensitivity;
+        cam.transform.rotation.x = cam.transform.rotation.x
+            .clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
+    }
+}
+
 pub fn camera_rotate(app_state: &mut AppState) {
     let mouse_delta = app_state.get_mouse_state().get_delta();
     let sensitivity = *app_state.get_state_data_value::<f32>("camera_rotate_speed").expect("failed to get camera rotate speed from state data") * app_state.delta_time;
