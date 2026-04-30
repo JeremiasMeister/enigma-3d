@@ -91,3 +91,11 @@ pub fn icon() -> &'static [u8] {
     include_bytes!("res/textures/icon.png")
 }
 
+pub fn terrain_vert_shader() -> &'static str {
+    include_str!("res/shader/terrain_vert.glsl")
+}
+
+pub fn terrain_frag_shader() -> &'static str {
+    include_str!("res/shader/terrain_frag.glsl")
+}
+
