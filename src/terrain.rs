@@ -222,10 +222,18 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 
 /// Assigns a vertex color given the normalized height and the face normal.
 pub(crate) fn vertex_color(normal: [f32; 3], height: f32, cfg: &TerrainConfig) -> [f32; 3] {
-    let slope_factor = (1.0 - (normal[1] / cfg.slope_threshold)).clamp(0.0, 1.0);
-    let height_t = ((height / cfg.max_height - cfg.height_mid)
-        / (1.0 - cfg.height_mid))
-        .clamp(0.0, 1.0);
+    let slope_factor = if cfg.slope_threshold > 0.0 {
+        (1.0 - (normal[1] / cfg.slope_threshold)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let height_t = if cfg.max_height > 0.0 {
+        ((height / cfg.max_height - cfg.height_mid)
+            / (1.0 - cfg.height_mid))
+            .clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     let flat_color = mix(cfg.color_flat_low, cfg.color_flat_high, height_t);
     mix(flat_color, cfg.color_slope, slope_factor)
 }
@@ -316,5 +324,12 @@ mod tests {
         for i in 0..3 {
             assert!((c[i] - cfg.color_slope[i]).abs() < 0.001);
         }
+    }
+
+    #[test]
+    fn vertex_color_max_height_zero_no_nan() {
+        let cfg = TerrainConfig { max_height: 0.0, ..TerrainConfig::default() };
+        let c = vertex_color([0.0, 1.0, 0.0], 0.0, &cfg);
+        for comp in c { assert!(!comp.is_nan(), "NaN in vertex color with max_height=0"); }
     }
 }
