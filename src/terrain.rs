@@ -102,11 +102,149 @@ pub(crate) fn fbm(x: f32, z: f32, octaves: u32, persistence: f32) -> f32 {
     value / max_value
 }
 
+// ── Heightmap generation and normal calculation ────────────────────────────────
+
+/// Generates the flat CPU-side heightmap. Returns (resolution+1)² f32 values,
+/// row-major in Z-then-X order. Height values are in [0, max_height].
+pub(crate) fn generate_heightmap(cfg: &TerrainConfig) -> Vec<f32> {
+    let verts = (cfg.resolution + 1) as usize;
+    let cell_x = cfg.width  / cfg.resolution as f32;
+    let cell_z = cfg.depth  / cfg.resolution as f32;
+    let mut heightmap = Vec::with_capacity(verts * verts);
+
+    for zi in 0..verts {
+        for xi in 0..verts {
+            let wx = -cfg.width  * 0.5 + xi as f32 * cell_x;
+            let wz = -cfg.depth  * 0.5 + zi as f32 * cell_z;
+
+            let h = if let Some(f) = &cfg.custom_noise {
+                // User returns world-space Y directly; clamped to [0, max_height]
+                f(wx, wz).clamp(0.0, cfg.max_height)
+            } else {
+                let nx = wx * cfg.noise_scale;
+                let nz = wz * cfg.noise_scale;
+                // fbm returns [-1,1]; shift to [0,1] then apply amplitude and max_height
+                (fbm(nx, nz, cfg.noise_octaves, cfg.noise_persistence) * 0.5 + 0.5)
+                    * cfg.noise_amplitude
+                    * cfg.max_height
+            };
+
+            heightmap.push(h);
+        }
+    }
+    heightmap
+}
+
+/// Computes per-vertex normals by averaging surrounding quad face normals.
+/// `heightmap` is (resolution+1)² in Z-then-X row-major order.
+pub(crate) fn calculate_normals(
+    heightmap: &[f32],
+    resolution: u32,
+    cell_x: f32,
+    cell_z: f32,
+) -> Vec<[f32; 3]> {
+    let verts = (resolution + 1) as usize;
+    let mut normals = vec![[0.0f32; 3]; verts * verts];
+
+    let idx = |xi: usize, zi: usize| zi * verts + xi;
+    let h   = |xi: usize, zi: usize| heightmap[idx(xi, zi)];
+
+    for zi in 0..verts {
+        for xi in 0..verts {
+            let mut nx = 0.0f32;
+            let mut ny = 0.0f32;
+            let mut nz = 0.0f32;
+            let mut count = 0u32;
+
+            // Each surrounding quad contributes one face normal.
+            // For each quad, use edge vectors to two adjacent corners.
+            if xi > 0 && zi > 0 {
+                // quad with corners (xi-1,zi-1), (xi,zi-1), (xi,zi), (xi-1,zi)
+                // edges from (xi,zi) to (xi-1,zi) and (xi,zi-1)
+                let to_left  = [-cell_x, h(xi - 1, zi) - h(xi, zi), 0.0f32];
+                let to_back  = [0.0f32, h(xi, zi - 1) - h(xi, zi), -cell_z];
+                let cn = cross(to_back, to_left);
+                nx += cn[0]; ny += cn[1]; nz += cn[2]; count += 1;
+            }
+            if xi + 1 < verts && zi > 0 {
+                // quad with corners (xi,zi-1), (xi+1,zi-1), (xi+1,zi), (xi,zi)
+                // edges from (xi,zi) to (xi+1,zi) and (xi,zi-1)
+                let to_right = [cell_x, h(xi + 1, zi) - h(xi, zi), 0.0f32];
+                let to_back  = [0.0f32, h(xi, zi - 1) - h(xi, zi), -cell_z];
+                let cn = cross(to_right, to_back);
+                nx += cn[0]; ny += cn[1]; nz += cn[2]; count += 1;
+            }
+            if xi > 0 && zi + 1 < verts {
+                // quad with corners (xi-1,zi), (xi,zi), (xi,zi+1), (xi-1,zi+1)
+                // edges from (xi,zi) to (xi-1,zi) and (xi,zi+1)
+                let to_left  = [-cell_x, h(xi - 1, zi) - h(xi, zi), 0.0f32];
+                let to_fwd   = [0.0f32, h(xi, zi + 1) - h(xi, zi), cell_z];
+                let cn = cross(to_left, to_fwd);
+                nx += cn[0]; ny += cn[1]; nz += cn[2]; count += 1;
+            }
+            if xi + 1 < verts && zi + 1 < verts {
+                // quad with corners (xi,zi), (xi+1,zi), (xi+1,zi+1), (xi,zi+1)
+                // edges from (xi,zi) to (xi+1,zi) and (xi,zi+1)
+                let to_right = [cell_x, h(xi + 1, zi) - h(xi, zi), 0.0f32];
+                let to_fwd   = [0.0f32, h(xi, zi + 1) - h(xi, zi), cell_z];
+                let cn = cross(to_fwd, to_right);
+                nx += cn[0]; ny += cn[1]; nz += cn[2]; count += 1;
+            }
+
+            let n = if count > 0 {
+                let c = count as f32;
+                let len = ((nx/c)*(nx/c) + (ny/c)*(ny/c) + (nz/c)*(nz/c)).sqrt().max(0.0001);
+                [nx / c / len, ny / c / len, nz / c / len]
+            } else {
+                [0.0, 1.0, 0.0]
+            };
+            normals[idx(xi, zi)] = n;
+        }
+    }
+    normals
+}
+
+fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [
+        a[1]*b[2] - a[2]*b[1],
+        a[2]*b[0] - a[0]*b[2],
+        a[0]*b[1] - a[1]*b[0],
+    ]
+}
+
+fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
+    [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+    ]
+}
+
+/// Assigns a vertex color given the normalized height and the face normal.
+pub(crate) fn vertex_color(normal: [f32; 3], height: f32, cfg: &TerrainConfig) -> [f32; 3] {
+    let slope_factor = (1.0 - (normal[1] / cfg.slope_threshold)).clamp(0.0, 1.0);
+    let height_t = ((height / cfg.max_height - cfg.height_mid)
+        / (1.0 - cfg.height_mid))
+        .clamp(0.0, 1.0);
+    let flat_color = mix(cfg.color_flat_low, cfg.color_flat_high, height_t);
+    mix(flat_color, cfg.color_slope, slope_factor)
+}
+
 // ── Placeholder for remaining types (added in later tasks) ───────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn flat_config() -> TerrainConfig {
+        TerrainConfig {
+            custom_noise: Some(Box::new(|_, _| 0.0)),
+            max_height: 10.0,
+            resolution: 4,
+            tile_count: 1,
+            ..TerrainConfig::default()
+        }
+    }
 
     #[test]
     fn terrain_config_defaults() {
@@ -119,23 +257,64 @@ mod tests {
 
     #[test]
     fn gradient_noise_range() {
-        // gradient_noise should stay within [-2, 2] for any input
         for i in 0..100i32 {
-            let x = i as f32 * 0.37;
-            let z = i as f32 * 0.53;
-            let v = gradient_noise(x, z);
+            let v = gradient_noise(i as f32 * 0.37, i as f32 * 0.53);
             assert!(v >= -2.0 && v <= 2.0, "noise out of range: {v}");
         }
     }
 
     #[test]
     fn fbm_normalized() {
-        // fBm output should be in roughly [-1, 1]
         for i in 0..100i32 {
-            let x = i as f32 * 0.13;
-            let z = i as f32 * 0.29;
-            let v = fbm(x, z, 4, 0.5);
+            let v = fbm(i as f32 * 0.13, i as f32 * 0.29, 4, 0.5);
             assert!(v >= -1.5 && v <= 1.5, "fbm out of expected range: {v}");
+        }
+    }
+
+    #[test]
+    fn heightmap_flat_custom_noise() {
+        let cfg = flat_config();
+        let hm = generate_heightmap(&cfg);
+        // 5×5 grid (resolution=4 → 5 verts per side)
+        assert_eq!(hm.len(), 25);
+        for h in &hm { assert_eq!(*h, 0.0); }
+    }
+
+    #[test]
+    fn heightmap_size() {
+        let cfg = TerrainConfig { resolution: 8, tile_count: 1, ..TerrainConfig::default() };
+        let hm = generate_heightmap(&cfg);
+        assert_eq!(hm.len(), 81); // (8+1)^2
+    }
+
+    #[test]
+    fn normals_flat_terrain_point_up() {
+        let cfg = flat_config();
+        let hm = generate_heightmap(&cfg);
+        let cell = cfg.width / cfg.resolution as f32;
+        let normals = calculate_normals(&hm, cfg.resolution, cell, cell);
+        for n in &normals {
+            assert!((n[1] - 1.0).abs() < 0.001, "flat terrain normal not pointing up: {n:?}");
+        }
+    }
+
+    #[test]
+    fn vertex_color_flat_low() {
+        let cfg = TerrainConfig::default();
+        let c = vertex_color([0.0, 1.0, 0.0], 0.0, &cfg);
+        // slope_factor=0 (flat), height_t=0 (low) → should equal color_flat_low
+        for i in 0..3 {
+            assert!((c[i] - cfg.color_flat_low[i]).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn vertex_color_steep_slope() {
+        let cfg = TerrainConfig::default();
+        // normal pointing sideways → full slope color
+        let c = vertex_color([1.0, 0.0, 0.0], 5.0, &cfg);
+        for i in 0..3 {
+            assert!((c[i] - cfg.color_slope[i]).abs() < 0.001);
         }
     }
 }
