@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use enigma_3d::{AppState, EventLoop, example_resources, resources, terrain};
+use enigma_3d::{AppState, EventLoop, example_resources, resources, terrain, shader, texture};
 use enigma_3d::event;
 use enigma_3d::ui;
 use enigma_3d::camera::Camera;
@@ -96,8 +96,29 @@ struct AmmoPickupData {
 // ── Scene setup ───────────────────────────────────────────────────────────────
 
 fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
-    let mut terrain = terrain::Terrain::new(event_loop.get_display_reference(), TerrainConfig::default());
-    terrain.set_position([0.0,-10.0,0.0]);
+    let mut ground_material = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), Some(resources::geometry_grass_shader())), &event_loop.display);
+    let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
+    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_normal());
+    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_metallic());
+    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_roughness());
+    tex_ground_albedo.set_tileable(true);
+    tex_ground_normal.set_tileable(true);
+    tex_ground_metallic.set_tileable(true);
+    tex_ground_roughness.set_tileable(true);
+    ground_material.set_texture(tex_ground_albedo, enigma_3d::material::TextureType::Albedo);
+    ground_material.set_texture(tex_ground_normal, enigma_3d::material::TextureType::Normal);
+    ground_material.set_texture(tex_ground_metallic, enigma_3d::material::TextureType::Metallic);
+    ground_material.set_texture(tex_ground_roughness, enigma_3d::material::TextureType::Roughness);
+    ground_material.set_roughness_strength(1.0f32);
+
+
+    let mut terrain = terrain::Terrain::new(event_loop.get_display_reference(), TerrainConfig{
+        width: 1024.0f32,
+        depth: 1024.0f32,
+        ..TerrainConfig::default()
+    });
+    terrain.set_material(ground_material);
+    terrain.set_position([0.0,-8.0,0.0]);
     app_state.set_terrain(terrain);
 
     let mut tree_mat_opaque = Material::lit_pbr(event_loop.get_display_clone(), false);
@@ -163,13 +184,14 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
         ([  0.0, -2.0,  46.0], [0.0, -80.0, 0.0], 7.0),
     ];
     for (pos, rot, scale) in &tree_positions {
+        let ground_y = app_state.get_terrain().map(|t| t.get_height(pos[0], pos[2])).unwrap_or(0.0);
         let mut t = Object::load_from_gltf_resource(example_resources::tree(), None);
         t.set_collision(false);
         t.add_material(tree_opaque_uuid);
         t.add_material(tree_transparent_uuid);
         t.get_shapes_mut()[0].set_material_from_object_list(1);
         t.get_shapes_mut()[1].set_material_from_object_list(0);
-        t.transform.set_position(*pos);
+        t.transform.set_position([pos[0], ground_y, pos[2]]);
         t.transform.set_rotation(*rot);
         t.transform.set_scale([*scale, *scale, *scale]);
         app_state.add_object(t);
@@ -208,8 +230,10 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     let mut firefly_entries: Vec<FireflyEntry> = Vec::new();
     for i in 0..20usize {
         let bx = rng.gen_range(-spread..spread);
-        let by = rng.gen_range(1.5f32..3.5f32);
         let bz = rng.gen_range(-spread..spread);
+        let hover = rng.gen_range(1.5f32..3.5f32);
+        let ground_y = app_state.get_terrain().map(|t| t.get_height(bx, bz)).unwrap_or(0.0);
+        let by = ground_y + hover;
 
         let mut sphere = Object::sphere(0.12, 8, 12);
         sphere.set_name(format!("firefly_{i}"));
@@ -465,12 +489,13 @@ fn spawn_wave(app_state: &mut AppState, gs: &mut GameState) {
         let kind = all_kinds[rng.gen_range(0..all_kinds.len())];
         let sc = kind.scale();
 
+        let ground_y = app_state.get_terrain().map(|t| t.get_height(x, z)).unwrap_or(0.0);
         let mut piece = Object::load_from_gltf_resource(kind.load(), None);
         piece.set_name(format!("{}_{i}", kind.name()));
         piece.set_collision(false);
         piece.add_material(gs.pawn_material_uuid);
         piece.get_shapes_mut()[0].set_material_from_object_list(0);
-        piece.transform.set_position([x, -1.15, z]);
+        piece.transform.set_position([x, ground_y, z]);
         piece.transform.set_scale([sc, sc, sc]);
         let uuid = piece.get_unique_id();
         let angle = rng.gen_range(0.0f32..std::f32::consts::TAU);
@@ -497,6 +522,7 @@ fn reload_weapon(app_state: &mut AppState) {
         let mut gs = gs.clone();
         if gs.phase == GamePhase::Playing { start_reload(&mut gs); }
         app_state.set_state_data_value("game_state", Box::new(gs));
+        app_state.play_audio_once("pickup")
     }
 }
 
@@ -509,6 +535,7 @@ fn reset_game(app_state: &mut AppState, gs: &mut GameState) {
     gs.reset();
     spawn_wave(app_state, gs);
 }
+
 
 // ── Per-frame update ──────────────────────────────────────────────────────────
 
@@ -537,10 +564,16 @@ fn game_update(app_state: &mut AppState) {
     }
     let bob_y = gs.bob_phase.sin() * BOB_AMP * gs.bob_active;
 
-    // Clamp camera to ground height + bob — prevents any vertical drift
-    if let Some(cam) = app_state.get_camera_mut() {
-        let p = cam.transform.get_position();
-        cam.transform.set_position([p.x, CAMERA_HEIGHT + bob_y, p.z]);
+    // Clamp camera to terrain height + eye-height + bob
+    let cam_xz = app_state.camera.as_ref().map(|c| {
+        let p = c.transform.get_position();
+        (p.x, p.z)
+    });
+    if let Some((cx, cz)) = cam_xz {
+        let ground_y = app_state.get_terrain().map(|t| t.get_height(cx, cz)).unwrap_or(0.0);
+        if let Some(cam) = app_state.get_camera_mut() {
+            cam.transform.set_position([cx, ground_y + CAMERA_HEIGHT + bob_y, cz]);
+        }
     }
 
     // Clamp player inside arena walls
@@ -759,6 +792,23 @@ fn game_update(app_state: &mut AppState) {
             // Apply movement
             let step = PAWN_SPEED * wave_speed * speed_mult * dt;
             obj.transform.move_dir_array([move_x * step, 0.0, move_z * step]);
+        }
+    }
+
+    // Snap pawns to terrain height
+    let pawn_snaps: Vec<(Uuid, f32, f32)> = gs.pawn_ids.iter()
+        .filter_map(|uuid| {
+            app_state.get_object_by_uuid(uuid).map(|o| {
+                let p = o.transform.get_position();
+                (*uuid, p.x, p.z)
+            })
+        })
+        .collect();
+    for (id, x, z) in pawn_snaps {
+        let h = app_state.get_terrain().map(|t| t.get_height(x, z)).unwrap_or(0.0);
+        if let Some(obj) = app_state.get_object_by_uuid_mut(id) {
+            let p = obj.transform.get_position();
+            obj.transform.set_position([p.x, h, p.z]);
         }
     }
 

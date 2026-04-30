@@ -3,7 +3,11 @@ use glium::Display;
 use glium::Surface;
 use crate::resources;
 use crate::camera::Camera;
+use crate::geometry::{BoneTransforms, InstanceAttribute};
 use crate::light::Light;
+use crate::material::Material;
+use crate::shadow::ShadowMaps;
+use crate::texture;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +35,8 @@ pub struct TerrainConfig {
     pub slope_threshold:   f32,
     /// Normalized height [0–1] at which the low→high flat color blend starts.
     pub height_mid:        f32,
+    /// World-space units per UV repeat when a material is used (default 10.0).
+    pub uv_scale:          f32,
 }
 
 impl Default for TerrainConfig {
@@ -51,6 +57,7 @@ impl Default for TerrainConfig {
             color_slope:       [0.40, 0.35, 0.28],
             slope_threshold:   0.75,
             height_mid:        0.5,
+            uv_scale:          10.0,
         }
     }
 }
@@ -269,11 +276,14 @@ pub(crate) fn vertex_color(normal: [f32; 3], height: f32, cfg: &TerrainConfig) -
 
 #[derive(Copy, Clone)]
 struct TerrainVertex {
-    position: [f32; 3],
-    normal:   [f32; 3],
-    color:    [f32; 3],
+    position:     [f32; 3],
+    normal:       [f32; 3],
+    color:        [f32; 3],
+    texcoord:     [f32; 2],
+    bone_indices: [u32; 4],
+    bone_weights: [f32; 4],
 }
-glium::implement_vertex!(TerrainVertex, position, normal, color);
+glium::implement_vertex!(TerrainVertex, position, normal, color, texcoord, bone_indices, bone_weights);
 
 struct TerrainTile {
     vertex_buffer: glium::VertexBuffer<TerrainVertex>,
@@ -285,11 +295,16 @@ struct TerrainTile {
 }
 
 pub struct Terrain {
-    tiles:     Vec<TerrainTile>,
-    heightmap: Vec<f32>,   // private; accessed via get_height()
-    config:    TerrainConfig,
-    program:   glium::Program,
-    position:  [f32; 3],
+    tiles:                 Vec<TerrainTile>,
+    heightmap:             Vec<f32>,
+    config:                TerrainConfig,
+    program:               glium::Program,
+    position:              [f32; 3],
+    pub material:          Option<Material>,
+    #[allow(dead_code)]
+    display:               Display<WindowSurface>,
+    dummy_bone_transforms: glium::uniforms::UniformBuffer<BoneTransforms>,
+    instance_buffer:       glium::VertexBuffer<InstanceAttribute>,
 }
 
 impl Terrain {
@@ -307,6 +322,15 @@ impl Terrain {
             resources::terrain_frag_shader(),
             None,
         ).expect("Failed to compile terrain shader");
+
+        let dummy_bone_transforms = {
+            let identity = [[[0f32; 4]; 4]; 128];
+            let bt = BoneTransforms { bone_transforms: identity };
+            glium::uniforms::UniformBuffer::new(display, bt).expect("Failed to create dummy bone transforms")
+        };
+        let instance_buffer = glium::VertexBuffer::dynamic(display, &[InstanceAttribute {
+            model_matrix: [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]],
+        }]).expect("Failed to create terrain instance buffer");
 
         let heightmap = generate_heightmap(&config);
         let verts_per_side = config.resolution + 1;
@@ -335,9 +359,12 @@ impl Terrain {
                         let n  = normals[gi];
                         let c  = vertex_color(n, h, &config);
                         vertices.push(TerrainVertex {
-                            position: [wx, h, wz],
-                            normal:   n,
-                            color:    c,
+                            position:     [wx, h, wz],
+                            normal:       n,
+                            color:        c,
+                            texcoord:     [wx / config.uv_scale, wz / config.uv_scale],
+                            bone_indices: [0, 0, 0, 0],
+                            bone_weights: [0.0, 0.0, 0.0, 0.0],
                         });
                     }
                 }
@@ -365,12 +392,36 @@ impl Terrain {
             }
         }
 
-        Terrain { tiles, heightmap, config, program, position: [0.0; 3] }
+        Terrain {
+            tiles,
+            heightmap,
+            config,
+            program,
+            position: [0.0; 3],
+            material: None,
+            display: display.clone(),
+            dummy_bone_transforms,
+            instance_buffer,
+        }
     }
 
     pub fn get_position(&self) -> [f32; 3] { self.position }
 
-    pub fn set_position(&mut self, pos: [f32; 3]) { self.position = pos; }
+    pub fn set_position(&mut self, pos: [f32; 3]) {
+        self.position = pos;
+        self.instance_buffer.write(&[InstanceAttribute {
+            model_matrix: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [pos[0], pos[1], pos[2], 1.0],
+            ],
+        }]);
+    }
+
+    pub fn set_material(&mut self, material: Material) {
+        self.material = Some(material);
+    }
 
     /// Returns the interpolated world-space Y height at the given XZ world position.
     /// Clamps to the terrain edge for positions outside the terrain bounds.
@@ -381,44 +432,20 @@ impl Terrain {
         let cell_z = cfg.depth  / cfg.resolution as f32;
         let lx = (x - self.position[0] + cfg.width  * 0.5) / cell_x;
         let lz = (z - self.position[2] + cfg.depth  * 0.5) / cell_z;
-        bilinear_lookup(&self.heightmap, verts, lx, lz)
+        bilinear_lookup(&self.heightmap, verts, lx, lz) + self.position[1]
     }
 
-    /// Draws all terrain tiles to `target` using the scene camera and lights.
+    /// Draws all terrain tiles. If a material is set, uses it (full PBR + shadows);
+    /// otherwise falls back to the built-in vertex-color diffuse shader.
     pub fn draw(
         &self,
         target: &mut impl Surface,
         camera: &Camera,
-        lights: &[Light],
+        lights: &Vec<Light>,
         ambient_light: Option<&Light>,
+        skybox: &texture::Texture,
+        shadow_maps: &ShadowMaps,
     ) {
-        let pos = self.position;
-        let model_matrix: [[f32; 4]; 4] = [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [pos[0], pos[1], pos[2], 1.0],
-        ];
-        let view_matrix       = camera.get_view_matrix();
-        let projection_matrix = camera.get_projection_matrix();
-
-        // Pack up to 4 lights into mat4 rows (same convention as material.rs)
-        let n = lights.len().min(4);
-        let mut light_pos_arr:   [[f32; 4]; 4] = [[0.0; 4]; 4];
-        let mut light_col_arr:   [[f32; 4]; 4] = [[0.0; 4]; 4];
-        let mut light_int_arr:   [f32; 4]      = [0.0; 4];
-        for i in 0..n {
-            light_pos_arr[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
-            light_col_arr[i] = [lights[i].color[0],    lights[i].color[1],    lights[i].color[2],    0.0];
-            light_int_arr[i] = lights[i].intensity;
-        }
-        let light_amount = n as i32;
-
-        let (amb_color, amb_intensity) = match ambient_light {
-            Some(l) => (l.color, l.intensity),
-            None    => ([0.0f32; 3], 0.0f32),
-        };
-
         let draw_params = glium::DrawParameters {
             depth: glium::Depth {
                 test:  glium::draw_parameters::DepthTest::IfLess,
@@ -429,25 +456,70 @@ impl Terrain {
             ..Default::default()
         };
 
-        for tile in &self.tiles {
-            let uniforms = glium::uniform! {
-                model_matrix:            model_matrix,
-                view_matrix:             view_matrix,
-                projection_matrix:       projection_matrix,
-                light_position:          light_pos_arr,
-                light_color:             light_col_arr,
-                light_intensity:         light_int_arr,
-                light_amount:            light_amount,
-                ambient_light_color:     amb_color,
-                ambient_light_intensity: amb_intensity,
+        if let Some(material) = &self.material {
+            let uniforms = material.get_uniforms(
+                lights,
+                ambient_light,
+                Some(camera),
+                &self.dummy_bone_transforms,
+                false,
+                skybox,
+                shadow_maps,
+            );
+            for tile in &self.tiles {
+                target.draw(
+                    (&tile.vertex_buffer, self.instance_buffer.per_instance().unwrap()),
+                    &tile.index_buffer,
+                    &material.program,
+                    &uniforms,
+                    &draw_params,
+                ).expect("Failed to draw terrain tile with material");
+            }
+        } else {
+            let pos = self.position;
+            let model_matrix: [[f32; 4]; 4] = [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [pos[0], pos[1], pos[2], 1.0],
+            ];
+            let view_matrix       = camera.get_view_matrix();
+            let projection_matrix = camera.get_projection_matrix();
+
+            let n = lights.len().min(4);
+            let mut light_pos_arr: [[f32; 4]; 4] = [[0.0; 4]; 4];
+            let mut light_col_arr: [[f32; 4]; 4] = [[0.0; 4]; 4];
+            let mut light_int_arr: [f32; 4]      = [0.0; 4];
+            for i in 0..n {
+                light_pos_arr[i] = [lights[i].position[0], lights[i].position[1], lights[i].position[2], 0.0];
+                light_col_arr[i] = [lights[i].color[0],    lights[i].color[1],    lights[i].color[2],    0.0];
+                light_int_arr[i] = lights[i].intensity;
+            }
+            let (amb_color, amb_intensity) = match ambient_light {
+                Some(l) => (l.color, l.intensity),
+                None    => ([0.0f32; 3], 0.0f32),
             };
-            target.draw(
-                &tile.vertex_buffer,
-                &tile.index_buffer,
-                &self.program,
-                &uniforms,
-                &draw_params,
-            ).expect("Failed to draw terrain tile");
+
+            for tile in &self.tiles {
+                let uniforms = glium::uniform! {
+                    model_matrix:            model_matrix,
+                    view_matrix:             view_matrix,
+                    projection_matrix:       projection_matrix,
+                    light_position:          light_pos_arr,
+                    light_color:             light_col_arr,
+                    light_intensity:         light_int_arr,
+                    light_amount:            n as i32,
+                    ambient_light_color:     amb_color,
+                    ambient_light_intensity: amb_intensity,
+                };
+                target.draw(
+                    &tile.vertex_buffer,
+                    &tile.index_buffer,
+                    &self.program,
+                    &uniforms,
+                    &draw_params,
+                ).expect("Failed to draw terrain tile");
+            }
         }
     }
 }

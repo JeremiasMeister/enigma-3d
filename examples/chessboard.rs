@@ -315,9 +315,9 @@ fn initialize_landscape(app_state: &mut AppState, event_loop: &EventLoop) {
     ground_material.set_name("mat_terrain");
 
     let mut tex_ground_albedo = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
-    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
-    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
-    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_albedo());
+    let mut tex_ground_normal = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_normal());
+    let mut tex_ground_metallic = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_metallic());
+    let mut tex_ground_roughness = texture::Texture::from_resource(event_loop.get_display_reference(), example_resources::terrain_roughness());
     tex_ground_albedo.set_tileable(true);
     tex_ground_normal.set_tileable(true);
     tex_ground_metallic.set_tileable(true);

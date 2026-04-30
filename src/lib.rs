@@ -1153,6 +1153,8 @@ impl EventLoop {
                                 cam,
                                 &light,
                                 ambient_light.as_ref(),
+                                skybox_texture,
+                                &shadow_maps,
                             );
                         }
                     }
