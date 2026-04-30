@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use enigma_3d::{AppState, EventLoop, example_resources, resources};
+use enigma_3d::{AppState, EventLoop, example_resources, resources, terrain};
 use enigma_3d::event;
 use enigma_3d::ui;
 use enigma_3d::camera::Camera;
@@ -12,7 +12,7 @@ use enigma_3d::collision_world::is_colliding;
 use enigma_3d::geometry::BoundingBox;
 use uuid::Uuid;
 use rand::Rng;
-
+use enigma_3d::terrain::TerrainConfig;
 // ── Movement ─────────────────────────────────────────────────────────────────
 // Custom ground-locked variants: flatten the camera's forward/left vectors to
 // XZ so the player can never gain or lose altitude through WASD.
@@ -96,20 +96,9 @@ struct AmmoPickupData {
 // ── Scene setup ───────────────────────────────────────────────────────────────
 
 fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
-    let mut terrain_mat = Material::lit_pbr(event_loop.get_display_clone(), false);
-    terrain_mat.set_name("mat_terrain");
-    terrain_mat.set_texture_from_resource(example_resources::terrain_albedo(), TextureType::Albedo);
-    terrain_mat.set_texture_from_resource(example_resources::terrain_normal(), TextureType::Normal);
-    terrain_mat.set_texture_from_resource(example_resources::terrain_roughness(), TextureType::Roughness);
-
-    let mut terrain = Object::load_from_gltf_resource(example_resources::terrain(), None);
-    terrain.set_name("terrain".to_string());
-    terrain.set_collision(false);
-    terrain.add_material(terrain_mat.uuid);
-    terrain.get_shapes_mut()[0].set_material_from_object_list(0);
-    terrain.transform.set_position([0.0, -2.0, -6.0]);
-    terrain.transform.set_rotation([0.0, -70.0, 0.0]);
-    terrain.transform.set_scale([1.5, 1.5, 1.5]);
+    let mut terrain = terrain::Terrain::new(event_loop.get_display_reference(), TerrainConfig::default());
+    terrain.set_position([0.0,-10.0,0.0]);
+    app_state.set_terrain(terrain);
 
     let mut tree_mat_opaque = Material::lit_pbr(event_loop.get_display_clone(), false);
     tree_mat_opaque.set_name("mat_tree_opaque");
@@ -143,15 +132,12 @@ fn initialize_scene(app_state: &mut AppState, event_loop: &EventLoop) {
     let tree_opaque_uuid = tree_mat_opaque.uuid;
     let tree_transparent_uuid = tree_mat_transparent.uuid;
 
-    app_state.add_material(terrain_mat);
     app_state.add_material(tree_mat_opaque);
     app_state.add_material(tree_mat_transparent);
     app_state.add_material(pawn_mat);
     app_state.add_material(proj_mat);
     app_state.add_material(pickup_mat);
     app_state.add_state_data("pickup_mat_uuid", Box::new(pickup_mat_uuid));
-
-    app_state.add_object(terrain);
 
     let tree_positions: [([f32; 3], [f32; 3], f32); 18] = [
         // inner ring

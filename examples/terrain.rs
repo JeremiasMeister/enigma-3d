@@ -1,10 +1,9 @@
 use std::sync::Arc;
 use enigma_3d::{AppState, EventLoop};
-use enigma_3d::camera::Camera;
 use enigma_3d::default_events;
 use enigma_3d::event::{EventCharacteristic, VirtualKeyCode};
 use enigma_3d::light::{Light, LightEmissionType};
-use enigma_3d::terrain::{Terrain, TerrainConfig};
+use enigma_3d::terrain::{Terrain, TerrainConfig, gradient_noise};
 
 fn ground_camera(app_state: &mut AppState) {
     if let Some(terrain) = app_state.get_terrain() {
@@ -19,6 +18,46 @@ fn ground_camera(app_state: &mut AppState) {
     }
 }
 
+pub fn create_eroded_noise() -> Box<dyn Fn(f32, f32) -> f32 + Send + Sync> {
+    Box::new(|x, z| {
+        let frequency = 0.006; // Lower frequency = broader, less "frantic" hills
+        let octaves = 8;
+        let lacunarity = 2.1;
+        let gain = 0.45;       // Lower gain = smaller high-frequency details
+
+        let mut amp = 1.0;     // Keep amp at 1.0 for easier normalization
+        let mut freq = frequency;
+        let mut value = 0.0;
+        let mut weight = 1.0;
+
+        for i in 0..octaves {
+            let noise_val = gradient_noise(x * freq, z * freq);
+
+            // --- THE SOFTENING FIX ---
+            // Instead of 1.0 - abs(n), we mix standard noise with rigid noise
+            // or just use a softer ridge function:
+            let mut signal = 1.0 - noise_val.abs();
+
+            // Soften the "peak" of the ridge so it isn't a needle point
+            signal = signal * (1.0 - (i as f32 * 0.05));
+
+            signal *= weight;
+
+            // Erosion: ensure valleys are smoother than peaks
+            weight = signal.clamp(0.0, 1.0);
+
+            value += signal * amp;
+            freq *= lacunarity;
+            amp *= gain;
+        }
+
+        // --- SCALE ADJUSTMENT ---
+        // result.powf(1.5) makes things very spiky.
+        // Use a value closer to 1.0 or 1.2 for "worn" mountains.
+        value.powf(1.1) * 50.0
+    })
+}
+
 fn main() {
     let event_loop = EventLoop::new("Terrain Demo", 1280, 720);
     let mut app_state = AppState::new();
@@ -26,17 +65,9 @@ fn main() {
     enigma_3d::init_default(&mut app_state);
 
     // Camera — slightly elevated, looking toward the terrain
-    let camera = Camera::new(
-        Some([0.0, 5.0, 30.0]),
-        Some([-10.0, 180.0, 0.0]),
-        Some(75.0),
-        Some(1280.0 / 720.0),
-        Some(0.1),
-        Some(1024.0),
-    );
-    app_state.set_camera(camera);
-    app_state.add_state_data("camera_move_speed", Box::new(5.0f32));
-    app_state.add_state_data("camera_rotate_speed", Box::new(0.002f32));
+    app_state.set_state_data_value("camera_move_speed", Box::new(10.0f32));
+    app_state.set_state_data_value("camera_rotate_speed", Box::new(0.002f32));
+    app_state.camera.as_mut().map(|cam| {cam.set_far(2048f32)});
 
     // Sun
     let sun = Light::new([80.0, 120.0, 60.0], [1.0, 0.97, 0.90], 2800.0, None, false);
@@ -50,12 +81,12 @@ fn main() {
     let terrain = Terrain::new(
         &event_loop.get_display_clone(),
         TerrainConfig {
-            width:             200.0,
-            depth:             200.0,
-            max_height:        20.0,
-            resolution:        128,
-            noise_scale:       0.025,
-            noise_octaves:     5,
+            width:             2048.0,
+            depth:             2048.0,
+            resolution:        2048,
+            slope_threshold:    0.75,
+            max_height:        200.0,
+            custom_noise: Some(Box::new(create_eroded_noise())),
             ..TerrainConfig::default()
         },
     );

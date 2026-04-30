@@ -12,7 +12,7 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
         .default_height(200.0)
         .show(ctx, |ui| {
             ui.label("Enigma 3D Renderer - Chessboard");
-            ui.label("This Example tries so showcase mass loading of assets");
+            ui.label("This Example tries so showcase mass loading of assets as well as visual fidelity");
             ui.label("and effective use of cached textures");
         });
 

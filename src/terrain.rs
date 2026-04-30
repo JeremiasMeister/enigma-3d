@@ -77,7 +77,7 @@ fn fade(t: f32) -> f32 {
     t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
 }
 
-pub(crate) fn gradient_noise(x: f32, z: f32) -> f32 {
+pub fn gradient_noise(x: f32, z: f32) -> f32 {
     let ix = x.floor() as i32;
     let iz = z.floor() as i32;
     let fx = x - x.floor();
@@ -229,19 +229,39 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 
 /// Assigns a vertex color given the normalized height and the face normal.
 pub(crate) fn vertex_color(normal: [f32; 3], height: f32, cfg: &TerrainConfig) -> [f32; 3] {
-    let slope_factor = if cfg.slope_threshold > 0.0 {
-        (1.0 - (normal[1] / cfg.slope_threshold)).clamp(0.0, 1.0)
+    // 1. Calculate Slope (Cliffs)
+    // normal.y is 1.0 when perfectly flat, 0.0 when vertical.
+    // We want anything below a certain flatness to be ROCK.
+    let flatness = normal[1];
+
+    // Use a sharper falloff for cliffs
+    let slope_factor = if flatness < cfg.slope_threshold {
+        // This creates a sharp transition between grass and rock
+        ((cfg.slope_threshold - flatness) * 10.0).clamp(0.0, 1.0)
     } else {
         0.0
     };
-    let height_t = if cfg.max_height > 0.0 {
-        ((height / cfg.max_height - cfg.height_mid)
-            / (1.0 - cfg.height_mid))
-            .clamp(0.0, 1.0)
+
+    // 2. Calculate Height (Valleys vs Peaks)
+    // Let's create three zones: Valley (Dirt/Dark), Mid (Grass), Peak (Snow)
+    let h_norm = (height / cfg.max_height).clamp(0.0, 1.0);
+
+    let color_valley = [0.15, 0.1, 0.05]; // Dark dirt/mud
+    let color_grass  = cfg.color_flat_low;
+    let color_snow   = cfg.color_flat_high;
+
+    let flat_color = if h_norm < 0.2 {
+        // Blend from valley dirt to grass
+        mix(color_valley, color_grass, h_norm / 0.2)
+    } else if h_norm > 0.8 {
+        // Blend from grass to snow peaks
+        mix(color_grass, color_snow, (h_norm - 0.8) / 0.2)
     } else {
-        0.0
+        color_grass
     };
-    let flat_color = mix(cfg.color_flat_low, cfg.color_flat_high, height_t);
+
+    // 3. Apply the Slope (Rock)
+    // If the area is steep, override the flat color with the cliff color
     mix(flat_color, cfg.color_slope, slope_factor)
 }
 

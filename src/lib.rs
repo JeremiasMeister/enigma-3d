@@ -135,6 +135,7 @@ pub struct AppState {
     pub materials: Vec<material::Material>,
     pub object_selection: Vec<Uuid>,
     pub event_injections: Vec<(event::EventCharacteristic, event::EventFunction, event::EventModifiers)>,
+    pub start_injections: Vec<event::EventFunction>,
     pub update_injections: Vec<event::EventFunction>,
     pub gui_injections: Vec<ui::GUIDrawFunction>,
     pub post_processes: Vec<Box<dyn PostProcessingEffect>>,
@@ -180,6 +181,7 @@ impl AppState {
             ambient_light: None,
             event_injections: Vec::new(),
             update_injections: Vec::new(),
+            start_injections: Vec::new(),
             post_processes: Vec::new(),
             display: None,
             time: 0.0,
@@ -627,6 +629,10 @@ impl AppState {
         self.update_injections.push(function);
     }
 
+    pub fn inject_start_function(&mut self, function: event::EventFunction) {
+        self.start_injections.push(function);
+    }
+
     pub fn set_skybox(&mut self, skybox: object::Object) {
         self.skybox = Some(skybox);
     }
@@ -805,9 +811,6 @@ impl EventLoop {
             None,
         ).expect("Failed to compile point shadow shader");
 
-        //dropping modified appstate
-        drop(temp_app_state);
-
         // prepare post processing
         let screen_vert_rect = postprocessing::get_screen_vert_rect(&self.display);
         let screen_indices_rect = postprocessing::get_screen_indices_rect(&self.display);
@@ -821,6 +824,17 @@ impl EventLoop {
                 self.gui_renderer = Some(egui_glium);
             }
         }
+
+        // running start events
+        let functions = std::mem::take(&mut temp_app_state.start_injections);
+        for function in functions.iter() {
+            function(&mut temp_app_state);
+        }
+        temp_app_state.start_injections = functions;
+
+        //dropping modified appstate at the end after all the preparation before happened
+        drop(temp_app_state);
+
         // run loop
         self.event_loop.run(move |event, _window_target, control_flow| {
             // unpacking appstate
@@ -1156,7 +1170,11 @@ impl EventLoop {
 
                     //First get the matrix outside of the closure
                     let skybox_model_matrix = match app_state.get_skybox_mut() {
-                        Some(obj) => Some(obj.transform.get_matrix().clone()),
+                        Some(obj) => {
+                            // skybox should always be relative to the camera
+                            obj.transform.set_position(cam_pos);
+                            Some(obj.transform.get_matrix().clone())
+                        },
                         None => None
                     };
                     let skybox_instance = app_state.setup_skybox_instance(&self.display, &skybox_model_matrix);
