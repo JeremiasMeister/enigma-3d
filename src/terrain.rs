@@ -1,3 +1,7 @@
+use glium::glutin::surface::WindowSurface;
+use glium::Display;
+use crate::resources;
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 pub struct TerrainConfig {
@@ -238,7 +242,106 @@ pub(crate) fn vertex_color(normal: [f32; 3], height: f32, cfg: &TerrainConfig) -
     mix(flat_color, cfg.color_slope, slope_factor)
 }
 
-// ── Placeholder for remaining types (added in later tasks) ───────────────────
+// ── GPU types ─────────────────────────────────────────────────────────────────
+
+#[derive(Copy, Clone)]
+struct TerrainVertex {
+    position: [f32; 3],
+    normal:   [f32; 3],
+    color:    [f32; 3],
+}
+glium::implement_vertex!(TerrainVertex, position, normal, color);
+
+struct TerrainTile {
+    vertex_buffer: glium::VertexBuffer<TerrainVertex>,
+    index_buffer:  glium::IndexBuffer<u32>,
+    #[allow(dead_code)]
+    tile_x: i32,
+    #[allow(dead_code)]
+    tile_z: i32,
+}
+
+pub struct Terrain {
+    tiles:     Vec<TerrainTile>,
+    heightmap: Vec<f32>,   // private; accessed via get_height()
+    config:    TerrainConfig,
+    program:   glium::Program,
+    position:  [f32; 3],
+}
+
+impl Terrain {
+    pub fn new(display: &Display<WindowSurface>, config: TerrainConfig) -> Self {
+        let program = glium::Program::from_source(
+            display,
+            resources::terrain_vert_shader(),
+            resources::terrain_frag_shader(),
+            None,
+        ).expect("Failed to compile terrain shader");
+
+        let heightmap = generate_heightmap(&config);
+        let verts_per_side = config.resolution + 1;
+        let cell_x = config.width  / config.resolution as f32;
+        let cell_z = config.depth  / config.resolution as f32;
+        let normals = calculate_normals(&heightmap, config.resolution, cell_x, cell_z);
+
+        let tile_quads = config.resolution / config.tile_count;
+        let tile_verts = tile_quads + 1;
+        let mut tiles = Vec::new();
+
+        for tz in 0..config.tile_count as i32 {
+            for tx in 0..config.tile_count as i32 {
+                let x0 = tx as u32 * tile_quads;
+                let z0 = tz as u32 * tile_quads;
+
+                let mut vertices: Vec<TerrainVertex> = Vec::with_capacity((tile_verts * tile_verts) as usize);
+                for lz in 0..tile_verts {
+                    for lx in 0..tile_verts {
+                        let gx = x0 + lx;
+                        let gz = z0 + lz;
+                        let gi = (gz * verts_per_side + gx) as usize;
+                        let wx = -config.width  * 0.5 + gx as f32 * cell_x;
+                        let wz = -config.depth  * 0.5 + gz as f32 * cell_z;
+                        let h  = heightmap[gi];
+                        let n  = normals[gi];
+                        let c  = vertex_color(n, h, &config);
+                        vertices.push(TerrainVertex {
+                            position: [wx, h, wz],
+                            normal:   n,
+                            color:    c,
+                        });
+                    }
+                }
+
+                let mut indices: Vec<u32> = Vec::with_capacity((tile_quads * tile_quads * 6) as usize);
+                for qz in 0..tile_quads {
+                    for qx in 0..tile_quads {
+                        let tl = qz * tile_verts + qx;
+                        let tr = tl + 1;
+                        let bl = tl + tile_verts;
+                        let br = bl + 1;
+                        indices.extend_from_slice(&[tl, bl, tr, tr, bl, br]);
+                    }
+                }
+
+                let vb = glium::VertexBuffer::new(display, &vertices)
+                    .expect("Failed to create terrain vertex buffer");
+                let ib = glium::IndexBuffer::new(
+                    display,
+                    glium::index::PrimitiveType::TrianglesList,
+                    &indices,
+                ).expect("Failed to create terrain index buffer");
+
+                tiles.push(TerrainTile { vertex_buffer: vb, index_buffer: ib, tile_x: tx, tile_z: tz });
+            }
+        }
+
+        Terrain { tiles, heightmap, config, program, position: [0.0; 3] }
+    }
+
+    pub fn get_position(&self) -> [f32; 3] { self.position }
+
+    pub fn set_position(&mut self, pos: [f32; 3]) { self.position = pos; }
+}
 
 #[cfg(test)]
 mod tests {
