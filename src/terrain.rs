@@ -271,6 +271,13 @@ pub struct Terrain {
 
 impl Terrain {
     pub fn new(display: &Display<WindowSurface>, config: TerrainConfig) -> Self {
+        assert!(config.tile_count > 0, "tile_count must be >= 1");
+        assert_eq!(
+            config.resolution % config.tile_count, 0,
+            "resolution ({}) must be divisible by tile_count ({})",
+            config.resolution, config.tile_count
+        );
+
         let program = glium::Program::from_source(
             display,
             resources::terrain_vert_shader(),
