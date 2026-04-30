@@ -155,6 +155,7 @@ pub struct AppState {
     pub modifiers: EventModifiers,
     pub held_keys: HashSet<event::VirtualKeyCode>,
     pub cursor_locked: bool,
+    pub terrain: Option<terrain::Terrain>,
 }
 
 pub struct EventLoop {
@@ -198,6 +199,7 @@ impl AppState {
             modifiers: EventModifiers::default(),
             held_keys: HashSet::new(),
             cursor_locked: false,
+            terrain: None,
         }
     }
 
@@ -668,6 +670,18 @@ impl AppState {
     pub fn get_shadow_distance(&self) -> f32 {
         self.shadow_distance
     }
+
+    pub fn set_terrain(&mut self, terrain: terrain::Terrain) {
+        self.terrain = Some(terrain);
+    }
+
+    pub fn get_terrain(&self) -> Option<&terrain::Terrain> {
+        self.terrain.as_ref()
+    }
+
+    pub fn get_terrain_mut(&mut self) -> Option<&mut terrain::Terrain> {
+        self.terrain.as_mut()
+    }
 }
 
 impl EventLoop {
@@ -1114,6 +1128,18 @@ impl EventLoop {
                                 }
                             }
                             None => EnigmaError::new(Some(smart_format!("Error, instancing the Object Instance with the instance id {}, because no Object with that Id could be found", instance_id).as_str()), true).log()
+                        }
+                    }
+
+                    // render terrain
+                    if let Some(terrain) = &app_state.terrain {
+                        if let Some(cam) = camera.as_ref() {
+                            terrain.draw(
+                                render_target,
+                                cam,
+                                &light,
+                                ambient_light.as_ref(),
+                            );
                         }
                     }
 
