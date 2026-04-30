@@ -35,7 +35,7 @@ fn main() {
         Some(1024.0),
     );
     app_state.set_camera(camera);
-    app_state.add_state_data("camera_move_speed", Box::new(12.0f32));
+    app_state.add_state_data("camera_move_speed", Box::new(5.0f32));
     app_state.add_state_data("camera_rotate_speed", Box::new(0.002f32));
 
     // Sun
@@ -72,6 +72,8 @@ fn main() {
     // Mouse look + terrain grounding both run as update functions
     app_state.inject_update_function(Arc::new(default_events::camera_fps_look));
     app_state.inject_update_function(Arc::new(ground_camera));
+
+    app_state.cursor_locked = true;
 
     event_loop.run(app_state.convert_to_arc_mutex());
 }
