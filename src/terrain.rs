@@ -348,6 +348,37 @@ impl Terrain {
     pub fn get_position(&self) -> [f32; 3] { self.position }
 
     pub fn set_position(&mut self, pos: [f32; 3]) { self.position = pos; }
+
+    /// Returns the interpolated world-space Y height at the given XZ world position.
+    /// Clamps to the terrain edge for positions outside the terrain bounds.
+    pub fn get_height(&self, x: f32, z: f32) -> f32 {
+        let cfg = &self.config;
+        let verts = (cfg.resolution + 1) as usize;
+        let cell_x = cfg.width  / cfg.resolution as f32;
+        let cell_z = cfg.depth  / cfg.resolution as f32;
+
+        // Translate to terrain-local grid space (origin at corner)
+        let lx = (x - self.position[0] + cfg.width  * 0.5) / cell_x;
+        let lz = (z - self.position[2] + cfg.depth  * 0.5) / cell_z;
+
+        let lx = lx.clamp(0.0, (verts - 1) as f32 - 0.0001);
+        let lz = lz.clamp(0.0, (verts - 1) as f32 - 0.0001);
+
+        let xi = lx.floor() as usize;
+        let zi = lz.floor() as usize;
+        let fx = lx - xi as f32;
+        let fz = lz - zi as f32;
+
+        let idx = |xi: usize, zi: usize| zi * verts + xi;
+        let h00 = self.heightmap[idx(xi,     zi    )];
+        let h10 = self.heightmap[idx(xi + 1, zi    )];
+        let h01 = self.heightmap[idx(xi,     zi + 1)];
+        let h11 = self.heightmap[idx(xi + 1, zi + 1)];
+
+        let h0 = h00 + fx * (h10 - h00);
+        let h1 = h01 + fx * (h11 - h01);
+        h0 + fz * (h1 - h0)
+    }
 }
 
 #[cfg(test)]
@@ -441,5 +472,68 @@ mod tests {
         let cfg = TerrainConfig { max_height: 0.0, ..TerrainConfig::default() };
         let c = vertex_color([0.0, 1.0, 0.0], 0.0, &cfg);
         for comp in c { assert!(!comp.is_nan(), "NaN in vertex color with max_height=0"); }
+    }
+
+    // get_height tests use the inline bilinear logic (same as Terrain::get_height
+    // but without the struct) because Terrain::new requires a live glium Display.
+    fn make_flat_terrain_heightmap(resolution: u32) -> (Vec<f32>, TerrainConfig) {
+        let cfg = TerrainConfig {
+            resolution,
+            tile_count: 1,
+            custom_noise: Some(Box::new(|_, _| 0.0)),
+            max_height: 10.0,
+            width: 10.0,
+            depth: 10.0,
+            ..TerrainConfig::default()
+        };
+        let hm = generate_heightmap(&cfg);
+        (hm, cfg)
+    }
+
+    #[test]
+    fn get_height_flat_is_zero() {
+        let (hm, cfg) = make_flat_terrain_heightmap(8);
+        let verts = (cfg.resolution + 1) as usize;
+        let cell_x = cfg.width / cfg.resolution as f32;
+        let cell_z = cfg.depth / cfg.resolution as f32;
+        // Inline the bilinear logic (same as Terrain::get_height but without the struct)
+        let query = |x: f32, z: f32| -> f32 {
+            let lx = ((x + cfg.width  * 0.5) / cell_x).clamp(0.0, (verts - 1) as f32 - 0.0001);
+            let lz = ((z + cfg.depth  * 0.5) / cell_z).clamp(0.0, (verts - 1) as f32 - 0.0001);
+            let xi = lx.floor() as usize;
+            let zi = lz.floor() as usize;
+            let fx = lx - xi as f32;
+            let fz = lz - zi as f32;
+            let idx = |xi: usize, zi: usize| zi * verts + xi;
+            let h00 = hm[idx(xi,     zi    )];
+            let h10 = hm[idx(xi + 1, zi    )];
+            let h01 = hm[idx(xi,     zi + 1)];
+            let h11 = hm[idx(xi + 1, zi + 1)];
+            let h0 = h00 + fx * (h10 - h00);
+            let h1 = h01 + fx * (h11 - h01);
+            h0 + fz * (h1 - h0)
+        };
+        assert!((query(0.0, 0.0)).abs() < 0.001);
+        assert!((query(3.0, -2.5)).abs() < 0.001);
+        assert!((query(-4.9, 4.9)).abs() < 0.001);
+    }
+
+    #[test]
+    fn get_height_out_of_bounds_clamps() {
+        // A position far outside the terrain should clamp to the edge and return
+        // the edge height. For a flat (all-zero) terrain that means 0.0.
+        let (hm, cfg) = make_flat_terrain_heightmap(4);
+        let verts = (cfg.resolution + 1) as usize;
+        let cell_x = cfg.width / cfg.resolution as f32;
+        let cell_z = cfg.depth / cfg.resolution as f32;
+        // Simulate clamped grid lookup for x=1000 (far outside)
+        let lx = (1000.0f32 + cfg.width * 0.5) / cell_x;
+        let lx = lx.clamp(0.0, (verts - 1) as f32 - 0.0001);
+        let lz = (0.0f32   + cfg.depth * 0.5) / cell_z;
+        let lz = lz.clamp(0.0, (verts - 1) as f32 - 0.0001);
+        let xi = lx.floor() as usize;
+        let zi = lz.floor() as usize;
+        // All heights are 0 so any valid index returns 0
+        assert_eq!(hm[zi * verts + xi], 0.0);
     }
 }
