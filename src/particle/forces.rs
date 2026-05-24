@@ -117,12 +117,13 @@ impl CurlNoiseConfig {
         let p_y_minus = potential([p[0], p[1]-eps, p[2]]);
         let p_z_plus  = potential([p[0], p[1], p[2]+eps]);
         let p_z_minus = potential([p[0], p[1], p[2]-eps]);
-        let dpz_dy = (p_z_plus[1] - p_z_minus[1]) / (2.0 * eps);
-        let dpy_dz = (p_y_plus[2] - p_y_minus[2]) / (2.0 * eps);
-        let dpx_dz = (p_x_plus[2] - p_x_minus[2]) / (2.0 * eps);
-        let dpz_dx = (p_z_plus[0] - p_z_minus[0]) / (2.0 * eps);
-        let dpy_dx = (p_y_plus[0] - p_y_minus[0]) / (2.0 * eps);
-        let dpx_dy = (p_x_plus[1] - p_x_minus[1]) / (2.0 * eps);
+        // curl P = (dPz/dy - dPy/dz, dPx/dz - dPz/dx, dPy/dx - dPx/dy); divergence-free by construction.
+        let dpz_dy = (p_y_plus[2] - p_y_minus[2]) / (2.0 * eps);  // dPz/dy
+        let dpy_dz = (p_z_plus[1] - p_z_minus[1]) / (2.0 * eps);  // dPy/dz
+        let dpx_dz = (p_z_plus[0] - p_z_minus[0]) / (2.0 * eps);  // dPx/dz
+        let dpz_dx = (p_x_plus[2] - p_x_minus[2]) / (2.0 * eps);  // dPz/dx
+        let dpy_dx = (p_x_plus[1] - p_x_minus[1]) / (2.0 * eps);  // dPy/dx
+        let dpx_dy = (p_y_plus[0] - p_y_minus[0]) / (2.0 * eps);  // dPx/dy
         [
             (dpz_dy - dpy_dz) * self.strength,
             (dpx_dz - dpz_dx) * self.strength,
@@ -151,7 +152,7 @@ mod tests {
             apply_drag(&mut v, drag, dt);
         }
         let expected = 10.0 * (-2.0_f32).exp();
-        assert!((v[0] - expected).abs() < 0.5, "drag decay: got {} expected {}", v[0], expected);
+        assert!((v[0] - expected).abs() < 0.01, "drag decay: got {} expected {}", v[0], expected);
     }
 
     #[test]
