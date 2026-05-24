@@ -1,11 +1,9 @@
 use serde::{Deserialize, Serialize};
-use rand::SeedableRng;
-use rand::rngs::SmallRng;
 use crate::particle::Range;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum EmitterShape {
-    Point {},
+    Point,
     Sphere { radius: f32 },
     Box { half_extents: [f32; 3] },
     Cone { angle: f32, height: f32 },
@@ -15,7 +13,7 @@ pub enum EmitterShape {
 impl EmitterShape {
     pub fn sample_position(&self, rng: &mut impl rand::Rng) -> [f32; 3] {
         match *self {
-            EmitterShape::Point {} => [0.0, 0.0, 0.0],
+            EmitterShape::Point => [0.0, 0.0, 0.0],
             EmitterShape::Sphere { radius } => {
                 loop {
                     let x: f32 = rng.gen_range(-1.0..=1.0);
@@ -89,11 +87,7 @@ impl InitialVelocity {
     pub fn sample(&self, spawn_pos: &[f32; 3], rng: &mut impl rand::Rng) -> [f32; 3] {
         match *self {
             InitialVelocity::Outward { speed } => {
-                let dir = if spawn_pos[0].abs() + spawn_pos[1].abs() + spawn_pos[2].abs() < 1e-6 {
-                    [0.0, 1.0, 0.0]
-                } else {
-                    normalize(*spawn_pos)
-                };
+                let dir = normalize(*spawn_pos);
                 let s = speed.sample(rng);
                 [dir[0] * s, dir[1] * s, dir[2] * s]
             }
@@ -151,6 +145,8 @@ impl ColorRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
 
     fn rng() -> SmallRng { SmallRng::seed_from_u64(42) }
 
@@ -179,7 +175,7 @@ mod tests {
 
     #[test]
     fn point_samples_origin() {
-        let s = EmitterShape::Point {};
+        let s = EmitterShape::Point;
         let mut r = rng();
         let p = s.sample_position(&mut r);
         assert_eq!(p, [0.0, 0.0, 0.0]);
