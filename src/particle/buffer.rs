@@ -23,7 +23,7 @@ mod tests {
         b.age[1] = 1.5;   // dead
         b.age[2] = 0.3;
         b.age[3] = 2.0;   // dead
-        b.compact_dead(|i, _, _, _| {});
+        b.compact_dead(|_, _, _| {});
         assert_eq!(b.count(), 2);
     }
 
@@ -44,7 +44,7 @@ mod tests {
         b.age[1] = 2.0;
         b.age[3] = 2.0;
         let mut killed: Vec<usize> = vec![];
-        b.compact_dead(|_orig_idx, pos, vel, color| {
+        b.compact_dead(|pos, vel, color| {
             killed.push(0);
             let _ = (pos, vel, color);
         });
@@ -114,12 +114,12 @@ impl ParticleBuffer {
     }
 
     /// Remove all particles whose age >= lifetime, in-place, compacting via swap_remove.
-    /// Callback invoked for each killed particle with (original_index, position, velocity, color).
-    pub fn compact_dead(&mut self, mut on_kill: impl FnMut(usize, [f32; 3], [f32; 3], [f32; 4])) {
+    /// Callback invoked for each killed particle with (position, velocity, color).
+    pub fn compact_dead(&mut self, mut on_kill: impl FnMut([f32; 3], [f32; 3], [f32; 4])) {
         let mut i = 0;
         while i < self.position.len() {
             if self.age[i] >= self.lifetime[i] {
-                on_kill(i, self.position[i], self.velocity[i], self.color[i]);
+                on_kill(self.position[i], self.velocity[i], self.color[i]);
                 self.position.swap_remove(i);
                 self.velocity.swap_remove(i);
                 self.color.swap_remove(i);
