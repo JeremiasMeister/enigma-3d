@@ -1144,4 +1144,34 @@ mod tests {
         // original is unaffected
         assert_eq!(obj.get_component::<u32>(), Some(&99u32));
     }
+
+    #[test]
+    fn current_animation_survives_round_trip() {
+        // Build an Object with one fake animation and start playing it.
+        let mut obj = Object::new(Some("anim_holder".into()));
+        let anim = animation::Animation {
+            name: "Idle".to_string(),
+            duration: 2.5,
+            channels: Vec::new(),
+        };
+        obj.get_animations_mut().insert("Idle".to_string(), anim);
+        obj.play_animation("Idle", /*looping=*/true);
+        // Mutate time/speed so we can see them survive the round-trip.
+        if let Some(state) = obj.get_current_animation_mut().as_mut() {
+            state.time = 1.25;
+            state.speed = 0.0;
+        }
+
+        let serializer = obj.to_serializer();
+        let restored = Object::from_serializer(serializer);
+
+        let state = restored
+            .get_current_animation()
+            .as_ref()
+            .expect("current_animation should round-trip as Some");
+        assert_eq!(state.name, "Idle");
+        assert!((state.time - 1.25).abs() < 1e-6, "time = {}", state.time);
+        assert!((state.speed - 0.0).abs() < 1e-6, "speed = {}", state.speed);
+        assert_eq!(state.looping, true);
+    }
 }
