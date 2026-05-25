@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use crate::logging::EnigmaMessage;
 use crate::smart_format;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ShaderSerializer {
     fragment_shader: String,
     vertex_shader: String,

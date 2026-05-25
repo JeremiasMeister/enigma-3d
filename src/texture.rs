@@ -15,7 +15,7 @@ thread_local! {
     static IMAGE_CACHE: RefCell<LruCache<Vec<u8>, RgbaImage>> = RefCell::new(LruCache::new(NonZeroUsize::new(20).unwrap()));
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TextureSerializer {
     path: String,
     width: u32,

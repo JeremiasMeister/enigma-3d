@@ -407,6 +407,8 @@ impl Terrain {
 
     pub fn get_position(&self) -> [f32; 3] { self.position }
 
+    pub fn config(&self) -> &TerrainConfig { &self.config }
+
     pub fn set_position(&mut self, pos: [f32; 3]) {
         self.position = pos;
         self.instance_buffer.write(&[InstanceAttribute {

@@ -158,6 +158,41 @@ pub struct AppStateSerializer {
     pub skybox_texture: Option<texture::TextureSerializer>,
     pub objects: Vec<object::ObjectSerializer>,
     pub object_selection: Vec<String>,
+    #[serde(default)]
+    pub particle_systems: Vec<ParticleSystemSnapshot>,
+    #[serde(default)]
+    pub terrain: Option<TerrainSnapshot>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ParticleSystemSnapshot {
+    pub handle: String,
+    pub config: particle::ParticleSystemConfig,
+    pub transform: [[f32; 4]; 4],
+    #[serde(default)]
+    pub material_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TerrainSnapshot {
+    pub width: f32,
+    pub depth: f32,
+    pub max_height: f32,
+    pub resolution: u32,
+    pub tile_count: u32,
+    pub noise_scale: f32,
+    pub noise_amplitude: f32,
+    pub noise_octaves: u32,
+    pub noise_persistence: f32,
+    pub color_flat_low: [f32; 3],
+    pub color_flat_high: [f32; 3],
+    pub color_slope: [f32; 3],
+    pub slope_threshold: f32,
+    pub height_mid: f32,
+    pub uv_scale: f32,
+    pub position: [f32; 3],
+    #[serde(default)]
+    pub material: Option<material::MaterialSerializer>,
 }
 
 pub struct AppState {
@@ -358,6 +393,34 @@ impl AppState {
         let objects = self.objects.iter().map(|o| o.to_serializer()).collect();
         let materials = self.materials.iter().map(|o| o.to_serializer()).collect();
         let object_selection = self.object_selection.iter().map(|o| o.to_string()).collect();
+        let particle_systems = self.particle_systems.iter().map(|s| ParticleSystemSnapshot {
+            handle: s.handle.to_string(),
+            config: s.config.clone(),
+            transform: s.transform,
+            material_id: s.material_id.map(|u| u.to_string()),
+        }).collect();
+        let terrain = self.terrain.as_ref().map(|t| {
+            let cfg = t.config();
+            TerrainSnapshot {
+                width: cfg.width,
+                depth: cfg.depth,
+                max_height: cfg.max_height,
+                resolution: cfg.resolution,
+                tile_count: cfg.tile_count,
+                noise_scale: cfg.noise_scale,
+                noise_amplitude: cfg.noise_amplitude,
+                noise_octaves: cfg.noise_octaves,
+                noise_persistence: cfg.noise_persistence,
+                color_flat_low: cfg.color_flat_low,
+                color_flat_high: cfg.color_flat_high,
+                color_slope: cfg.color_slope,
+                slope_threshold: cfg.slope_threshold,
+                height_mid: cfg.height_mid,
+                uv_scale: cfg.uv_scale,
+                position: t.get_position(),
+                material: t.material.as_ref().map(|m| m.to_serializer()),
+            }
+        });
         AppStateSerializer {
             camera,
             light,
@@ -367,6 +430,8 @@ impl AppState {
             objects,
             materials,
             object_selection,
+            particle_systems,
+            terrain,
         }
     }
 
@@ -406,6 +471,48 @@ impl AppState {
         }
         for o in serializer.object_selection {
             self.object_selection.push(Uuid::parse_str(&o).unwrap());
+        }
+
+        if !additive {
+            self.particle_systems.clear();
+            self.terrain = None;
+        }
+        for snap in serializer.particle_systems {
+            if let Ok(mut sys) = particle::ParticleSystem::from_config(snap.config) {
+                if let Ok(h) = Uuid::parse_str(&snap.handle) {
+                    sys.handle = h;
+                }
+                sys.transform = snap.transform;
+                sys.material_id = snap.material_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+                self.particle_systems.push(sys);
+            }
+        }
+        if let Some(snap) = serializer.terrain {
+            let mut cfg = terrain::TerrainConfig::default();
+            cfg.width = snap.width;
+            cfg.depth = snap.depth;
+            cfg.max_height = snap.max_height;
+            cfg.resolution = snap.resolution;
+            cfg.tile_count = snap.tile_count;
+            cfg.noise_scale = snap.noise_scale;
+            cfg.noise_amplitude = snap.noise_amplitude;
+            cfg.noise_octaves = snap.noise_octaves;
+            cfg.noise_persistence = snap.noise_persistence;
+            cfg.color_flat_low = snap.color_flat_low;
+            cfg.color_flat_high = snap.color_flat_high;
+            cfg.color_slope = snap.color_slope;
+            cfg.slope_threshold = snap.slope_threshold;
+            cfg.height_mid = snap.height_mid;
+            cfg.uv_scale = snap.uv_scale;
+            cfg.custom_noise = None;
+            if cfg.tile_count > 0 && cfg.resolution % cfg.tile_count == 0 {
+                let mut t = terrain::Terrain::new(&display, cfg);
+                t.set_position(snap.position);
+                if let Some(mat_snap) = snap.material {
+                    t.set_material(Material::from_serializer(mat_snap, &display));
+                }
+                self.terrain = Some(t);
+            }
         }
     }
 

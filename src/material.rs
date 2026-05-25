@@ -11,7 +11,7 @@ use crate::geometry::BoneTransforms;
 use crate::light::{Light, LightBlock};
 use crate::shadow::ShadowMaps;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MaterialSerializer {
     name: String,
     color: [f32; 3],
