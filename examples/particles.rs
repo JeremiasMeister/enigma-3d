@@ -104,6 +104,7 @@ fn tick_temp_lights(app: &mut AppState) {
 fn show_particle_counter(ctx: &egui::Context, app: &mut AppState) {
     egui::Window::new("Particles").show(ctx, |ui| {
         let total: usize = app.particle_systems.iter().map(|s| s.live_count()).sum();
+        ui.label("Click LMB to spawn an Explosion");
         ui.label(format!("Active systems: {}", app.particle_systems.len()));
         ui.label(format!("Total live particles: {}", total));
     });
