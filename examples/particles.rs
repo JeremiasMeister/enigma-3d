@@ -1,15 +1,16 @@
 use std::sync::Arc;
 use enigma_3d::{AppState, EventLoop};
 use enigma_3d::default_events;
-use enigma_3d::event::{EventCharacteristic, VirtualKeyCode};
+use enigma_3d::event::{EventCharacteristic, EventModifiers, VirtualKeyCode};
 use enigma_3d::light::{Light, LightEmissionType};
 use enigma_3d::material::{Material, TextureType};
 use enigma_3d::particle::ParticleSystem;
 use enigma_3d::particle::config::{FlipbookConfig, RenderStyle, BlendMode};
-use enigma_3d::particle::{EmitterShape, InitialVelocity, ColorRange, Range};
+use enigma_3d::particle::{EmitterShape, InitialVelocity, ColorRange, Range, Gradient};
 use enigma_3d::example_resources;
 use rand::Rng;
 use winit::event::MouseButton;
+use enigma_3d::audio::AudioClip;
 use enigma_3d::texture::Texture;
 
 /// Component marker placed on temporary lights so an update function can age them out.
@@ -296,6 +297,52 @@ fn main() {
     lightning.set_position([6.0, 0.5, 0.0]);
     app_state.add_particle_system(lightning);
 
+    // Starfield overhead. Thin slab of near-stationary points high above the player.
+    // Twinkle comes from an oscillating alpha curve in color_over_life; varied lifetimes
+    // (3–7s) mean stars desync naturally so the field shimmers rather than pulsing in unison.
+    // Note: color_over_life overwrites per-particle RGB, so we bake one cool-white palette
+    // into the gradient — true per-star color variation isn't possible while gradient is on.
+    let mut stars = ParticleSystem::new("stars");
+    stars.set_material(sheet_mat_id);
+    stars.set_position([0.0, 20.0, 0.0]);
+    stars.set_max_particles(600);
+    stars.set_looped(true);
+    stars.set_duration(1.0);
+    stars.set_emission_rate(120.0); // ~600 capacity / ~5s mean life ≈ 120/s
+    // Thin horizontal slab — wider than the 100×100 terrain so stars cover the visible sky dome.
+    stars.set_emitter_shape(EmitterShape::Box { half_extents: [80.0, 6.0, 80.0] });
+    // Effectively stationary — speed zero keeps stars fixed while alive.
+    stars.set_initial_velocity(InitialVelocity::Direction {
+        direction: [0.0, 1.0, 0.0],
+        speed: Range::new(0.0, 0.0),
+    });
+    stars.set_initial_lifetime(3.0, 7.0);
+    stars.set_initial_size(0.55, 0.8);
+    // Cool-white with a blue tint, HDR-bright so bloom picks them up.
+    // RGB = [0.82, 0.90, 1.0] × intensity 4.0 = [3.28, 3.60, 4.0].
+    // Alpha oscillates 3× across each lifetime → twinkle. First/last keys at 0 hide spawn/death.
+    stars.set_color_over_life(Gradient::new(vec![
+        (0.00, [3.28, 3.60, 4.0, 0.0]),
+        (0.10, [3.28, 3.60, 4.0, 1.0]),
+        (0.25, [3.28, 3.60, 4.0, 0.25]),
+        (0.40, [3.28, 3.60, 4.0, 1.0]),
+        (0.55, [3.28, 3.60, 4.0, 0.20]),
+        (0.70, [3.28, 3.60, 4.0, 1.0]),
+        (0.85, [3.28, 3.60, 4.0, 0.30]),
+        (1.00, [3.28, 3.60, 4.0, 0.0]),
+    ]));
+    stars.set_render_style(RenderStyle::Sprite {
+        flipbook: None,
+        blend_mode: BlendMode::Additive,
+        soft_particles: true,
+        soft_fade_distance: 0.4,
+        velocity_stretch: 0.0,
+    });
+    // Must come after set_render_style — that call replaces the whole render style
+    // and would wipe the flipbook back to None. Lock to cell 0 of the 4×4 atlas.
+    stars.set_flipbook(sheet_locked(0));
+    app_state.add_particle_system(stars);
+
     // Camera controls
     app_state.set_state_data_value("camera_move_speed", Box::new(5.0f32));
     app_state.set_state_data_value("camera_rotate_speed", Box::new(0.002f32));
@@ -304,7 +351,7 @@ fn main() {
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::A), Arc::new(default_events::camera_walk_left), None);
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::D), Arc::new(default_events::camera_walk_right), None);
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::Space), Arc::new(default_events::camera_up), None);
-    app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::LControl), Arc::new(default_events::camera_down), None);
+    app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::Space), Arc::new(default_events::camera_down), Some(EventModifiers::new(false, true, false)));
     app_state.inject_update_function(Arc::new(default_events::camera_fps_look));
     app_state.inject_update_function(Arc::new(keep_camera_above_ground));
     app_state.inject_update_function(Arc::new(tick_temp_lights));
@@ -318,6 +365,9 @@ fn main() {
 
     // GUI counter
     app_state.inject_gui(Arc::new(show_particle_counter));
+    let background_sound = AudioClip::from_resource(example_resources::background_music(), "background_music");
+    app_state.add_audio(background_sound);
+    app_state.play_audio_loop("background_music");
 
     event_loop.run(app_state.convert_to_arc_mutex());
 }
