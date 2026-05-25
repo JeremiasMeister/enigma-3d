@@ -186,17 +186,17 @@ fn main() {
     // Two sprite materials — one per atlas — plus a ribbon material for trails.
     // The 4x4 sprite_sheet drives the persistent fireball; the 5x5 explosion atlas
     // drives the click-to-spawn explosion burst.
-    let mut sheet_mat = Material::particle_sprite(display.clone());
+    let mut sheet_mat = Material::particle_sprite(&display);
     sheet_mat.set_name("particle_sheet_4x4");
     sheet_mat.set_texture_from_resource(example_resources::vfx_sprite_sheet(), TextureType::Albedo);
     app_state.add_material(sheet_mat);
 
-    let mut explosion_mat = Material::particle_sprite(display.clone());
+    let mut explosion_mat = Material::particle_sprite(&display);
     explosion_mat.set_name("particle_explosion_5x5");
     explosion_mat.set_texture_from_resource(example_resources::vfx_explosion_flipbook(), TextureType::Albedo);
     app_state.add_material(explosion_mat);
 
-    let mut ribbon_mat = Material::particle_ribbon(display.clone());
+    let mut ribbon_mat = Material::particle_ribbon(&display);
     ribbon_mat.set_name("particle_ribbon");
     ribbon_mat.set_texture_from_resource(example_resources::vfx_ribbon_texture(), TextureType::Albedo);
     app_state.add_material(ribbon_mat);

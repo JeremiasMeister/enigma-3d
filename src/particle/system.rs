@@ -99,6 +99,13 @@ impl ParticleSystem {
     pub fn from_resource(json: &str) -> Result<Self, EnigmaError> {
         let config: ParticleSystemConfig = serde_json::from_str(json)
             .map_err(|e| EnigmaError::new(Some(&format!("particle JSON parse: {}", e)), false))?;
+        Self::from_config(config)
+    }
+
+    /// Build a live system directly from an in-memory config. Validates the config
+    /// first; use this instead of `to_json` → `from_resource` when you already hold
+    /// a `ParticleSystemConfig` (e.g. sub-emitter dispatch).
+    pub fn from_config(config: ParticleSystemConfig) -> Result<Self, EnigmaError> {
         config.validate()
             .map_err(|e| EnigmaError::new(Some(&format!("particle config invalid: {}", e)), false))?;
         Ok(Self::from_config_internal(config))
@@ -154,7 +161,7 @@ impl ParticleSystem {
         let (cx, sx) = (euler_radians[0].cos(), euler_radians[0].sin());
         let (cy, sy) = (euler_radians[1].cos(), euler_radians[1].sin());
         let (cz, sz) = (euler_radians[2].cos(), euler_radians[2].sin());
-        // R = Rz * Ry * Rx
+        // R = Rz * Ry * Rx, stored column-major: transform[c][r] = R[r][c].
         let r00 = cy * cz;
         let r01 = -cy * sz;
         let r02 = sy;
@@ -165,9 +172,9 @@ impl ParticleSystem {
         let r21 = sx * cz + cx * sy * sz;
         let r22 = cx * cy;
         self.transform = [
-            [r00, r01, r02, 0.0],
-            [r10, r11, r12, 0.0],
-            [r20, r21, r22, 0.0],
+            [r00, r10, r20, 0.0],
+            [r01, r11, r21, 0.0],
+            [r02, r12, r22, 0.0],
             [pos[0], pos[1], pos[2], 1.0],
         ];
     }
@@ -175,10 +182,12 @@ impl ParticleSystem {
     /// Scale the 3×3 rotation/scale block of the transform, preserving translation.
     /// Call after `set_rotation`.
     pub fn set_scale(&mut self, scale: [f32; 3]) {
-        for i in 0..3 {
-            self.transform[0][i] *= scale[0];
-            self.transform[1][i] *= scale[1];
-            self.transform[2][i] *= scale[2];
+        // transform is column-major: column c holds the world-space image of local axis c,
+        // so multiplying column c by scale[c] scales along the corresponding local axis.
+        for r in 0..3 {
+            self.transform[0][r] *= scale[0];
+            self.transform[1][r] *= scale[1];
+            self.transform[2][r] *= scale[2];
         }
     }
 
@@ -236,6 +245,8 @@ impl ParticleSystem {
 
     // Material + render
     pub fn set_material(&mut self, material_id: Uuid) { self.material_id = Some(material_id); }
+    /// Switching between Sprite and Ribbon reallocates the particle buffer (sprites
+    /// don't carry trail history, ribbons do), which clears all live particles.
     pub fn set_render_style(&mut self, style: RenderStyle) {
         let needs_trails = matches!(style, RenderStyle::Ribbon { .. });
         let has_trails = self.buffer.trail.is_some();
@@ -282,8 +293,15 @@ impl ParticleSystem {
                 (i, score)
             })
             .collect();
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        scored.truncate(max);
+
+        // We only need the top `max` by score, not a full ordering — partition in O(n).
+        let k = max.min(scored.len());
+        if k < scored.len() {
+            scored.select_nth_unstable_by(k, |a, b| {
+                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+        scored.truncate(k);
 
         scored.into_iter().map(|(i, _)| {
             let pos = self.buffer.position[i];
@@ -347,21 +365,31 @@ impl ParticleSystem {
             }
         }
 
-        let origin = [self.transform[3][0], self.transform[3][1], self.transform[3][2]];
+        // Snapshot the transform so the 3×3 block can be applied to each spawn without
+        // re-borrowing self inside the loop. transform[c][r] = column-major M[r][c],
+        // so M * v = (M[0]*v[0] + M[1]*v[1] + M[2]*v[2]) componentwise on the columns.
+        let xform = self.transform;
+        let origin = [xform[3][0], xform[3][1], xform[3][2]];
+        let apply_rotscale = |v: [f32; 3]| -> [f32; 3] {
+            [
+                xform[0][0]*v[0] + xform[1][0]*v[1] + xform[2][0]*v[2],
+                xform[0][1]*v[0] + xform[1][1]*v[1] + xform[2][1]*v[2],
+                xform[0][2]*v[0] + xform[1][2]*v[1] + xform[2][2]*v[2],
+            ]
+        };
 
-        // Borrow split: snapshot config fields needed for spawning, rng stays mutable
-        let max_particles = self.config.max_particles;
         for _ in 0..to_spawn {
             if self.buffer.is_full() { break; }
             let local_pos = self.config.emitter_shape.sample_position(&mut self.rng);
-            let world_pos = [origin[0]+local_pos[0], origin[1]+local_pos[1], origin[2]+local_pos[2]];
-            let vel = self.config.initial_velocity.sample(&local_pos, &mut self.rng);
+            let local_vel = self.config.initial_velocity.sample(&local_pos, &mut self.rng);
+            let world_offset = apply_rotscale(local_pos);
+            let world_pos = [origin[0]+world_offset[0], origin[1]+world_offset[1], origin[2]+world_offset[2]];
+            let vel = apply_rotscale(local_vel);
             let life = self.config.initial_lifetime.sample(&mut self.rng);
             let size = self.config.initial_size.sample(&mut self.rng);
             let color = self.config.initial_color.sample(&mut self.rng);
             let rotation = self.config.initial_rotation.sample(&mut self.rng);
             let seed: f32 = rand::Rng::gen(&mut self.rng);
-            let _ = max_particles; // used to ensure borrow is local
             self.buffer.push(ParticleSpawn {
                 position: world_pos, velocity: vel, color, size, rotation, lifetime: life, seed,
             });
@@ -447,15 +475,18 @@ impl ParticleSystem {
             || self.config.size_over_life.is_some()
             || self.config.rotation_over_life.is_some();
         if needs_curve_sample {
+            let color_curve = self.config.color_over_life.as_ref();
+            let size_curve = self.config.size_over_life.as_ref();
+            let rot_curve = self.config.rotation_over_life.as_ref();
             for i in 0..self.buffer.count() {
                 let t = (self.buffer.age[i] / self.buffer.lifetime[i]).clamp(0.0, 1.0);
-                if let Some(ref g) = self.config.color_over_life.clone() {
+                if let Some(g) = color_curve {
                     self.buffer.color[i] = g.eval(t);
                 }
-                if let Some(ref c) = self.config.size_over_life.clone() {
+                if let Some(c) = size_curve {
                     self.buffer.size[i] = c.eval(t);
                 }
-                if let Some(ref c) = self.config.rotation_over_life.clone() {
+                if let Some(c) = rot_curve {
                     self.buffer.rotation[i] = c.eval(t);
                 }
             }
@@ -657,5 +688,51 @@ mod tests {
         s.tick(0.5, None);
         let lights = s.extract_hero_lights();
         assert_eq!(lights.len(), 2);
+    }
+
+    #[test]
+    fn set_rotation_applies_to_spawn_offset() {
+        // Sphere emitter with fixed radius — set_rotation should rotate the spawn cloud
+        // around the system origin. Yaw 90° around Y maps local +X to world +Z.
+        let mut s = ParticleSystem::new("rot");
+        s.set_max_particles(8);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_position([10.0, 0.0, 0.0]);
+        s.set_rotation([0.0, std::f32::consts::FRAC_PI_2, 0.0]);
+        // Direction velocity along local +X (1, 0, 0). After 90° yaw, world should be ~(0, 0, -1).
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [1.0, 0.0, 0.0], speed: Range::new(1.0, 1.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0, 1.0, 1.0, 1.0]));
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 1 });
+        s.tick(0.001, None);
+        let v = s.buffer.velocity[0];
+        // Local +X under Rz*Ry*Rx with yaw=PI/2 maps to (0, 0, -1) (right-handed Y-up).
+        assert!(v[0].abs() < 1e-3, "expected x≈0, got {}", v[0]);
+        assert!(v[1].abs() < 1e-3, "expected y≈0, got {}", v[1]);
+        assert!((v[2] + 1.0).abs() < 1e-3, "expected z≈-1, got {}", v[2]);
+        // Position should remain near the system origin (sphere not configured → Point shape, offset 0).
+        let p = s.buffer.position[0];
+        assert!((p[0] - 10.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn set_scale_applies_to_spawn_offset() {
+        // Box emitter scaled 2x should produce spawn offsets up to 2.0 along X.
+        let mut s = ParticleSystem::new("scl");
+        s.set_max_particles(64);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_emitter_shape(EmitterShape::Box { half_extents: [1.0, 0.0, 0.0] });
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 1.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0, 1.0, 1.0, 1.0]));
+        s.set_scale([2.0, 1.0, 1.0]);
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 64 });
+        s.tick(0.001, None);
+        let mut max_x: f32 = 0.0;
+        for i in 0..s.buffer.count() {
+            max_x = max_x.max(s.buffer.position[i][0].abs());
+        }
+        assert!(max_x > 1.0 + 1e-3, "scale should push spawn offsets past ±1, got max |x|={}", max_x);
+        assert!(max_x <= 2.0 + 1e-3, "scale should cap at ±2, got max |x|={}", max_x);
     }
 }

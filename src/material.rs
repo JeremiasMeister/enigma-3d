@@ -377,27 +377,27 @@ impl Material {
         mat
     }
 
-    pub fn particle_sprite(display: Display<WindowSurface>) -> Self {
+    pub fn particle_sprite(display: &Display<WindowSurface>) -> Self {
         let mut mat = Material::default(
             shader::Shader::from_strings(
                 resources::particle_sprite_vert(),
                 resources::particle_sprite_frag(),
                 None,
             ),
-            &display,
+            display,
         );
         mat.set_transparency(true);
         mat
     }
 
-    pub fn particle_ribbon(display: Display<WindowSurface>) -> Self {
+    pub fn particle_ribbon(display: &Display<WindowSurface>) -> Self {
         let mut mat = Material::default(
             shader::Shader::from_strings(
                 resources::particle_ribbon_vert(),
                 resources::particle_ribbon_frag(),
                 None,
             ),
-            &display,
+            display,
         );
         mat.set_transparency(true);
         mat

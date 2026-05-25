@@ -113,6 +113,41 @@ pub fn init_default(app_state: &mut AppState) {
     );
 }
 
+/// Build a column-major 4×4 transform that translates to `position` and orients local
+/// +Y along `up_hint`. Falls back to identity rotation when `up_hint` is near zero.
+fn sub_emitter_transform(position: [f32; 3], up_hint: [f32; 3]) -> [[f32; 4]; 4] {
+    let len = (up_hint[0]*up_hint[0] + up_hint[1]*up_hint[1] + up_hint[2]*up_hint[2]).sqrt();
+    if len < 1e-6 {
+        return [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [position[0], position[1], position[2], 1.0],
+        ];
+    }
+    let up = [up_hint[0]/len, up_hint[1]/len, up_hint[2]/len];
+    // Pick a helper axis that isn't (near-)parallel to up so the cross product is stable.
+    let helper = if up[1].abs() < 0.99 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+    let r_raw = [
+        up[1]*helper[2] - up[2]*helper[1],
+        up[2]*helper[0] - up[0]*helper[2],
+        up[0]*helper[1] - up[1]*helper[0],
+    ];
+    let rl = (r_raw[0]*r_raw[0] + r_raw[1]*r_raw[1] + r_raw[2]*r_raw[2]).sqrt();
+    let right = if rl < 1e-6 { [1.0, 0.0, 0.0] } else { [r_raw[0]/rl, r_raw[1]/rl, r_raw[2]/rl] };
+    let fwd = [
+        right[1]*up[2] - right[2]*up[1],
+        right[2]*up[0] - right[0]*up[2],
+        right[0]*up[1] - right[1]*up[0],
+    ];
+    [
+        [right[0], right[1], right[2], 0.0],
+        [up[0],    up[1],    up[2],    0.0],
+        [fwd[0],   fwd[1],   fwd[2],   0.0],
+        [position[0], position[1], position[2], 1.0],
+    ]
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct AppStateSerializer {
     pub camera: Option<CameraSerializer>,
@@ -703,15 +738,11 @@ impl AppState {
 
     pub fn emit_particle_system(&mut self, template_name: &str, transform: [[f32; 4]; 4]) -> Option<Uuid> {
         // Clone the template config + material id, then build a new live instance.
-        let template_cfg = self.particle_systems.iter()
-            .find(|s| s.name() == template_name)
-            .map(|s| s.config.clone());
-        let mat = self.particle_systems.iter()
-            .find(|s| s.name() == template_name)
-            .and_then(|s| s.material_id);
-        let cfg = template_cfg?;
-        let json = serde_json::to_string(&cfg).ok()?;
-        let mut instance = particle::ParticleSystem::from_resource(&json).ok()?;
+        // Direct clone avoids a JSON serialize/parse round-trip on every sub-emitter spawn.
+        let template = self.particle_systems.iter().find(|s| s.name() == template_name)?;
+        let cfg = template.config.clone();
+        let mat = template.material_id;
+        let mut instance = particle::ParticleSystem::from_config(cfg).ok()?;
         instance.transform = transform;
         instance.material_id = mat;
         instance.play();
@@ -761,15 +792,17 @@ impl AppState {
             let result = sys.tick(dt, query_ref);
             if let Some(name) = &sys.config.on_death {
                 for ev in &result.death_events {
-                    let pos = ev.position;
-                    let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[pos[0],pos[1],pos[2],1.0]];
+                    // Orient the child so its local +Y aligns with the parent's velocity at
+                    // time of death; falls back to identity if velocity is ~zero.
+                    let xform = sub_emitter_transform(ev.position, ev.velocity);
                     to_spawn.push((name.clone(), xform));
                 }
             }
             if let Some(name) = &sys.config.on_collision {
                 for ev in &result.collision_events {
-                    let pos = ev.position;
-                    let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[pos[0],pos[1],pos[2],1.0]];
+                    // Orient the child so its local +Y aligns with the surface normal —
+                    // cone/disk-shaped sub-emitters spray off the surface naturally.
+                    let xform = sub_emitter_transform(ev.position, ev.normal);
                     to_spawn.push((name.clone(), xform));
                 }
             }
