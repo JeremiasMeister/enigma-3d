@@ -740,7 +740,10 @@ impl AppState {
         // Clone the template config + material id, then build a new live instance.
         // Direct clone avoids a JSON serialize/parse round-trip on every sub-emitter spawn.
         let template = self.particle_systems.iter().find(|s| s.name() == template_name)?;
-        let cfg = template.config.clone();
+        let mut cfg = template.config.clone();
+        // Strip the template's seed so every spawn gets its own RNG state — otherwise
+        // a deterministic-seeded template makes every sub-emitter instance identical.
+        cfg.seed = None;
         let mat = template.material_id;
         let mut instance = particle::ParticleSystem::from_config(cfg).ok()?;
         instance.transform = transform;
@@ -779,31 +782,32 @@ impl AppState {
         // Collect sub-emitter spawn requests from each system's tick result
         let mut to_spawn: Vec<(String, [[f32; 4]; 4])> = Vec::new();
 
-        // Capture terrain reference up front so we can build the query closure per iteration.
-        let terrain_ref = self.terrain.as_ref();
-
-        for sys in &mut self.particle_systems {
-            // Build the query closure on each iteration (cheap; just captures the reference).
-            let height_fn = terrain_ref.map(|t| t.heightfield_query_fn());
+        // Inner scope holds the terrain query closure (which immutably borrows
+        // `self.terrain`) so it drops before we mutably borrow self for emit/retain.
+        {
+            let height_fn = self.terrain.as_ref().map(|t| t.heightfield_query_fn());
             let query_ref: Option<&dyn Fn(f32, f32) -> Option<f32>> = match &height_fn {
                 Some(f) => Some(f as &dyn Fn(f32, f32) -> Option<f32>),
                 None => None,
             };
-            let result = sys.tick(dt, query_ref);
-            if let Some(name) = &sys.config.on_death {
-                for ev in &result.death_events {
-                    // Orient the child so its local +Y aligns with the parent's velocity at
-                    // time of death; falls back to identity if velocity is ~zero.
-                    let xform = sub_emitter_transform(ev.position, ev.velocity);
-                    to_spawn.push((name.clone(), xform));
+
+            for sys in &mut self.particle_systems {
+                let result = sys.tick(dt, query_ref);
+                if let Some(name) = &sys.config.on_death {
+                    for ev in &result.death_events {
+                        // Orient the child so its local +Y aligns with the parent's velocity at
+                        // time of death; falls back to identity if velocity is ~zero.
+                        let xform = sub_emitter_transform(ev.position, ev.velocity);
+                        to_spawn.push((name.clone(), xform));
+                    }
                 }
-            }
-            if let Some(name) = &sys.config.on_collision {
-                for ev in &result.collision_events {
-                    // Orient the child so its local +Y aligns with the surface normal —
-                    // cone/disk-shaped sub-emitters spray off the surface naturally.
-                    let xform = sub_emitter_transform(ev.position, ev.normal);
-                    to_spawn.push((name.clone(), xform));
+                if let Some(name) = &sys.config.on_collision {
+                    for ev in &result.collision_events {
+                        // Orient the child so its local +Y aligns with the surface normal —
+                        // cone/disk-shaped sub-emitters spray off the surface naturally.
+                        let xform = sub_emitter_transform(ev.position, ev.normal);
+                        to_spawn.push((name.clone(), xform));
+                    }
                 }
             }
         }
@@ -1554,5 +1558,58 @@ mod particle_integration_tests {
         app.add_particle_system(make_template("x"));
         app.remove_particle_systems_by_name("x");
         assert!(app.get_particle_system_by_name("x").is_none());
+    }
+
+    #[test]
+    fn emit_strips_template_seed_for_per_instance_rng() {
+        // Template has a fixed seed; without stripping, every spawned instance would
+        // produce byte-identical particles. After the fix, two emits diverge.
+        let mut app = AppState::new();
+        let mut tpl = make_template("seeded");
+        tpl.set_emitter_shape(EmitterShape::Sphere { radius: 1.0 });
+        tpl.add_burst(0.0, 1);
+        tpl.set_seed(42);
+        app.add_particle_system_template(tpl);
+
+        let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]];
+        let id_a = app.emit_particle_system("seeded", xform).unwrap();
+        let id_b = app.emit_particle_system("seeded", xform).unwrap();
+        app.get_particle_system_mut(id_a).unwrap().tick(0.001, None);
+        app.get_particle_system_mut(id_b).unwrap().tick(0.001, None);
+        let pa = app.get_particle_system(id_a).unwrap().buffer.position[0];
+        let pb = app.get_particle_system(id_b).unwrap().buffer.position[0];
+        assert!(
+            pa != pb,
+            "expected sub-emitters from seeded template to diverge, got identical position {:?}",
+            pa
+        );
+    }
+
+    #[test]
+    fn on_death_spawns_child_via_tick_particles() {
+        // Parent burst-spawns one particle with a short lifetime and on_death="child".
+        // After the parent dies, tick_particles should have appended a child instance.
+        let mut app = AppState::new();
+
+        let mut parent = make_template("parent");
+        parent.set_initial_lifetime(0.1, 0.1);
+        parent.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        parent.add_burst(0.0, 1);
+        parent.config.on_death = Some("child".into());
+        app.add_particle_system(parent);
+
+        let mut child = make_template("child");
+        child.add_burst(0.0, 2);
+        app.add_particle_system_template(child);
+
+        // Tick once to spawn the parent particle, then again past its lifetime to kill it.
+        app.tick_particles(0.05);
+        app.tick_particles(0.2);
+
+        // Child template (stopped) is still present; we expect a live child instance too.
+        let live_children = app.particle_systems.iter()
+            .filter(|s| s.name() == "child" && !s.is_finished())
+            .count();
+        assert!(live_children >= 2, "expected stopped template + live child instance, got {}", live_children);
     }
 }

@@ -3,6 +3,7 @@ use glium::glutin::surface::WindowSurface;
 use glium::implement_vertex;
 use glium::texture::DepthTexture2d;
 use crate::camera::Camera;
+use crate::logging::EnigmaError;
 use crate::material::Material;
 use crate::particle::ParticleSystem;
 use crate::particle::config::{RenderStyle, BlendMode, FlipbookConfig};
@@ -62,7 +63,7 @@ pub fn render_one<S: Surface>(
     camera: &Camera,
     system: &ParticleSystem,
     material: &Material,
-    renderer: &ParticleRenderer,
+    renderer: &mut ParticleRenderer,
     screen_size: [f32; 2],
 ) {
     let (flipbook, blend_mode, soft_fade, vel_stretch) = match &system.config.render {
@@ -91,10 +92,35 @@ pub fn render_one<S: Surface>(
     }
     if instances.is_empty() { return; }
 
-    let instance_vb = match VertexBuffer::dynamic(display, &instances) {
-        Ok(vb) => vb,
-        Err(_) => return,
-    };
+    // Depth-sort back-to-front for blend modes that require ordered geometry.
+    // Additive blending is commutative, so skipping the sort there saves work.
+    if matches!(blend_mode, BlendMode::Alpha | BlendMode::PremultipliedAlpha) {
+        let view = camera.get_view_matrix();
+        let view_z = |p: [f32; 3]| view[0][2]*p[0] + view[1][2]*p[1] + view[2][2]*p[2] + view[3][2];
+        // OpenGL view-space looks down -Z; "farther from the camera" means more negative z.
+        // Back-to-front = ascending view_z.
+        instances.sort_by(|a, b| {
+            view_z(a.inst_position).partial_cmp(&view_z(b.inst_position))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+    }
+
+    // Reuse a persistent dynamic VB instead of allocating one per system per frame.
+    // Grow on demand (next power of two) so steady-state rendering is zero-alloc.
+    let needed = instances.len();
+    let cap_ok = renderer.sprite_instance_vb.as_ref().map(|v| v.len() >= needed).unwrap_or(false);
+    if !cap_ok {
+        let new_cap = needed.next_power_of_two().max(64);
+        match VertexBuffer::<SpriteInstance>::empty_dynamic(display, new_cap) {
+            Ok(vb) => renderer.sprite_instance_vb = Some(vb),
+            Err(e) => {
+                EnigmaError::new(Some(&format!("particle sprite VB alloc (cap={}): {}", new_cap, e)), false).log();
+                return;
+            }
+        }
+    }
+    let instance_vb = renderer.sprite_instance_vb.as_ref().expect("sprite_instance_vb just sized");
+    instance_vb.slice(0..needed).expect("slice fits buffer just grown to needed").write(&instances);
 
     let albedo_sampler = match material.albedo.as_ref() {
         Some(t) => &t.texture,
@@ -137,11 +163,15 @@ pub fn render_one<S: Surface>(
         ..Default::default()
     };
 
-    let _ = target.draw(
-        (&renderer.sprite_quad_vb, instance_vb.per_instance().unwrap()),
+    let instance_slice = instance_vb.slice(0..needed).expect("sprite instance slice fits buffer");
+    let active_instances = instance_slice.per_instance().expect("per_instance layout valid for SpriteInstance");
+    if let Err(e) = target.draw(
+        (&renderer.sprite_quad_vb, active_instances),
         &renderer.sprite_quad_ib,
         &material.program,
         &uniforms,
         &params,
-    );
+    ) {
+        EnigmaError::new(Some(&format!("particle sprite draw: {}", e)), false).log();
+    }
 }

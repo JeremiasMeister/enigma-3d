@@ -28,7 +28,6 @@ pub struct LightEmitConfig {
     pub max_lights: u32,
     pub color_multiplier: [f32; 3],
     pub intensity: f32,
-    pub falloff: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

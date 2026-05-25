@@ -15,7 +15,7 @@
   "size_over_life": { "keys": [[0.0, 0.4], [0.6, 1.0], [1.0, 0.0]] },
   "drag": 1.8,
   "curl_noise": { "scale": 1.5, "strength": 2.0, "evolution_speed": 0.5 },
-  "light_emit": { "max_lights": 1, "color_multiplier": [1.0, 0.5, 0.15], "intensity": 4.0, "falloff": 6.0 },
+  "light_emit": { "max_lights": 1, "color_multiplier": [1.0, 0.5, 0.15], "intensity": 4.0 },
   "on_death": "fireball_smoke",
   "render": {
     "kind": "Sprite",

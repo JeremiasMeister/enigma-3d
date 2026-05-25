@@ -2,6 +2,7 @@ use glium::{Display, Surface, VertexBuffer, IndexBuffer};
 use glium::glutin::surface::WindowSurface;
 use glium::implement_vertex;
 use crate::camera::Camera;
+use crate::logging::EnigmaError;
 use crate::material::Material;
 use crate::particle::ParticleSystem;
 use crate::particle::config::RenderStyle;
@@ -30,7 +31,7 @@ pub fn render_one<S: Surface>(
     camera: &Camera,
     system: &ParticleSystem,
     material: &Material,
-    renderer: &super::ParticleRenderer,
+    renderer: &mut super::ParticleRenderer,
 ) {
     let (max_pts, width_curve, blend_mode) = match &system.config.render {
         RenderStyle::Ribbon { max_trail_points, width_over_life, blend_mode } => {
@@ -76,8 +77,36 @@ pub fn render_one<S: Surface>(
     }
     if verts.is_empty() { return; }
 
-    let vb = match VertexBuffer::dynamic(display, &verts) { Ok(v) => v, Err(_) => return };
-    let ib = match IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &indices) { Ok(i) => i, Err(_) => return };
+    // Reuse persistent dynamic VB+IB. Grow on demand to next-power-of-two so steady
+    // state is zero-alloc; the buffers never shrink.
+    let v_needed = verts.len();
+    let i_needed = indices.len();
+    let vb_ok = renderer.ribbon_vb.as_ref().map(|v| v.len() >= v_needed).unwrap_or(false);
+    if !vb_ok {
+        let new_cap = v_needed.next_power_of_two().max(256);
+        match VertexBuffer::<RibbonVertex>::empty_dynamic(display, new_cap) {
+            Ok(vb) => renderer.ribbon_vb = Some(vb),
+            Err(e) => {
+                EnigmaError::new(Some(&format!("particle ribbon VB alloc (cap={}): {}", new_cap, e)), false).log();
+                return;
+            }
+        }
+    }
+    let ib_ok = renderer.ribbon_ib.as_ref().map(|i| i.len() >= i_needed).unwrap_or(false);
+    if !ib_ok {
+        let new_cap = i_needed.next_power_of_two().max(384);
+        match IndexBuffer::<u32>::empty_dynamic(display, glium::index::PrimitiveType::TrianglesList, new_cap) {
+            Ok(ib) => renderer.ribbon_ib = Some(ib),
+            Err(e) => {
+                EnigmaError::new(Some(&format!("particle ribbon IB alloc (cap={}): {}", new_cap, e)), false).log();
+                return;
+            }
+        }
+    }
+    let vb = renderer.ribbon_vb.as_ref().expect("ribbon_vb just sized");
+    let ib = renderer.ribbon_ib.as_ref().expect("ribbon_ib just sized");
+    vb.slice(0..v_needed).expect("ribbon VB slice fits").write(&verts);
+    ib.slice(0..i_needed).expect("ribbon IB slice fits").write(&indices);
 
     let albedo_sampler = match material.albedo.as_ref() {
         Some(t) => &t.texture,
@@ -103,5 +132,9 @@ pub fn render_one<S: Surface>(
         blend: blend_params(blend_mode),
         ..Default::default()
     };
-    let _ = target.draw(&vb, &ib, &material.program, &uniforms, &params);
+    let vb_slice = vb.slice(0..v_needed).expect("ribbon VB draw slice");
+    let ib_slice = ib.slice(0..i_needed).expect("ribbon IB draw slice");
+    if let Err(e) = target.draw(vb_slice, ib_slice, &material.program, &uniforms, &params) {
+        EnigmaError::new(Some(&format!("particle ribbon draw: {}", e)), false).log();
+    }
 }

@@ -12,6 +12,7 @@ pub struct EmissionState {
     pub pending_collision_events: Vec<CollisionEvent>,
     pub finished: bool,
     pub stopped: bool,
+    pub prewarmed: bool,
 }
 
 impl Default for EmissionState {
@@ -22,6 +23,7 @@ impl Default for EmissionState {
             pending_collision_events: Vec::new(),
             finished: false,
             stopped: false,
+            prewarmed: false,
         }
     }
 }
@@ -334,6 +336,22 @@ impl ParticleSystem {
             return result;
         }
 
+        // Prewarm: on the first tick of a looped, prewarm-enabled system, simulate
+        // `duration` seconds in fixed sub-steps so the particle cloud starts at
+        // steady state. Set the flag before recursing so the inner ticks no-op here.
+        if self.config.prewarm && !self.state.prewarmed && self.config.looped {
+            self.state.prewarmed = true;
+            let step = 1.0 / 30.0_f32;
+            let mut warmed = 0.0_f32;
+            while warmed < self.config.duration {
+                self.tick(step, terrain_height_at);
+                warmed += step;
+            }
+        }
+        // Ensure non-prewarming paths still flip the flag so we don't re-check the
+        // condition every tick for the rest of the system's life.
+        self.state.prewarmed = true;
+
         // 1. Advance time
         let prev_elapsed = self.state.elapsed;
         self.state.elapsed += dt;
@@ -451,21 +469,25 @@ impl ParticleSystem {
             }
         }
 
-        // 6. Collide
+        // 6. Collide — ground plane first, terrain only if ground didn't catch the particle.
+        // The returned Option carries the actual surface normal so collision sub-emitters
+        // can spray off slopes, not just off Y-up.
         if let Some(coll) = self.config.collision.clone() {
             for i in 0..self.buffer.count() {
-                let mut hit = coll.test_and_resolve_ground(&mut self.buffer.position[i], &mut self.buffer.velocity[i]);
-                if !hit {
+                let mut hit_normal = coll.test_and_resolve_ground(&mut self.buffer.position[i], &mut self.buffer.velocity[i]);
+                if hit_normal.is_none() {
                     if let Some(query) = terrain_height_at {
-                        hit = coll.test_and_resolve_terrain(&mut self.buffer.position[i], &mut self.buffer.velocity[i], query);
+                        hit_normal = coll.test_and_resolve_terrain(&mut self.buffer.position[i], &mut self.buffer.velocity[i], query);
                     }
                 }
-                if hit && self.config.on_collision.is_some() {
-                    result.collision_events.push(CollisionEvent {
-                        position: self.buffer.position[i],
-                        velocity: self.buffer.velocity[i],
-                        normal: [0.0, 1.0, 0.0],
-                    });
+                if let Some(normal) = hit_normal {
+                    if self.config.on_collision.is_some() {
+                        result.collision_events.push(CollisionEvent {
+                            position: self.buffer.position[i],
+                            velocity: self.buffer.velocity[i],
+                            normal,
+                        });
+                    }
                 }
             }
         }
@@ -684,7 +706,7 @@ mod tests {
         s.set_initial_size(0.1, 0.1);
         s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
         s.config.bursts.push(BurstSpec { time: 0.0, count: 8 });
-        s.set_light_emit(LightEmitConfig { max_lights: 2, color_multiplier: [1.0, 1.0, 1.0], intensity: 1.0, falloff: 1.0 });
+        s.set_light_emit(LightEmitConfig { max_lights: 2, color_multiplier: [1.0, 1.0, 1.0], intensity: 1.0 });
         s.tick(0.5, None);
         let lights = s.extract_hero_lights();
         assert_eq!(lights.len(), 2);
@@ -713,6 +735,25 @@ mod tests {
         // Position should remain near the system origin (sphere not configured → Point shape, offset 0).
         let p = s.buffer.position[0];
         assert!((p[0] - 10.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn prewarm_fills_to_steady_state_on_first_tick() {
+        // Looped system that takes ~1 second to fill at 10 particles/sec. Without prewarm,
+        // a single tick of 0.01s spawns ~0 particles. With prewarm, it should reach
+        // steady state (~10 live particles) on the first call.
+        let mut s = ParticleSystem::new("pw");
+        s.set_max_particles(64);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_emission_rate(10.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.set_looped(true);
+        s.set_duration(1.0);
+        s.set_prewarm(true);
+        s.tick(0.01, None);
+        assert!(s.live_count() >= 5, "expected steady-state population after prewarm, got {}", s.live_count());
     }
 
     #[test]

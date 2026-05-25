@@ -19,6 +19,12 @@ pub struct ParticleRenderer {
     pub fallback_albedo: SrgbTexture2d,
     /// 1×1 depth texture used when the caller passes no scene depth (disables soft-particles).
     pub fallback_depth: DepthTexture2d,
+    /// Reusable dynamic VB for sprite instances; grown on demand (never shrunk).
+    /// `None` until the first frame that has at least one sprite system to render.
+    pub sprite_instance_vb: Option<VertexBuffer<sprite::SpriteInstance>>,
+    /// Reusable dynamic VB+IB for ribbon geometry; both grow together on demand.
+    pub ribbon_vb: Option<VertexBuffer<ribbon::RibbonVertex>>,
+    pub ribbon_ib: Option<IndexBuffer<u32>>,
 }
 
 impl ParticleRenderer {
@@ -36,6 +42,9 @@ impl ParticleRenderer {
             sprite_quad_ib: IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap(),
             fallback_albedo: SrgbTexture2d::new(display, white).unwrap(),
             fallback_depth: DepthTexture2d::empty(display, 1, 1).unwrap(),
+            sprite_instance_vb: None,
+            ribbon_vb: None,
+            ribbon_ib: None,
         }
     }
 }
@@ -47,7 +56,7 @@ pub fn render<S: Surface>(
     camera: &Camera,
     systems: &[ParticleSystem],
     materials: &HashMap<Uuid, &Material>,
-    renderer: &ParticleRenderer,
+    renderer: &mut ParticleRenderer,
     screen_size: [f32; 2],
 ) {
     use crate::particle::config::BlendMode;
@@ -78,10 +87,10 @@ pub fn render<S: Surface>(
         let mat = match materials.get(&mat_id) { Some(m) => *m, None => continue };
         match system.config.render {
             RenderStyle::Sprite { .. } => {
-                sprite::render_one(display, target, depth_texture, camera, system, mat, renderer, screen_size);
+                sprite::render_one(display, target, depth_texture, camera, system, mat, &mut *renderer, screen_size);
             }
             RenderStyle::Ribbon { .. } => {
-                ribbon::render_one(display, target, camera, system, mat, renderer);
+                ribbon::render_one(display, target, camera, system, mat, &mut *renderer);
             }
         }
     }
