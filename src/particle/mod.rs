@@ -6,6 +6,7 @@ pub mod collision;
 pub mod buffer;
 pub mod config;
 pub mod system;
+pub mod render;
 
 pub use types::{Range, BurstSpec};
 pub use curves::{Curve, Gradient};
