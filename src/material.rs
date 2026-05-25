@@ -207,10 +207,7 @@ impl Material {
         emissive: Option<texture::Texture>,
         emissive_strength: Option<f32>,
     ) -> Self {
-        let geometry_shader = match &shader.geometry_shader {
-            Some(shader) => Some(shader.as_str()),
-            None => Some(resources::geometry_shader())
-        };
+        let geometry_shader = shader.geometry_shader.as_deref();
 
         let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), geometry_shader).expect("Failed to compile shader program");
         let _tex_white = {
@@ -365,13 +362,17 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None), &display);
+        let mut shader = shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None);
+        shader.set_geometry_shader(resources::geometry_shader().to_string());
+        let mut mat = Material::default(shader, &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_unlit_shader(), None), &display);
+        let mut shader = shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_unlit_shader(), None);
+        shader.set_geometry_shader(resources::geometry_shader().to_string());
+        let mut mat = Material::default(shader, &display);
         mat.set_transparency(transparency);
         mat
     }
