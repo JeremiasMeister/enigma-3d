@@ -36,6 +36,8 @@ pub struct ObjectSerializer {
     cloned_id: String,
     animations: HashMap<String, animation::AnimationSerializer>,
     skeleton: Option<animation::SkeletonSerializer>,
+    #[serde(default)]
+    pub current_animation: Option<AnimationState>,
 }
 
 pub struct Object {
@@ -210,6 +212,7 @@ impl Object {
                 Some(skeleton) => Some(skeleton.to_serializer()),
                 None => None
             },
+            current_animation: self.current_animation.clone(),
         }
     }
 
@@ -235,6 +238,7 @@ impl Object {
             Some(s) => Some(animation::Skeleton::from_serializer(s)),
             None => None
         };
+        object.current_animation = serializer.current_animation;
         object
     }
 
@@ -537,6 +541,10 @@ impl Object {
 
     pub fn get_current_animation(&self) -> &Option<AnimationState> {
         &self.current_animation
+    }
+
+    pub fn get_current_animation_mut(&mut self) -> &mut Option<AnimationState> {
+        &mut self.current_animation
     }
 
     pub fn update(&mut self, delta_time: f32) {
