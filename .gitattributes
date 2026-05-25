@@ -9,3 +9,10 @@ app_state.json filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
 *.hdr filter=lfs diff=lfs merge=lfs -text
 *.exe filter=lfs diff=lfs merge=lfs -text
+
+# Core engine resources baked in via include_bytes! — kept in regular git so
+# downstream cargo git deps (which don't run `git lfs pull`) get real bytes.
+src/res/models/skybox.glb -text !filter !diff !merge
+src/res/textures/skybox.png -text !filter !diff !merge
+src/res/textures/lens_dirt.png -text !filter !diff !merge
+src/res/textures/icon.png -text !filter !diff !merge
