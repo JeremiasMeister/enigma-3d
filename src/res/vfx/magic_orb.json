@@ -8,7 +8,7 @@
   "emitter_shape": { "Sphere": { "radius": 0.05 } },
   "initial_velocity": { "Outward": { "speed": { "min": 0.5, "max": 1.5 } } },
   "initial_lifetime": { "min": 1.8, "max": 2.6 },
-  "initial_size":     { "min": 0.25, "max": 0.40 },
+  "initial_size":     { "min": 0.25, "max": 0.30 },
   "initial_rotation": { "min": 0.0, "max": 0.0 },
   "initial_color": { "Hdr": { "rgb": [0.3, 0.7, 1.0], "intensity": 8.0, "alpha": 1.0 } },
   "drag": 0.6,

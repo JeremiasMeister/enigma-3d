@@ -187,3 +187,52 @@ pub fn break_sound() -> &'static [u8] { include_bytes!("res/sounds/break.ogg")}
 
 #[cfg(feature = "examples")]
 pub fn pickup_sound() -> &'static [u8] { include_bytes!("res/sounds/pickup.ogg")}
+
+// vfx — particle system JSON configs (embedded)
+#[cfg(feature = "examples")]
+pub fn vfx_fireball() -> &'static str {
+    include_str!("res/vfx/fireball.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_fireball_smoke() -> &'static str {
+    include_str!("res/vfx/fireball_smoke.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_hit_sparks() -> &'static str {
+    include_str!("res/vfx/hit_sparks.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_spark_dust() -> &'static str {
+    include_str!("res/vfx/spark_dust.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_magic_orb() -> &'static str {
+    include_str!("res/vfx/magic_orb.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_aura() -> &'static str {
+    include_str!("res/vfx/aura.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_vortex_ribbon() -> &'static str {
+    include_str!("res/vfx/vortex_ribbon.json")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_lightning() -> &'static str {
+    include_str!("res/vfx/lightning.json")
+}
+
+// vfx — particle textures (embedded)
+#[cfg(feature = "examples")]
+pub fn vfx_explosion_flipbook() -> &'static [u8] {
+    include_bytes!("res/textures/particles/explosion_flipbook.png")
+}
+#[cfg(feature = "examples")]
+pub fn vfx_sprite_sheet() -> &'static [u8] {
+    include_bytes!("res/textures/particles/sprite_sheet.png")
+}
+
+#[cfg(feature = "examples")]
+pub fn vfx_ribbon_texture() -> &'static [u8] {
+    include_bytes!("res/textures/particles/ribbon_tex.png")
+}

@@ -122,7 +122,7 @@ fn keep_camera_above_ground(app: &mut AppState) {
 fn main() {
     let event_loop = EventLoop::new("Particles Demo", 1280, 720);
     let mut app_state = AppState::new();
-    //app_state.cursor_locked = true;
+    app_state.cursor_locked = true;
     enigma_3d::init_default(&mut app_state);
     let display = event_loop.get_display_clone();
 
@@ -137,7 +137,7 @@ fn main() {
 
     // Flat ground plane at y=0 so the scene has spatial reference.
     let mut terrain_mat = Material::lit_pbr(event_loop.get_display_clone(), false);
-    //terrain_mat.set_texture_from_resource(example_resources::terrain_albedo(), TextureType::Albedo);
+    terrain_mat.set_texture_from_resource(example_resources::terrain_albedo(), TextureType::Albedo);
     terrain_mat.set_texture_from_resource(example_resources::terrain_metallic(), TextureType::Metallic);
     terrain_mat.set_texture_from_resource(example_resources::terrain_normal(), TextureType::Normal);
     terrain_mat.set_texture_from_resource(example_resources::terrain_roughness(), TextureType::Roughness);

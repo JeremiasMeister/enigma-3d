@@ -8,7 +8,7 @@
   "emitter_shape": "Point",
   "initial_velocity": { "Cone": { "direction": [0.0, 1.0, 0.0], "angle": 0.25, "speed": { "min": 9.0, "max": 14.0 } } },
   "initial_lifetime": { "min": 0.30, "max": 0.45 },
-  "initial_size":     { "min": 0.20, "max": 0.32 },
+  "initial_size":     { "min": 0.40, "max": 0.72 },
   "initial_rotation": { "min": 0.0, "max": 0.0 },
   "initial_color": { "Hdr": { "rgb": [0.7, 0.9, 1.0], "intensity": 40.0, "alpha": 1.0 } },
   "color_over_life": { "keys": [[0.0, [0.9, 0.95, 1.0, 1.0]], [0.4, [0.5, 0.7, 1.0, 0.9]], [1.0, [0.2, 0.3, 0.6, 0.0]]] },

@@ -111,38 +111,3 @@ pub fn particle_ribbon_vert() -> &'static str {
 pub fn particle_ribbon_frag() -> &'static str {
     include_str!("res/shader/particle_ribbon_frag.glsl")
 }
-
-// vfx — particle system JSON configs (embedded)
-pub fn vfx_fireball() -> &'static str {
-    include_str!("res/vfx/fireball.json")
-}
-pub fn vfx_fireball_smoke() -> &'static str {
-    include_str!("res/vfx/fireball_smoke.json")
-}
-pub fn vfx_hit_sparks() -> &'static str {
-    include_str!("res/vfx/hit_sparks.json")
-}
-pub fn vfx_spark_dust() -> &'static str {
-    include_str!("res/vfx/spark_dust.json")
-}
-pub fn vfx_magic_orb() -> &'static str {
-    include_str!("res/vfx/magic_orb.json")
-}
-pub fn vfx_aura() -> &'static str {
-    include_str!("res/vfx/aura.json")
-}
-pub fn vfx_vortex_ribbon() -> &'static str {
-    include_str!("res/vfx/vortex_ribbon.json")
-}
-pub fn vfx_lightning() -> &'static str {
-    include_str!("res/vfx/lightning.json")
-}
-
-// vfx — particle textures (embedded)
-pub fn vfx_explosion_flipbook() -> &'static [u8] {
-    include_bytes!("res/textures/particles/explosion_flipbook.png")
-}
-pub fn vfx_sprite_sheet() -> &'static [u8] {
-    include_bytes!("res/textures/particles/sprite_sheet.png")
-}
-
