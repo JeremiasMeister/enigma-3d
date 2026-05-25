@@ -12,16 +12,92 @@ use rand::Rng;
 use winit::event::MouseButton;
 use enigma_3d::texture::Texture;
 
-fn spawn_sparks_on_click(app: &mut AppState) {
-    // Spawn at (2, 1, 0) for v1 — a real raycast from mouse pos comes later.
+/// Component marker placed on temporary lights so an update function can age them out.
+struct TempLightTimer {
+    remaining: f32,
+    total: f32,
+    base_intensity: f32,
+}
+
+/// Ray-vs-ground-plane (y=0) intersection. Returns None if the ray doesn't hit (parallel,
+/// behind us, or hit is absurdly far away).
+fn ray_hit_ground(origin: [f32; 3], dir: [f32; 3]) -> Option<[f32; 3]> {
+    if dir[1].abs() < 1e-4 { return None; }
+    let t = -origin[1] / dir[1];
+    if t <= 0.0 || t > 200.0 { return None; }
+    Some([
+        origin[0] + dir[0] * t,
+        0.0,
+        origin[2] + dir[2] * t,
+    ])
+}
+
+fn spawn_burst_on_click(app: &mut AppState) {
+    // With cursor_locked = true, MouseState::get_world_position uses the locked center;
+    // the resulting ray points wherever the camera is looking.
+    let camera = match app.camera.clone() { Some(c) => c, None => return };
+    let (ray_origin, ray_dir) = app.get_mouse_state_mut().get_world_position(&camera);
+    let origin = [ray_origin.x, ray_origin.y, ray_origin.z];
+    let dir = [ray_dir.x, ray_dir.y, ray_dir.z];
+
+    // Either hit the ground or fall back to a point 8m in front of the camera.
+    let pos = ray_hit_ground(origin, dir).unwrap_or_else(|| {
+        const FALLBACK_DISTANCE: f32 = 8.0;
+        [
+            origin[0] + dir[0] * FALLBACK_DISTANCE,
+            origin[1] + dir[1] * FALLBACK_DISTANCE,
+            origin[2] + dir[2] * FALLBACK_DISTANCE,
+        ]
+    });
+
+    // Spawn at slightly-above-ground so particles aren't half-buried.
+    let spawn_y = pos[1] + 0.5;
     let xform = [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
-        [2.0, 1.0, 0.0, 1.0],
+        [pos[0], spawn_y, pos[2], 1.0],
     ];
     let _ = app.emit_particle_system("explosion", xform);
     let _ = app.emit_particle_system("hit_sparks", xform);
+
+    // Bright temporary point light that fades over ~0.45s.
+    const TEMP_LIGHT_LIFE: f32 = 0.45;
+    const TEMP_LIGHT_INTENSITY: f32 = 12.0;
+    let mut temp = Light::new(
+        [pos[0], spawn_y + 0.6, pos[2]],
+        [1.0, 0.6, 0.2],
+        TEMP_LIGHT_INTENSITY,
+        None,
+        false,
+    );
+    temp.set_component(TempLightTimer {
+        remaining: TEMP_LIGHT_LIFE,
+        total: TEMP_LIGHT_LIFE,
+        base_intensity: TEMP_LIGHT_INTENSITY,
+    });
+    app.add_light(temp, LightEmissionType::Source);
+}
+
+/// Per-frame: fade and reap expired temporary lights.
+fn tick_temp_lights(app: &mut AppState) {
+    let dt = app.delta_time;
+    for light in app.light.iter_mut() {
+        let (remaining, total, base) = match light.get_component::<TempLightTimer>() {
+            Some(t) => (t.remaining, t.total, t.base_intensity),
+            None => continue,
+        };
+        let new_remaining = remaining - dt;
+        let scale = (new_remaining / total).max(0.0);
+        light.intensity = base * scale;
+        if let Some(t) = light.get_component_mut::<TempLightTimer>() {
+            t.remaining = new_remaining;
+        }
+    }
+    app.light.retain(|l| match l.get_component::<TempLightTimer>() {
+        Some(t) => t.remaining > 0.0,
+        None => true,
+    });
 }
 
 fn show_particle_counter(ctx: &egui::Context, app: &mut AppState) {
@@ -81,11 +157,17 @@ fn main() {
         enigma_3d::postprocessing::vignette::Vignette::new(&display, 0.35, 0.45, [0.0, 0.0, 0.0], 0.7)
     ));
 
-    // A gentle sun + ambient — but particles render after geometry, so this mainly affects any future ground/walls.
-    let sun = Light::new([10.0, 20.0, 10.0], [1.0, 0.97, 0.90], 200.0, None, false);
+    // Lighting: a dim sun + ambient, plus a warm point light on the fireball
+    // and a cool one on the aura. The engine caps source lights at 4 total —
+    // sun + fireball + aura = 3, leaving 1 slot for click-spawned temp lights.
+    let sun = Light::new([10.0, 20.0, 10.0], [1.0, 0.97, 0.90], 60.0, None, false);
     app_state.add_light(sun, LightEmissionType::Source);
-    let ambient = Light::new([0.0, 0.0, 0.0], [0.5, 0.5, 0.6], 0.4, None, false);
+    let ambient = Light::new([0.0, 0.0, 0.0], [0.4, 0.4, 0.55], 0.3, None, false);
     app_state.add_light(ambient, LightEmissionType::Ambient);
+    let fireball_light = Light::new([0.0, 2.0, 0.0], [1.0, 0.5, 0.15], 10.0, None, false);
+    app_state.add_light(fireball_light, LightEmissionType::Source);
+    let aura_light = Light::new([-6.0, 1.2, 0.0], [0.6, 0.4, 1.0], 6.0, None, false);
+    app_state.add_light(aura_light, LightEmissionType::Source);
 
     // Two sprite materials — one per atlas — plus a ribbon material for trails.
     // The 4x4 sprite_sheet drives the persistent fireball; the 5x5 explosion atlas
@@ -213,11 +295,12 @@ fn main() {
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::LControl), Arc::new(default_events::camera_down), None);
     app_state.inject_update_function(Arc::new(default_events::camera_fps_look));
     app_state.inject_update_function(Arc::new(keep_camera_above_ground));
+    app_state.inject_update_function(Arc::new(tick_temp_lights));
 
     // Click-to-spawn sparks
     app_state.inject_event(
         EventCharacteristic::MousePress(MouseButton::Left),
-        Arc::new(spawn_sparks_on_click),
+        Arc::new(spawn_burst_on_click),
         None,
     );
 
