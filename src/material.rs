@@ -376,6 +376,32 @@ impl Material {
         mat
     }
 
+    pub fn particle_sprite(display: Display<WindowSurface>) -> Self {
+        let mut mat = Material::default(
+            shader::Shader::from_strings(
+                resources::particle_sprite_vert(),
+                resources::particle_sprite_frag(),
+                None,
+            ),
+            &display,
+        );
+        mat.set_transparency(true);
+        mat
+    }
+
+    pub fn particle_ribbon(display: Display<WindowSurface>) -> Self {
+        let mut mat = Material::default(
+            shader::Shader::from_strings(
+                resources::particle_ribbon_vert(),
+                resources::particle_ribbon_frag(),
+                None,
+            ),
+            &display,
+        );
+        mat.set_transparency(true);
+        mat
+    }
+
     fn light_block_from_vec(lights: &Vec<Light>, ambient_light: Option<&Light>) -> LightBlock {
         let mut light_amount = lights.len() as i32;
         if light_amount > 4 {
@@ -547,5 +573,18 @@ impl Material {
 
     pub fn update(&mut self) {
         self.time += 0.001;
+    }
+}
+
+#[cfg(test)]
+mod particle_material_tests {
+    // Note: cannot construct Material in unit tests without a glium Display.
+    // Verify the GLSL strings are accessible at compile time:
+    #[test]
+    fn shader_strings_available() {
+        let _v = crate::resources::particle_sprite_vert();
+        let _f = crate::resources::particle_sprite_frag();
+        let _v2 = crate::resources::particle_ribbon_vert();
+        let _f2 = crate::resources::particle_ribbon_frag();
     }
 }
