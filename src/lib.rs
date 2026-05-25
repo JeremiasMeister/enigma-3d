@@ -1333,25 +1333,22 @@ impl EventLoop {
                         let renderer = particle_renderer.get_or_insert_with(|| {
                             crate::particle::render::ParticleRenderer::new(&self.display)
                         });
-                        // Collect owned clones so both borrows on app_state can be disjoint.
-                        // The materials map is tiny (one entry per active particle material).
-                        let materials_owned: HashMap<Uuid, Material> = app_state.materials
-                            .iter()
-                            .map(|m| (m.uuid, m.clone()))
-                            .collect();
-                        let materials_map: HashMap<Uuid, &Material> = materials_owned
-                            .iter()
-                            .map(|(k, v)| (*k, v))
-                            .collect();
-                        let systems_ref = &mut app_state.particle_systems;
                         let window_size = self.window.inner_size();
                         let screen_size = [window_size.width as f32, window_size.height as f32];
+
+                        // Split disjoint borrows of materials (read) and particle_systems (mut)
+                        // by dereferencing the MutexGuard explicitly first.
+                        let app: &mut AppState = &mut *app_state;
+                        let materials_map: HashMap<Uuid, &Material> = app.materials
+                            .iter()
+                            .map(|m| (m.uuid, m))
+                            .collect();
                         crate::particle::render::render(
                             &self.display,
                             render_target,
                             Some(&*depth_texture),
                             cam,
-                            systems_ref,
+                            &mut app.particle_systems,
                             &materials_map,
                             renderer,
                             screen_size,
