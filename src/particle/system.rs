@@ -365,6 +365,13 @@ impl ParticleSystem {
             self.buffer.push(ParticleSpawn {
                 position: world_pos, velocity: vel, color, size, rotation, lifetime: life, seed,
             });
+            // Per-particle starting frame offset for desynchronized flipbooks.
+            if let RenderStyle::Sprite { flipbook: Some(fb), .. } = &self.config.render {
+                if fb.randomize_start_frame && fb.frame_count > 0 {
+                    let last = self.buffer.count() - 1;
+                    self.buffer.flipbook_frame[last] = rand::Rng::gen::<f32>(&mut self.rng) * fb.frame_count as f32;
+                }
+            }
         }
 
         // 3. Age all particles (including newly spawned) & kill

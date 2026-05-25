@@ -12,6 +12,10 @@ pub struct FlipbookConfig {
     pub fps: f32,
     #[serde(default)]
     pub blend: bool,
+    /// If true, each spawned particle starts on a random frame instead of frame 0.
+    /// Useful for desynchronizing many particles sharing an animated atlas (embers, smoke).
+    #[serde(default)]
+    pub randomize_start_frame: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
