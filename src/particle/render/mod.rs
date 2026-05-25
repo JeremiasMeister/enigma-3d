@@ -1,4 +1,5 @@
 pub mod sprite;
+pub mod ribbon;
 
 use std::collections::HashMap;
 use glium::{Display, Surface, VertexBuffer, IndexBuffer};
@@ -36,12 +37,34 @@ pub fn render<S: Surface>(
     target: &mut S,
     depth_texture: Option<&DepthTexture2d>,
     camera: &Camera,
-    systems: &mut [ParticleSystem],
+    systems: &[ParticleSystem],
     materials: &HashMap<Uuid, &Material>,
     renderer: &ParticleRenderer,
     screen_size: [f32; 2],
 ) {
-    for system in systems.iter_mut() {
+    use crate::particle::config::BlendMode;
+    let cam_pos = camera.get_position();
+
+    // Sort: additive first (order-independent), then alpha back-to-front
+    let blend_rank = |m: BlendMode| match m {
+        BlendMode::Additive => 0,
+        BlendMode::PremultipliedAlpha => 1,
+        BlendMode::Alpha => 2,
+    };
+    let mut order: Vec<usize> = (0..systems.len()).collect();
+    order.sort_by(|&a, &b| {
+        let pa = systems[a].transform[3];
+        let pb = systems[b].transform[3];
+        let da = (pa[0]-cam_pos[0]).powi(2) + (pa[1]-cam_pos[1]).powi(2) + (pa[2]-cam_pos[2]).powi(2);
+        let db = (pb[0]-cam_pos[0]).powi(2) + (pb[1]-cam_pos[1]).powi(2) + (pb[2]-cam_pos[2]).powi(2);
+        let mode_a = match systems[a].config.render { RenderStyle::Sprite { blend_mode, .. } | RenderStyle::Ribbon { blend_mode, .. } => blend_mode };
+        let mode_b = match systems[b].config.render { RenderStyle::Sprite { blend_mode, .. } | RenderStyle::Ribbon { blend_mode, .. } => blend_mode };
+        blend_rank(mode_a).cmp(&blend_rank(mode_b))
+            .then(db.partial_cmp(&da).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    for idx in order {
+        let system = &systems[idx];
         if system.live_count() == 0 { continue; }
         let mat_id = match system.material_id { Some(id) => id, None => continue };
         let mat = match materials.get(&mat_id) { Some(m) => *m, None => continue };
@@ -50,7 +73,7 @@ pub fn render<S: Surface>(
                 sprite::render_one(display, target, depth_texture, camera, system, mat, renderer, screen_size);
             }
             RenderStyle::Ribbon { .. } => {
-                // task 13
+                ribbon::render_one(display, target, camera, system, mat);
             }
         }
     }

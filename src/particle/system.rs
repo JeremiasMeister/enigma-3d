@@ -230,6 +230,35 @@ impl ParticleSystem {
         }
     }
 
+    // Hero light extraction
+    pub fn extract_hero_lights(&self) -> Vec<crate::light::Light> {
+        let cfg = match &self.config.light_emit { Some(c) => c, None => return Vec::new() };
+        let max = cfg.max_lights as usize;
+        if max == 0 || self.live_count() == 0 { return Vec::new(); }
+
+        // Score: most-energetic particles (middle of life with current alpha)
+        let mut scored: Vec<(usize, f32)> = (0..self.live_count())
+            .map(|i| {
+                let t = (self.buffer.age[i] / self.buffer.lifetime[i]).clamp(0.0, 1.0);
+                let mid = 1.0 - (t - 0.5).abs() * 2.0;
+                let score = self.buffer.color[i][3] * mid;
+                (i, score)
+            })
+            .collect();
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.truncate(max);
+
+        scored.into_iter().map(|(i, _)| {
+            let pos = self.buffer.position[i];
+            let color = [
+                self.buffer.color[i][0] * cfg.color_multiplier[0],
+                self.buffer.color[i][1] * cfg.color_multiplier[1],
+                self.buffer.color[i][2] * cfg.color_multiplier[2],
+            ];
+            crate::light::Light::new(pos, color, cfg.intensity, None, false)
+        }).collect()
+    }
+
     // Runtime control
     pub fn play(&mut self) { self.state.stopped = false; }
     pub fn stop(&mut self) { self.state.stopped = true; }
@@ -542,5 +571,33 @@ mod tests {
         s.tick(0.01, None);
         s.tick(1.0, None);
         assert!(s.buffer.velocity[0][1] < -5.0);
+    }
+
+    #[test]
+    fn hero_lights_empty_without_config() {
+        let mut s = ParticleSystem::new("nolights");
+        s.set_max_particles(4);
+        s.set_initial_lifetime(0.5, 1.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 1.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 2 });
+        s.tick(0.01, None);
+        assert_eq!(s.extract_hero_lights().len(), 0);
+    }
+
+    #[test]
+    fn hero_lights_capped_at_max() {
+        let mut s = ParticleSystem::new("lights");
+        s.set_max_particles(8);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 1.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 8 });
+        s.set_light_emit(LightEmitConfig { max_lights: 2, color_multiplier: [1.0, 1.0, 1.0], intensity: 1.0, falloff: 1.0 });
+        s.tick(0.5, None);
+        let lights = s.extract_hero_lights();
+        assert_eq!(lights.len(), 2);
     }
 }

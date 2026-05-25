@@ -1348,7 +1348,7 @@ impl EventLoop {
                             render_target,
                             Some(&*depth_texture),
                             cam,
-                            &mut app.particle_systems,
+                            &app.particle_systems,
                             &materials_map,
                             renderer,
                             screen_size,
