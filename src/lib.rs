@@ -158,6 +158,7 @@ pub struct AppState {
     pub held_keys: HashSet<event::VirtualKeyCode>,
     pub cursor_locked: bool,
     pub terrain: Option<terrain::Terrain>,
+    pub particle_systems: Vec<particle::ParticleSystem>,
 }
 
 pub struct EventLoop {
@@ -203,6 +204,7 @@ impl AppState {
             held_keys: HashSet::new(),
             cursor_locked: false,
             terrain: None,
+            particle_systems: Vec::new(),
         }
     }
 
@@ -688,6 +690,90 @@ impl AppState {
 
     pub fn get_terrain_mut(&mut self) -> Option<&mut terrain::Terrain> {
         self.terrain.as_mut()
+    }
+
+    pub fn add_particle_system(&mut self, system: particle::ParticleSystem) {
+        self.particle_systems.push(system);
+    }
+
+    pub fn add_particle_system_template(&mut self, mut system: particle::ParticleSystem) {
+        system.stop();
+        self.particle_systems.push(system);
+    }
+
+    pub fn emit_particle_system(&mut self, template_name: &str, transform: [[f32; 4]; 4]) -> Option<Uuid> {
+        // Clone the template config + material id, then build a new live instance.
+        let template_cfg = self.particle_systems.iter()
+            .find(|s| s.name() == template_name)
+            .map(|s| s.config.clone());
+        let mat = self.particle_systems.iter()
+            .find(|s| s.name() == template_name)
+            .and_then(|s| s.material_id);
+        let cfg = template_cfg?;
+        let json = serde_json::to_string(&cfg).ok()?;
+        let mut instance = particle::ParticleSystem::from_resource(&json).ok()?;
+        instance.transform = transform;
+        instance.material_id = mat;
+        instance.play();
+        let id = instance.get_unique_id();
+        self.particle_systems.push(instance);
+        Some(id)
+    }
+
+    pub fn get_particle_system_by_name(&self, name: &str) -> Option<&particle::ParticleSystem> {
+        self.particle_systems.iter().find(|s| s.name() == name)
+    }
+
+    pub fn get_particle_system_by_name_mut(&mut self, name: &str) -> Option<&mut particle::ParticleSystem> {
+        self.particle_systems.iter_mut().find(|s| s.name() == name)
+    }
+
+    pub fn get_particle_system(&self, id: Uuid) -> Option<&particle::ParticleSystem> {
+        self.particle_systems.iter().find(|s| s.get_unique_id() == id)
+    }
+
+    pub fn get_particle_system_mut(&mut self, id: Uuid) -> Option<&mut particle::ParticleSystem> {
+        self.particle_systems.iter_mut().find(|s| s.get_unique_id() == id)
+    }
+
+    pub fn remove_particle_system(&mut self, id: Uuid) {
+        self.particle_systems.retain(|s| s.get_unique_id() != id);
+    }
+
+    pub fn remove_particle_systems_by_name(&mut self, name: &str) {
+        self.particle_systems.retain(|s| s.name() != name);
+    }
+
+    pub fn tick_particles(&mut self, dt: f32) {
+        // Collect sub-emitter spawn requests from each system's tick result
+        let mut to_spawn: Vec<(String, [[f32; 4]; 4])> = Vec::new();
+
+        for sys in &mut self.particle_systems {
+            let query: Option<&dyn Fn(f32, f32) -> Option<f32>> = None;
+            let result = sys.tick(dt, query);
+            if let Some(name) = &sys.config.on_death {
+                for ev in &result.death_events {
+                    let pos = ev.position;
+                    let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[pos[0],pos[1],pos[2],1.0]];
+                    to_spawn.push((name.clone(), xform));
+                }
+            }
+            if let Some(name) = &sys.config.on_collision {
+                for ev in &result.collision_events {
+                    let pos = ev.position;
+                    let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[pos[0],pos[1],pos[2],1.0]];
+                    to_spawn.push((name.clone(), xform));
+                }
+            }
+        }
+
+        // Dispatch sub-emitter spawns
+        for (name, xform) in to_spawn {
+            let _ = self.emit_particle_system(&name, xform);
+        }
+
+        // Reap finished systems
+        self.particle_systems.retain(|s| !s.is_finished());
     }
 }
 
@@ -1345,5 +1431,54 @@ mod tests {
         assert_eq!(s.get_shadow_resolution(), 2048);
         s.set_shadow_distance(75.0);
         assert_eq!(s.get_shadow_distance(), 75.0);
+    }
+}
+
+#[cfg(test)]
+mod particle_integration_tests {
+    use super::*;
+    use crate::particle::*;
+
+    fn make_template(name: &str) -> ParticleSystem {
+        let mut s = ParticleSystem::new(name);
+        s.set_max_particles(4);
+        s.set_initial_lifetime(0.5, 1.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0,1.0,0.0], speed: Range::new(1.0, 1.0) });
+        s.set_initial_size(0.1, 0.2);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.set_render_style(RenderStyle::Sprite {
+            flipbook: None, blend_mode: BlendMode::Alpha,
+            soft_particles: false, soft_fade_distance: 0.0, velocity_stretch: 0.0,
+        });
+        s
+    }
+
+    #[test]
+    fn add_and_lookup_by_name() {
+        let mut app = AppState::new();
+        let s = make_template("smoke");
+        let id = s.get_unique_id();
+        app.add_particle_system(s);
+        assert!(app.get_particle_system_by_name("smoke").is_some());
+        assert!(app.get_particle_system(id).is_some());
+    }
+
+    #[test]
+    fn emit_from_template() {
+        let mut app = AppState::new();
+        let mut tpl = make_template("hit");
+        tpl.add_burst(0.0, 3);
+        app.add_particle_system_template(tpl);
+        let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[1.0,2.0,3.0,1.0]];
+        let new_id = app.emit_particle_system("hit", xform);
+        assert!(new_id.is_some());
+    }
+
+    #[test]
+    fn remove_by_name_clears() {
+        let mut app = AppState::new();
+        app.add_particle_system(make_template("x"));
+        app.remove_particle_systems_by_name("x");
+        assert!(app.get_particle_system_by_name("x").is_none());
     }
 }
