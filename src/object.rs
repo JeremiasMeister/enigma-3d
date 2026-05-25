@@ -82,6 +82,7 @@ impl Clone for Object {
         new_object.cloned_id = self.unique_id;
         new_object.animations = self.animations.clone();
         new_object.skeleton = self.skeleton.clone();
+        new_object.current_animation = self.current_animation.clone();
         new_object.components = HashMap::new();
         new_object
     }
