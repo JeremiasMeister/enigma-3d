@@ -145,6 +145,43 @@ impl ParticleSystem {
     pub fn set_position(&mut self, position: [f32; 3]) {
         self.transform = translate4(position);
     }
+
+    /// Replace the rotation portion of the transform (preserving translation).
+    /// Euler angles in radians; rotation order Z * Y * X (yaw-pitch-roll).
+    /// Call after `set_position`, before `set_scale`.
+    pub fn set_rotation(&mut self, euler_radians: [f32; 3]) {
+        let pos = [self.transform[3][0], self.transform[3][1], self.transform[3][2]];
+        let (cx, sx) = (euler_radians[0].cos(), euler_radians[0].sin());
+        let (cy, sy) = (euler_radians[1].cos(), euler_radians[1].sin());
+        let (cz, sz) = (euler_radians[2].cos(), euler_radians[2].sin());
+        // R = Rz * Ry * Rx
+        let r00 = cy * cz;
+        let r01 = -cy * sz;
+        let r02 = sy;
+        let r10 = cx * sz + sx * sy * cz;
+        let r11 = cx * cz - sx * sy * sz;
+        let r12 = -sx * cy;
+        let r20 = sx * sz - cx * sy * cz;
+        let r21 = sx * cz + cx * sy * sz;
+        let r22 = cx * cy;
+        self.transform = [
+            [r00, r01, r02, 0.0],
+            [r10, r11, r12, 0.0],
+            [r20, r21, r22, 0.0],
+            [pos[0], pos[1], pos[2], 1.0],
+        ];
+    }
+
+    /// Scale the 3×3 rotation/scale block of the transform, preserving translation.
+    /// Call after `set_rotation`.
+    pub fn set_scale(&mut self, scale: [f32; 3]) {
+        for i in 0..3 {
+            self.transform[0][i] *= scale[0];
+            self.transform[1][i] *= scale[1];
+            self.transform[2][i] *= scale[2];
+        }
+    }
+
     pub fn set_local_offset(&mut self, offset: [[f32; 4]; 4]) { self.local_offset = offset; }
     pub fn set_parent_object(&mut self, object_id: Uuid) { self.parent_object = Some(object_id); }
     pub fn clear_parent(&mut self) { self.parent_object = None; }
@@ -398,8 +435,11 @@ impl ParticleSystem {
             }
         }
 
-        // 7. Sample curves
-        if self.config.color_over_life.is_some() || self.config.size_over_life.is_some() {
+        // 7. Sample curves (color/size/rotation over life) + integrate angular velocity
+        let needs_curve_sample = self.config.color_over_life.is_some()
+            || self.config.size_over_life.is_some()
+            || self.config.rotation_over_life.is_some();
+        if needs_curve_sample {
             for i in 0..self.buffer.count() {
                 let t = (self.buffer.age[i] / self.buffer.lifetime[i]).clamp(0.0, 1.0);
                 if let Some(ref g) = self.config.color_over_life.clone() {
@@ -408,6 +448,17 @@ impl ParticleSystem {
                 if let Some(ref c) = self.config.size_over_life.clone() {
                     self.buffer.size[i] = c.eval(t);
                 }
+                if let Some(ref c) = self.config.rotation_over_life.clone() {
+                    self.buffer.rotation[i] = c.eval(t);
+                }
+            }
+        }
+        if let Some(av) = self.config.angular_velocity {
+            // Each particle gets a deterministic spin rate from its seed,
+            // mapped from [0,1] to [av.min, av.max].
+            for i in 0..self.buffer.count() {
+                let spin = av.min + (av.max - av.min) * self.buffer.seed[i];
+                self.buffer.rotation[i] += spin * dt;
             }
         }
 

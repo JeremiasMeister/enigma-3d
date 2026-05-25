@@ -748,9 +748,17 @@ impl AppState {
         // Collect sub-emitter spawn requests from each system's tick result
         let mut to_spawn: Vec<(String, [[f32; 4]; 4])> = Vec::new();
 
+        // Capture terrain reference up front so we can build the query closure per iteration.
+        let terrain_ref = self.terrain.as_ref();
+
         for sys in &mut self.particle_systems {
-            let query: Option<&dyn Fn(f32, f32) -> Option<f32>> = None;
-            let result = sys.tick(dt, query);
+            // Build the query closure on each iteration (cheap; just captures the reference).
+            let height_fn = terrain_ref.map(|t| t.heightfield_query_fn());
+            let query_ref: Option<&dyn Fn(f32, f32) -> Option<f32>> = match &height_fn {
+                Some(f) => Some(f as &dyn Fn(f32, f32) -> Option<f32>),
+                None => None,
+            };
+            let result = sys.tick(dt, query_ref);
             if let Some(name) = &sys.config.on_death {
                 for ev in &result.death_events {
                     let pos = ev.position;
