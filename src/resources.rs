@@ -128,6 +128,15 @@ pub fn vfx_spark_dust() -> &'static str {
 pub fn vfx_magic_orb() -> &'static str {
     include_str!("res/vfx/magic_orb.json")
 }
+pub fn vfx_aura() -> &'static str {
+    include_str!("res/vfx/aura.json")
+}
+pub fn vfx_vortex_ribbon() -> &'static str {
+    include_str!("res/vfx/vortex_ribbon.json")
+}
+pub fn vfx_lightning() -> &'static str {
+    include_str!("res/vfx/lightning.json")
+}
 
 // vfx — particle textures (embedded)
 pub fn vfx_explosion_flipbook() -> &'static [u8] {

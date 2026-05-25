@@ -1,0 +1,22 @@
+{
+  "name": "lightning",
+  "max_particles": 32,
+  "looped": true,
+  "duration": 1.0,
+  "emission_rate": 12.0,
+  "bursts": [],
+  "emitter_shape": "Point",
+  "initial_velocity": { "Cone": { "direction": [0.0, 1.0, 0.0], "angle": 0.25, "speed": { "min": 9.0, "max": 14.0 } } },
+  "initial_lifetime": { "min": 0.18, "max": 0.28 },
+  "initial_size":     { "min": 0.05, "max": 0.08 },
+  "initial_rotation": { "min": 0.0, "max": 0.0 },
+  "initial_color": { "Hdr": { "rgb": [0.7, 0.9, 1.0], "intensity": 40.0, "alpha": 1.0 } },
+  "color_over_life": { "keys": [[0.0, [0.9, 0.95, 1.0, 1.0]], [0.4, [0.5, 0.7, 1.0, 0.9]], [1.0, [0.2, 0.3, 0.6, 0.0]]] },
+  "curl_noise": { "scale": 4.5, "strength": 18.0, "evolution_speed": 4.0 },
+  "render": {
+    "kind": "Ribbon",
+    "max_trail_points": 14,
+    "width_over_life": { "keys": [[0.0, 1.0], [0.3, 0.9], [1.0, 0.0]] },
+    "blend_mode": "Additive"
+  }
+}
