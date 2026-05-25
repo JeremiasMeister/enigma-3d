@@ -63,7 +63,7 @@ fn spawn_burst_on_click(app: &mut AppState) {
 
     // Bright temporary point light that fades over ~0.45s.
     const TEMP_LIGHT_LIFE: f32 = 0.45;
-    const TEMP_LIGHT_INTENSITY: f32 = 12.0;
+    const TEMP_LIGHT_INTENSITY: f32 = 35.0;
     let mut temp = Light::new(
         [pos[0], spawn_y + 0.6, pos[2]],
         [1.0, 0.6, 0.2],
@@ -136,7 +136,12 @@ fn main() {
     }
 
     // Flat ground plane at y=0 so the scene has spatial reference.
-    let terrain = enigma_3d::terrain::Terrain::new(
+    let mut terrain_mat = Material::lit_pbr(event_loop.get_display_clone(), false);
+    terrain_mat.set_texture_from_resource(example_resources::terrain_albedo(), TextureType::Albedo);
+    terrain_mat.set_texture_from_resource(example_resources::terrain_metallic(), TextureType::Metallic);
+    terrain_mat.set_texture_from_resource(example_resources::terrain_normal(), TextureType::Normal);
+    terrain_mat.set_texture_from_resource(example_resources::terrain_roughness(), TextureType::Roughness);
+    let mut terrain = enigma_3d::terrain::Terrain::new(
         &event_loop.get_display_clone(),
         enigma_3d::terrain::TerrainConfig {
             width: 100.0,
@@ -147,6 +152,7 @@ fn main() {
             ..Default::default()
         },
     );
+    terrain.set_material(terrain_mat);
     app_state.set_terrain(terrain);
 
     // Post-processing: bloom picks up HDR particle colors as glow; vignette for framing.
@@ -164,9 +170,9 @@ fn main() {
     app_state.add_light(sun, LightEmissionType::Source);
     let ambient = Light::new([0.0, 0.0, 0.0], [0.4, 0.4, 0.55], 0.3, None, false);
     app_state.add_light(ambient, LightEmissionType::Ambient);
-    let fireball_light = Light::new([0.0, 2.0, 0.0], [1.0, 0.5, 0.15], 10.0, None, false);
+    let fireball_light = Light::new([0.0, 2.0, 0.0], [1.0, 0.5, 0.15], 40.0, None, false);
     app_state.add_light(fireball_light, LightEmissionType::Source);
-    let aura_light = Light::new([-6.0, 1.2, 0.0], [0.6, 0.4, 1.0], 6.0, None, false);
+    let aura_light = Light::new([-6.0, 1.2, 0.0], [0.6, 0.4, 1.0], 30.0, None, false);
     app_state.add_light(aura_light, LightEmissionType::Source);
 
     // Two sprite materials — one per atlas — plus a ribbon material for trails.
