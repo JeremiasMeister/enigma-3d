@@ -1,3 +1,5 @@
 /target
 app_state.json
 /enigma_logs/*
+.DS_Store
+**/.DS_Store
