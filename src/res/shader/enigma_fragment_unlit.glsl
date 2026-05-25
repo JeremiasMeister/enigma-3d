@@ -25,8 +25,8 @@ uniform vec2 mat_uv_offset;
 out vec4 color;
 
 void main() {
-    vec2 uv = vertex_texcoord * mat_uv_tiling + mat_uv_offset;
-    vec4 tex = texture(mat_albedo, uv);
+    vec2 mat_uv = vertex_texcoord * mat_uv_tiling + mat_uv_offset;
+    vec4 tex = texture(mat_albedo, mat_uv);
     color = vec4(tex.rgb * mat_color * vertex_color, tex.a * mat_transparency_strength);
 }
 
