@@ -7,9 +7,10 @@ use enigma_3d::material::{Material, TextureType};
 use enigma_3d::particle::ParticleSystem;
 use enigma_3d::particle::config::{FlipbookConfig, RenderStyle, BlendMode};
 use enigma_3d::particle::{EmitterShape, InitialVelocity, ColorRange, Range};
-use enigma_3d::resources;
+use enigma_3d::example_resources;
 use rand::Rng;
 use winit::event::MouseButton;
+use enigma_3d::texture::Texture;
 
 fn spawn_sparks_on_click(app: &mut AppState) {
     // Spawn at (2, 1, 0) for v1 — a real raycast from mouse pos comes later.
@@ -31,6 +32,17 @@ fn show_particle_counter(ctx: &egui::Context, app: &mut AppState) {
     });
 }
 
+/// Eye-height clamp: prevent the FPS camera from sinking below the ground plane.
+fn keep_camera_above_ground(app: &mut AppState) {
+    const EYE_HEIGHT: f32 = 1.6;
+    if let Some(cam) = app.camera.as_mut() {
+        let p = cam.get_position();
+        if p[1] < EYE_HEIGHT {
+            cam.set_position([p[0], EYE_HEIGHT, p[2]]);
+        }
+    }
+}
+
 fn main() {
     let event_loop = EventLoop::new("Particles Demo", 1280, 720);
     let mut app_state = AppState::new();
@@ -38,11 +50,36 @@ fn main() {
     enigma_3d::init_default(&mut app_state);
     let display = event_loop.get_display_clone();
 
+    // black skybox
+    app_state.set_skybox_from_texture(Texture::colored_texture(event_loop.get_display_reference(),[13,13,28,255], Some("Skybox".to_string())), &event_loop);
+
     // Camera positioning
     if let Some(cam) = app_state.camera.as_mut() {
         cam.set_position([0.0, 2.0, 6.0]);
         cam.set_far(200.0);
     }
+
+    // Flat ground plane at y=0 so the scene has spatial reference.
+    let terrain = enigma_3d::terrain::Terrain::new(
+        &event_loop.get_display_clone(),
+        enigma_3d::terrain::TerrainConfig {
+            width: 100.0,
+            depth: 100.0,
+            resolution: 64,
+            max_height: 0.0,
+            custom_noise: Some(Box::new(|_x, _z| 0.0)),
+            ..Default::default()
+        },
+    );
+    app_state.set_terrain(terrain);
+
+    // Post-processing: bloom picks up HDR particle colors as glow; vignette for framing.
+    app_state.add_post_process(Box::new(
+        enigma_3d::postprocessing::bloom::Bloom::new(&display, 0.97, 12)
+    ));
+    app_state.add_post_process(Box::new(
+        enigma_3d::postprocessing::vignette::Vignette::new(&display, 0.35, 0.45, [0.0, 0.0, 0.0], 0.7)
+    ));
 
     // A gentle sun + ambient — but particles render after geometry, so this mainly affects any future ground/walls.
     let sun = Light::new([10.0, 20.0, 10.0], [1.0, 0.97, 0.90], 200.0, None, false);
@@ -55,16 +92,17 @@ fn main() {
     // drives the click-to-spawn explosion burst.
     let mut sheet_mat = Material::particle_sprite(display.clone());
     sheet_mat.set_name("particle_sheet_4x4");
-    sheet_mat.set_texture_from_resource(resources::vfx_sprite_sheet(), TextureType::Albedo);
+    sheet_mat.set_texture_from_resource(example_resources::vfx_sprite_sheet(), TextureType::Albedo);
     app_state.add_material(sheet_mat);
 
     let mut explosion_mat = Material::particle_sprite(display.clone());
     explosion_mat.set_name("particle_explosion_5x5");
-    explosion_mat.set_texture_from_resource(resources::vfx_explosion_flipbook(), TextureType::Albedo);
+    explosion_mat.set_texture_from_resource(example_resources::vfx_explosion_flipbook(), TextureType::Albedo);
     app_state.add_material(explosion_mat);
 
     let mut ribbon_mat = Material::particle_ribbon(display.clone());
     ribbon_mat.set_name("particle_ribbon");
+    ribbon_mat.set_texture_from_resource(example_resources::vfx_ribbon_texture(), TextureType::Albedo);
     app_state.add_material(ribbon_mat);
 
     let sheet_mat_id = app_state.materials.iter().find(|m| m.name == "particle_sheet_4x4").map(|m| m.uuid).unwrap();
@@ -84,17 +122,17 @@ fn main() {
     };
 
     // Templates for sub-emitters and click-to-spawn (loaded from embedded JSON resources).
-    let mut smoke = ParticleSystem::from_resource(resources::vfx_fireball_smoke()).expect("load fireball_smoke");
+    let mut smoke = ParticleSystem::from_resource(example_resources::vfx_fireball_smoke()).expect("load fireball_smoke");
     smoke.set_material(sheet_mat_id);
     smoke.set_flipbook(sheet_locked(5));
     app_state.add_particle_system_template(smoke);
 
-    let mut dust = ParticleSystem::from_resource(resources::vfx_spark_dust()).expect("load spark_dust");
+    let mut dust = ParticleSystem::from_resource(example_resources::vfx_spark_dust()).expect("load spark_dust");
     dust.set_material(sheet_mat_id);
     dust.set_flipbook(sheet_locked(rng.gen_range(0..16)));
     app_state.add_particle_system_template(dust);
 
-    let mut sparks = ParticleSystem::from_resource(resources::vfx_hit_sparks()).expect("load hit_sparks");
+    let mut sparks = ParticleSystem::from_resource(example_resources::vfx_hit_sparks()).expect("load hit_sparks");
     sparks.set_material(ribbon_mat_id);
     app_state.add_particle_system_template(sparks);
 
@@ -133,33 +171,33 @@ fn main() {
     app_state.add_particle_system_template(explosion);
 
     // Active fireball: locked to one random cell of the 4x4 atlas for the whole system.
-    let mut fireball = ParticleSystem::from_resource(resources::vfx_fireball()).expect("load fireball");
+    let mut fireball = ParticleSystem::from_resource(example_resources::vfx_fireball()).expect("load fireball");
     fireball.set_material(sheet_mat_id);
     fireball.set_position([0.0, 2.0, 0.0]);
     fireball.set_flipbook(sheet_locked(14));
     app_state.add_particle_system(fireball);
 
     // Active magic orb (ribbon — no flipbook)
-    let mut orb = ParticleSystem::from_resource(resources::vfx_magic_orb()).expect("load magic_orb");
+    let mut orb = ParticleSystem::from_resource(example_resources::vfx_magic_orb()).expect("load magic_orb");
     orb.set_material(ribbon_mat_id);
     orb.set_position([-3.0, 2.0, 0.0]);
     app_state.add_particle_system(orb);
 
     // Soft purple aura (sprite, additive) — sits low so it reads as a glowing dome.
-    let mut aura = ParticleSystem::from_resource(resources::vfx_aura()).expect("load aura");
+    let mut aura = ParticleSystem::from_resource(example_resources::vfx_aura()).expect("load aura");
     aura.set_material(sheet_mat_id);
-    aura.set_flipbook(sheet_locked(rng.gen_range(0..16)));
+    aura.set_flipbook(sheet_locked(14));
     aura.set_position([-6.0, 1.0, 0.0]);
     app_state.add_particle_system(aura);
 
     // Teal/cyan ribbon vortex — many trails swirling around a vertical axis.
-    let mut vortex = ParticleSystem::from_resource(resources::vfx_vortex_ribbon()).expect("load vortex_ribbon");
+    let mut vortex = ParticleSystem::from_resource(example_resources::vfx_vortex_ribbon()).expect("load vortex_ribbon");
     vortex.set_material(ribbon_mat_id);
     vortex.set_position([3.0, 1.0, 0.0]);
     app_state.add_particle_system(vortex);
 
     // Crackling lightning bolts — short-lived bright ribbons twisting upward via curl noise.
-    let mut lightning = ParticleSystem::from_resource(resources::vfx_lightning()).expect("load lightning");
+    let mut lightning = ParticleSystem::from_resource(example_resources::vfx_lightning()).expect("load lightning");
     lightning.set_material(ribbon_mat_id);
     lightning.set_position([6.0, 0.5, 0.0]);
     app_state.add_particle_system(lightning);
@@ -174,6 +212,7 @@ fn main() {
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::Space), Arc::new(default_events::camera_up), None);
     app_state.inject_event(EventCharacteristic::KeyDown(VirtualKeyCode::LControl), Arc::new(default_events::camera_down), None);
     app_state.inject_update_function(Arc::new(default_events::camera_fps_look));
+    app_state.inject_update_function(Arc::new(keep_camera_above_ground));
 
     // Click-to-spawn sparks
     app_state.inject_event(
