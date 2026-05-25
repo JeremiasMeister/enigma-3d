@@ -241,6 +241,181 @@ impl ParticleSystem {
     }
     pub fn is_finished(&self) -> bool { self.state.finished }
     pub fn live_count(&self) -> usize { self.buffer.count() }
+
+    /// Advance simulation by `dt`. `terrain_height_at`, if provided, is queried for collision.
+    /// Returns death and collision events for the caller to dispatch sub-emitters.
+    pub fn tick(&mut self, dt: f32, terrain_height_at: Option<&dyn Fn(f32, f32) -> Option<f32>>) -> TickResult {
+        let mut result = TickResult::default();
+        if self.state.stopped {
+            return result;
+        }
+
+        // 1. Advance time
+        let prev_elapsed = self.state.elapsed;
+        self.state.elapsed += dt;
+
+        let within_emission = self.config.looped || self.state.elapsed < self.config.duration;
+        if within_emission {
+            self.state.spawn_accumulator += self.config.emission_rate * dt;
+        }
+
+        // 2. Spawn (before aging so new particles get aged this tick too)
+        let mut to_spawn: usize = 0;
+        if within_emission {
+            let n = self.state.spawn_accumulator.floor();
+            to_spawn += n as usize;
+            self.state.spawn_accumulator -= n;
+        }
+        // bursts within (prev_elapsed, elapsed]
+        for b in &self.config.bursts {
+            if b.time > prev_elapsed && b.time <= self.state.elapsed {
+                to_spawn += b.count as usize;
+            }
+        }
+        // edge case: burst at time 0.0 should fire on first tick
+        if prev_elapsed == 0.0 {
+            for b in &self.config.bursts {
+                if b.time == 0.0 {
+                    to_spawn += b.count as usize;
+                }
+            }
+        }
+
+        let origin = [self.transform[3][0], self.transform[3][1], self.transform[3][2]];
+
+        // Borrow split: snapshot config fields needed for spawning, rng stays mutable
+        let max_particles = self.config.max_particles;
+        for _ in 0..to_spawn {
+            if self.buffer.is_full() { break; }
+            let local_pos = self.config.emitter_shape.sample_position(&mut self.rng);
+            let world_pos = [origin[0]+local_pos[0], origin[1]+local_pos[1], origin[2]+local_pos[2]];
+            let vel = self.config.initial_velocity.sample(&local_pos, &mut self.rng);
+            let life = self.config.initial_lifetime.sample(&mut self.rng);
+            let size = self.config.initial_size.sample(&mut self.rng);
+            let color = self.config.initial_color.sample(&mut self.rng);
+            let rotation = self.config.initial_rotation.sample(&mut self.rng);
+            let seed: f32 = rand::Rng::gen(&mut self.rng);
+            let _ = max_particles; // used to ensure borrow is local
+            self.buffer.push(ParticleSpawn {
+                position: world_pos, velocity: vel, color, size, rotation, lifetime: life, seed,
+            });
+        }
+
+        // 3. Age all particles (including newly spawned) & kill
+        for i in 0..self.buffer.count() {
+            self.buffer.age[i] += dt;
+        }
+        let need_death_events = self.config.on_death.is_some();
+        let mut death_events: Vec<DeathEvent> = Vec::new();
+        self.buffer.compact_dead(|pos, vel, color| {
+            if need_death_events {
+                death_events.push(DeathEvent { position: pos, velocity: vel, color });
+            }
+        });
+        result.death_events = death_events;
+
+        // 4-5. Forces + integrate
+        let time = self.state.elapsed;
+        for i in 0..self.buffer.count() {
+            let mut accel = [0.0_f32; 3];
+            if let Some(g) = self.config.gravity {
+                accel[0] += g[0]; accel[1] += g[1]; accel[2] += g[2];
+            }
+            if let Some(curl) = self.config.curl_noise {
+                let f = curl.force(&self.buffer.position[i], time);
+                accel[0] += f[0]; accel[1] += f[1]; accel[2] += f[2];
+            }
+            if let Some(vortex) = self.config.vortex {
+                let f = vortex.force(&self.buffer.position[i]);
+                accel[0] += f[0]; accel[1] += f[1]; accel[2] += f[2];
+            }
+            if let Some(attractor) = self.config.attractor {
+                let f = attractor.force(&self.buffer.position[i]);
+                accel[0] += f[0]; accel[1] += f[1]; accel[2] += f[2];
+            }
+            self.buffer.velocity[i][0] += accel[0] * dt;
+            self.buffer.velocity[i][1] += accel[1] * dt;
+            self.buffer.velocity[i][2] += accel[2] * dt;
+            if let Some(d) = self.config.drag {
+                crate::particle::forces::apply_drag(&mut self.buffer.velocity[i], d, dt);
+            }
+            // Integrate position
+            self.buffer.position[i][0] += self.buffer.velocity[i][0] * dt;
+            self.buffer.position[i][1] += self.buffer.velocity[i][1] * dt;
+            self.buffer.position[i][2] += self.buffer.velocity[i][2] * dt;
+
+            // Flipbook advance
+            if let RenderStyle::Sprite { flipbook: Some(ref fb), .. } = self.config.render {
+                self.buffer.flipbook_frame[i] += fb.fps * dt;
+            }
+        }
+
+        // 6. Collide
+        if let Some(coll) = self.config.collision.clone() {
+            for i in 0..self.buffer.count() {
+                let mut hit = coll.test_and_resolve_ground(&mut self.buffer.position[i], &mut self.buffer.velocity[i]);
+                if !hit {
+                    if let Some(query) = terrain_height_at {
+                        hit = coll.test_and_resolve_terrain(&mut self.buffer.position[i], &mut self.buffer.velocity[i], query);
+                    }
+                }
+                if hit && self.config.on_collision.is_some() {
+                    result.collision_events.push(CollisionEvent {
+                        position: self.buffer.position[i],
+                        velocity: self.buffer.velocity[i],
+                        normal: [0.0, 1.0, 0.0],
+                    });
+                }
+            }
+        }
+
+        // 7. Sample curves
+        if self.config.color_over_life.is_some() || self.config.size_over_life.is_some() {
+            for i in 0..self.buffer.count() {
+                let t = (self.buffer.age[i] / self.buffer.lifetime[i]).clamp(0.0, 1.0);
+                if let Some(ref g) = self.config.color_over_life.clone() {
+                    self.buffer.color[i] = g.eval(t);
+                }
+                if let Some(ref c) = self.config.size_over_life.clone() {
+                    self.buffer.size[i] = c.eval(t);
+                }
+            }
+        }
+
+        // 8. Push trail history
+        if let Some(ref mut trails) = self.buffer.trail {
+            let max_points = match self.config.render {
+                RenderStyle::Ribbon { max_trail_points, .. } => max_trail_points,
+                _ => 0,
+            };
+            for i in 0..trails.len() {
+                trails[i].push_front(self.buffer.position[i]);
+                while trails[i].len() > max_points {
+                    trails[i].pop_back();
+                }
+            }
+        }
+
+        // 10. Mark finished
+        if !self.config.looped && self.state.elapsed > self.config.duration && self.buffer.count() == 0 {
+            self.state.finished = true;
+        }
+
+        result
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct TickResult {
+    pub death_events: Vec<DeathEvent>,
+    pub collision_events: Vec<CollisionEvent>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct DeathEvent {
+    pub position: [f32; 3],
+    pub velocity: [f32; 3],
+    pub color:    [f32; 4],
 }
 
 #[cfg(test)]
@@ -319,5 +494,53 @@ mod tests {
         let back = ParticleSystem::from_resource(&json).unwrap();
         assert_eq!(back.name(), "rt");
         assert_eq!(back.config.max_particles, 16);
+    }
+
+    #[test]
+    fn one_particle_dies_after_lifetime() {
+        let mut s = ParticleSystem::new("t");
+        s.set_max_particles(4);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 1 });
+        s.set_looped(false);
+        s.set_duration(2.0);
+
+        s.tick(0.5, None);
+        assert_eq!(s.live_count(), 1);
+        s.tick(0.6, None);
+        assert_eq!(s.live_count(), 0);
+    }
+
+    #[test]
+    fn looped_steady_state() {
+        let mut s = ParticleSystem::new("loop");
+        s.set_max_particles(100);
+        s.set_initial_lifetime(1.0, 1.0);
+        s.set_emission_rate(10.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0,0.0,0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.set_looped(true);
+        for _ in 0..120 { s.tick(1.0/60.0, None); }
+        assert!(s.live_count() >= 5);
+        assert!(s.live_count() <= 15);
+    }
+
+    #[test]
+    fn gravity_accelerates() {
+        let mut s = ParticleSystem::new("g");
+        s.set_max_particles(1);
+        s.set_initial_lifetime(10.0, 10.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0,0.0,0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.set_gravity([0.0, -10.0, 0.0]);
+        s.config.bursts.push(BurstSpec { time: 0.0, count: 1 });
+        s.tick(0.01, None);
+        s.tick(1.0, None);
+        assert!(s.buffer.velocity[0][1] < -5.0);
     }
 }

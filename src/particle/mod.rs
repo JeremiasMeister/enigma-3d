@@ -14,4 +14,4 @@ pub use forces::{VortexConfig, AttractorConfig, CurlNoiseConfig};
 pub use collision::{CollisionConfig, CollisionEvent};
 pub use buffer::{ParticleBuffer, ParticleSpawn};
 pub use config::{ParticleSystemConfig, RenderStyle, BlendMode, FlipbookConfig, LightEmitConfig};
-pub use system::{ParticleSystem, EmissionState};
+pub use system::{ParticleSystem, EmissionState, TickResult, DeathEvent};
