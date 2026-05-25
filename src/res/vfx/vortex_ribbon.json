@@ -7,8 +7,8 @@
   "bursts": [],
   "emitter_shape": { "Sphere": { "radius": 0.3 } },
   "initial_velocity": { "Outward": { "speed": { "min": 1.2, "max": 2.0 } } },
-  "initial_lifetime": { "min": 1.8, "max": 2.5 },
-  "initial_size":     { "min": 0.12, "max": 0.18 },
+  "initial_lifetime": { "min": 2.5, "max": 3.5 },
+  "initial_size":     { "min": 0.05, "max": 0.08 },
   "initial_rotation": { "min": 0.0, "max": 0.0 },
   "initial_color": { "Hdr": { "rgb": [0.3, 1.0, 0.8], "intensity": 14.0, "alpha": 1.0 } },
   "color_over_life": { "keys": [[0.0, [0.4, 1.0, 0.9, 1.0]], [0.6, [0.2, 0.7, 1.0, 0.8]], [1.0, [0.1, 0.2, 0.5, 0.0]]] },
@@ -17,8 +17,8 @@
   "gravity": [0.0, 0.6, 0.0],
   "render": {
     "kind": "Ribbon",
-    "max_trail_points": 16,
-    "width_over_life": { "keys": [[0.0, 1.0], [0.6, 0.7], [1.0, 0.0]] },
+    "max_trail_points": 32,
+    "width_over_life": { "keys": [[0.0, 0.8], [0.6, 0.55], [1.0, 0.0]] },
     "blend_mode": "Additive"
   }
 }
