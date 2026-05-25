@@ -882,6 +882,8 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
+        let mut particle_renderer: Option<crate::particle::render::ParticleRenderer> = None;
+
         let mut shadow_maps = ShadowMaps::new(&self.display, temp_app_state.shadow_resolution);
 
         let shadow_dir_program = glium::Program::from_source(
@@ -940,6 +942,7 @@ impl EventLoop {
             let texture = &mut texture;
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
+            let particle_renderer = &mut particle_renderer;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
 
             // passing skybox
@@ -1320,6 +1323,39 @@ impl EventLoop {
                             }
                             None => EnigmaError::new(Some(smart_format!("Error, instancing the Transparent Object Instance with the instance id {}, because no Object with that Id could be found", instance_id).as_str()), true).log()
                         }
+                    }
+
+                    // === Particle systems ===
+                    let dt = app_state.delta_time;
+                    app_state.tick_particles(dt);
+
+                    if let Some(cam) = camera.as_ref() {
+                        let renderer = particle_renderer.get_or_insert_with(|| {
+                            crate::particle::render::ParticleRenderer::new(&self.display)
+                        });
+                        // Collect owned clones so both borrows on app_state can be disjoint.
+                        // The materials map is tiny (one entry per active particle material).
+                        let materials_owned: HashMap<Uuid, Material> = app_state.materials
+                            .iter()
+                            .map(|m| (m.uuid, m.clone()))
+                            .collect();
+                        let materials_map: HashMap<Uuid, &Material> = materials_owned
+                            .iter()
+                            .map(|(k, v)| (*k, v))
+                            .collect();
+                        let systems_ref = &mut app_state.particle_systems;
+                        let window_size = self.window.inner_size();
+                        let screen_size = [window_size.width as f32, window_size.height as f32];
+                        crate::particle::render::render(
+                            &self.display,
+                            render_target,
+                            Some(&*depth_texture),
+                            cam,
+                            systems_ref,
+                            &materials_map,
+                            renderer,
+                            screen_size,
+                        );
                     }
 
                     // execute post processing
