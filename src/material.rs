@@ -29,7 +29,14 @@ pub struct MaterialSerializer {
     matrix: [[f32; 4]; 4],
     render_transparent: bool,
     uuid: String,
+    #[serde(default = "default_uv_tiling")]
+    uv_tiling: [f32; 2],
+    #[serde(default = "default_uv_offset")]
+    uv_offset: [f32; 2],
 }
+
+fn default_uv_tiling() -> [f32; 2] { [1.0, 1.0] }
+fn default_uv_offset() -> [f32; 2] { [0.0, 0.0] }
 
 pub struct Material {
     pub name: String,
@@ -56,6 +63,8 @@ pub struct Material {
     pub matrix: [[f32; 4]; 4],
     pub render_transparent: bool,
     pub uuid: Uuid,
+    pub uv_tiling: [f32; 2],
+    pub uv_offset: [f32; 2],
 }
 
 pub enum TextureType {
@@ -116,6 +125,8 @@ impl Clone for Material {
         material.time = self.time.clone();
         material.render_transparent = self.render_transparent.clone();
         material.uuid = self.uuid.clone();
+        material.uv_tiling = self.uv_tiling;
+        material.uv_offset = self.uv_offset;
         material
     }
 }
@@ -154,6 +165,8 @@ impl Material {
         mat.set_transparency_strength(serializer.transparency);
         mat.set_transparency(serializer.render_transparent);
         mat.uuid = Uuid::parse_str(serializer.uuid.as_str()).expect("Failed parsing Uuid");
+        mat.uv_tiling = serializer.uv_tiling;
+        mat.uv_offset = serializer.uv_offset;
         mat
     }
 
@@ -190,6 +203,8 @@ impl Material {
             matrix: self.matrix,
             render_transparent: self.render_transparent,
             uuid: self.uuid.to_string(),
+            uv_tiling: self.uv_tiling,
+            uv_offset: self.uv_offset,
         }
     }
 
@@ -285,7 +300,17 @@ impl Material {
             ],
             render_transparent: false,
             uuid: Uuid::new_v4(),
+            uv_tiling: [1.0, 1.0],
+            uv_offset: [0.0, 0.0],
         }
+    }
+
+    pub fn set_uv_tiling(&mut self, tiling: [f32; 2]) {
+        self.uv_tiling = tiling;
+    }
+
+    pub fn set_uv_offset(&mut self, offset: [f32; 2]) {
+        self.uv_offset = offset;
     }
 
     pub fn set_name(&mut self, name: &str) {
@@ -491,6 +516,8 @@ impl Material {
                 None => Camera::new(None, None, None, None, None, None).get_view_matrix(),
             },
             mat_color: self.color,
+            mat_uv_tiling: self.uv_tiling,
+            mat_uv_offset: self.uv_offset,
             mat_albedo: match &self.albedo {
                 Some(albedo) => {
                     if albedo.tileable{

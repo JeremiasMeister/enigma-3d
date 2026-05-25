@@ -48,6 +48,8 @@ uniform sampler2D mat_metallic;
 uniform float mat_metallic_strength;
 uniform sampler2D mat_emissive;
 uniform float mat_emissive_strength;
+uniform vec2 mat_uv_tiling;
+uniform vec2 mat_uv_offset;
 uniform float mat_transparency_strength;
 uniform sampler2D skybox;
 
@@ -161,14 +163,16 @@ float compute_shadow(int i, vec3 world_pos, vec3 light_pos, vec3 normal) {
 // Main PBR calculation function
 // PBR calculations including skybox lighting
 vec4 calculatePBRColor(vec3 viewDir) {
+    // Apply per-material UV tiling/offset
+    vec2 uv = vertex_texcoord * mat_uv_tiling + mat_uv_offset;
     // Fetch material properties
-    vec4 albedo_texel = texture(mat_albedo, vertex_texcoord);
+    vec4 albedo_texel = texture(mat_albedo, uv);
     float albedo_alpha = albedo_texel.a;
     vec3 albedo = albedo_texel.rgb * mat_color * vertex_color;
-    vec3 normal = normalize(vertex_normal + (texture(mat_normal, vertex_texcoord).rgb - 0.5) * mat_normal_strength);
-    float roughness = texture(mat_roughness, vertex_texcoord).r * mat_roughness_strength;
-    float metallic = texture(mat_metallic, vertex_texcoord).r * mat_metallic_strength;
-    vec3 emissive = texture(mat_emissive, vertex_texcoord).rgb * mat_emissive_strength;
+    vec3 normal = normalize(vertex_normal + (texture(mat_normal, uv).rgb - 0.5) * mat_normal_strength);
+    float roughness = texture(mat_roughness, uv).r * mat_roughness_strength;
+    float metallic = texture(mat_metallic, uv).r * mat_metallic_strength;
+    vec3 emissive = texture(mat_emissive, uv).rgb * mat_emissive_strength;
 
     // Calculate reflectance at normal incidence
     vec3 F0 = vec3(0.04);

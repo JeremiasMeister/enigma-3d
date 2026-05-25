@@ -18,12 +18,15 @@ in vec2 vertex_texcoord;
 // material uniforms
 uniform vec3 mat_color;
 uniform sampler2D mat_albedo;
+uniform vec2 mat_uv_tiling;
+uniform vec2 mat_uv_offset;
 
 // fragment outputs
 out vec4 color;
 
 void main() {
-    vec4 tex = texture(mat_albedo, vertex_texcoord);
+    vec2 uv = vertex_texcoord * mat_uv_tiling + mat_uv_offset;
+    vec4 tex = texture(mat_albedo, uv);
     color = vec4(tex.rgb * mat_color * vertex_color, tex.a * mat_transparency_strength);
 }
 
