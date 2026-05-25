@@ -5,7 +5,8 @@ use enigma_3d::event::{EventCharacteristic, VirtualKeyCode};
 use enigma_3d::light::{Light, LightEmissionType};
 use enigma_3d::material::{Material, TextureType};
 use enigma_3d::particle::ParticleSystem;
-use enigma_3d::particle::config::FlipbookConfig;
+use enigma_3d::particle::config::{FlipbookConfig, RenderStyle, BlendMode};
+use enigma_3d::particle::{EmitterShape, InitialVelocity, ColorRange, Range};
 use enigma_3d::resources;
 use winit::event::MouseButton;
 
@@ -17,6 +18,7 @@ fn spawn_sparks_on_click(app: &mut AppState) {
         [0.0, 0.0, 1.0, 0.0],
         [2.0, 1.0, 0.0, 1.0],
     ];
+    let _ = app.emit_particle_system("explosion", xform);
     let _ = app.emit_particle_system("hit_sparks", xform);
 }
 
@@ -46,49 +48,87 @@ fn main() {
     let ambient = Light::new([0.0, 0.0, 0.0], [0.5, 0.5, 0.6], 0.4, None, false);
     app_state.add_light(ambient, LightEmissionType::Ambient);
 
-    // Materials — particles use particle_sprite / particle_ribbon presets.
-    // The sprite material uses the embedded explosion flipbook atlas.
-    let mut sprite_mat = Material::particle_sprite(display.clone());
-    sprite_mat.set_name("particle_sprite");
-    sprite_mat.set_texture_from_resource(resources::vfx_explosion_flipbook(), TextureType::Albedo);
-    app_state.add_material(sprite_mat);
+    // Two sprite materials — one per atlas — plus a ribbon material for trails.
+    // The 4x4 sprite_sheet drives the persistent fireball; the 5x5 explosion atlas
+    // drives the click-to-spawn explosion burst.
+    let mut sheet_mat = Material::particle_sprite(display.clone());
+    sheet_mat.set_name("particle_sheet_4x4");
+    sheet_mat.set_texture_from_resource(resources::vfx_sprite_sheet(), TextureType::Albedo);
+    app_state.add_material(sheet_mat);
+
+    let mut explosion_mat = Material::particle_sprite(display.clone());
+    explosion_mat.set_name("particle_explosion_5x5");
+    explosion_mat.set_texture_from_resource(resources::vfx_explosion_flipbook(), TextureType::Albedo);
+    app_state.add_material(explosion_mat);
 
     let mut ribbon_mat = Material::particle_ribbon(display.clone());
     ribbon_mat.set_name("particle_ribbon");
     app_state.add_material(ribbon_mat);
 
-    let sprite_mat_id = app_state.materials.iter().find(|m| m.name == "particle_sprite").map(|m| m.uuid).unwrap();
+    let sheet_mat_id = app_state.materials.iter().find(|m| m.name == "particle_sheet_4x4").map(|m| m.uuid).unwrap();
+    let explosion_mat_id = app_state.materials.iter().find(|m| m.name == "particle_explosion_5x5").map(|m| m.uuid).unwrap();
     let ribbon_mat_id = app_state.materials.iter().find(|m| m.name == "particle_ribbon").map(|m| m.uuid).unwrap();
 
-    // Templates for sub-emitters and click-to-spawn (loaded from embedded JSON resources)
+    // Templates for sub-emitters and click-to-spawn (loaded from embedded JSON resources).
     let mut smoke = ParticleSystem::from_resource(resources::vfx_fireball_smoke()).expect("load fireball_smoke");
-    smoke.set_material(sprite_mat_id);
+    smoke.set_material(sheet_mat_id);
     app_state.add_particle_system_template(smoke);
 
     let mut dust = ParticleSystem::from_resource(resources::vfx_spark_dust()).expect("load spark_dust");
-    dust.set_material(sprite_mat_id);
+    dust.set_material(sheet_mat_id);
     app_state.add_particle_system_template(dust);
 
     let mut sparks = ParticleSystem::from_resource(resources::vfx_hit_sparks()).expect("load hit_sparks");
     sparks.set_material(ribbon_mat_id);
     app_state.add_particle_system_template(sparks);
 
-    // Active fireball at origin + 2y, with the explosion atlas as a flipbook.
-    // Adjust cols/rows/frame_count to match the actual atlas layout if it isn't 4x4.
+    // Explosion template (5x5 atlas, one-shot burst, plays the atlas once).
+    let mut explosion = ParticleSystem::new("explosion");
+    explosion.set_max_particles(16);
+    explosion.set_looped(false);
+    explosion.set_duration(0.1);
+    explosion.add_burst(0.0, 8);
+    explosion.set_emission_rate(0.0);
+    explosion.set_emitter_shape(EmitterShape::Sphere { radius: 0.2 });
+    explosion.set_initial_velocity(InitialVelocity::Outward { speed: Range::new(0.5, 1.5) });
+    explosion.set_initial_lifetime(0.7, 0.9);   // matches 25 frames / 30 fps ≈ 0.83s
+    explosion.set_initial_size(1.2, 1.8);
+    explosion.set_initial_rotation(0.0, 6.283);
+    explosion.set_initial_color(ColorRange::Hdr { rgb: [1.0, 0.7, 0.3], intensity: 8.0, alpha: 1.0 });
+    explosion.set_drag(2.0);
+    explosion.set_material(explosion_mat_id);
+    explosion.set_render_style(RenderStyle::Sprite {
+        flipbook: None,
+        blend_mode: BlendMode::Additive,
+        soft_particles: true,
+        soft_fade_distance: 0.3,
+        velocity_stretch: 0.0,
+    });
+    explosion.set_flipbook(FlipbookConfig {
+        cols: 5,
+        rows: 5,
+        frame_count: 25,
+        fps: 30.0,
+        blend: false,
+        randomize_start_frame: false,  // explosion plays from frame 0 — it's a one-shot animation
+    });
+    app_state.add_particle_system_template(explosion);
+
+    // Active fireball at origin + 2y, with the 4x4 sprite sheet as an animated flame loop.
     let mut fireball = ParticleSystem::from_resource(resources::vfx_fireball()).expect("load fireball");
-    fireball.set_material(sprite_mat_id);
+    fireball.set_material(sheet_mat_id);
     fireball.set_position([0.0, 2.0, 0.0]);
     fireball.set_flipbook(FlipbookConfig {
         cols: 4,
         rows: 4,
         frame_count: 16,
-        fps: 30.0,
+        fps: 24.0,
         blend: false,
-        randomize_start_frame: true,
+        randomize_start_frame: true,   // desynchronize embers across the volume
     });
     app_state.add_particle_system(fireball);
 
-    // Active magic orb
+    // Active magic orb (ribbon — no flipbook)
     let mut orb = ParticleSystem::from_resource(resources::vfx_magic_orb()).expect("load magic_orb");
     orb.set_material(ribbon_mat_id);
     orb.set_position([-3.0, 2.0, 0.0]);

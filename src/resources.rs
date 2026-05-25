@@ -133,4 +133,7 @@ pub fn vfx_magic_orb() -> &'static str {
 pub fn vfx_explosion_flipbook() -> &'static [u8] {
     include_bytes!("res/textures/particles/explosion_flipbook.png")
 }
+pub fn vfx_sprite_sheet() -> &'static [u8] {
+    include_bytes!("res/textures/particles/sprite_sheet.png")
+}
 
