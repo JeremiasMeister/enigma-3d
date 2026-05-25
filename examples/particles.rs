@@ -33,12 +33,12 @@ fn ray_hit_ground(origin: [f32; 3], dir: [f32; 3]) -> Option<[f32; 3]> {
 }
 
 fn spawn_burst_on_click(app: &mut AppState) {
-    // With cursor_locked = true, MouseState::get_world_position uses the locked center;
-    // the resulting ray points wherever the camera is looking.
-    let camera = match app.camera.clone() { Some(c) => c, None => return };
-    let (ray_origin, ray_dir) = app.get_mouse_state_mut().get_world_position(&camera);
-    let origin = [ray_origin.x, ray_origin.y, ray_origin.z];
-    let dir = [ray_dir.x, ray_dir.y, ray_dir.z];
+    // Screen-center raycast: shoot a ray from the camera position in the direction
+    // the camera is looking. Independent of mouse position, so it works the same
+    // whether the cursor is locked, unlocked, or hovering anywhere on screen.
+    let camera = match app.camera.as_ref() { Some(c) => c, None => return };
+    let origin = camera.get_position();
+    let dir = camera.calculate_direction_vector();
 
     // Either hit the ground or fall back to a point 8m in front of the camera.
     let pos = ray_hit_ground(origin, dir).unwrap_or_else(|| {
