@@ -44,7 +44,10 @@ pub fn blend_params(mode: BlendMode) -> glium::Blend {
 }
 
 fn flipbook_uv(frame: f32, fb: &FlipbookConfig) -> [f32; 4] {
-    let idx = (frame as u32) % fb.frame_count.max(1);
+    // fixed_frame overrides per-particle frame state — every particle in the system
+    // renders the same cell.
+    let raw = fb.fixed_frame.unwrap_or(frame as u32);
+    let idx = raw % fb.frame_count.max(1);
     let col = (idx % fb.cols.max(1)) as f32;
     let row = (idx / fb.cols.max(1)) as f32;
     let w = 1.0 / fb.cols.max(1) as f32;

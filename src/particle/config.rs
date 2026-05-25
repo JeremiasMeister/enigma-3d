@@ -16,6 +16,11 @@ pub struct FlipbookConfig {
     /// Useful for desynchronizing many particles sharing an animated atlas (embers, smoke).
     #[serde(default)]
     pub randomize_start_frame: bool,
+    /// If set, every particle in the system renders this specific atlas cell,
+    /// ignoring per-particle frame state. Use to lock a whole system to one
+    /// sprite from an atlas of variations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixed_frame: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

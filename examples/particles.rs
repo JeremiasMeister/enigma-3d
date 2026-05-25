@@ -8,6 +8,7 @@ use enigma_3d::particle::ParticleSystem;
 use enigma_3d::particle::config::{FlipbookConfig, RenderStyle, BlendMode};
 use enigma_3d::particle::{EmitterShape, InitialVelocity, ColorRange, Range};
 use enigma_3d::resources;
+use rand::Rng;
 use winit::event::MouseButton;
 
 fn spawn_sparks_on_click(app: &mut AppState) {
@@ -69,13 +70,27 @@ fn main() {
     let explosion_mat_id = app_state.materials.iter().find(|m| m.name == "particle_explosion_5x5").map(|m| m.uuid).unwrap();
     let ribbon_mat_id = app_state.materials.iter().find(|m| m.name == "particle_ribbon").map(|m| m.uuid).unwrap();
 
+    // Lock each sprite-sheet-based system to a single random cell of the 4x4 atlas.
+    // Result: all particles in the fireball share one sprite; smoke uses a different
+    // one; dust uses another. fixed_frame overrides any per-particle frame state.
+    let mut rng = rand::thread_rng();
+    let sheet_locked = |frame: u32| FlipbookConfig {
+        cols: 4, rows: 4, frame_count: 16,
+        fps: 0.0,
+        blend: false,
+        randomize_start_frame: false,
+        fixed_frame: Some(frame),
+    };
+
     // Templates for sub-emitters and click-to-spawn (loaded from embedded JSON resources).
     let mut smoke = ParticleSystem::from_resource(resources::vfx_fireball_smoke()).expect("load fireball_smoke");
     smoke.set_material(sheet_mat_id);
+    smoke.set_flipbook(sheet_locked(rng.gen_range(0..16)));
     app_state.add_particle_system_template(smoke);
 
     let mut dust = ParticleSystem::from_resource(resources::vfx_spark_dust()).expect("load spark_dust");
     dust.set_material(sheet_mat_id);
+    dust.set_flipbook(sheet_locked(rng.gen_range(0..16)));
     app_state.add_particle_system_template(dust);
 
     let mut sparks = ParticleSystem::from_resource(resources::vfx_hit_sparks()).expect("load hit_sparks");
@@ -84,8 +99,9 @@ fn main() {
 
     // Explosion template (5x5 atlas, one-shot burst, plays the atlas once).
     let mut explosion = ParticleSystem::new("explosion");
+    explosion.set_position([5.0,0.0,-5.0]);
     explosion.set_max_particles(16);
-    explosion.set_looped(false);
+    explosion.set_looped(true);
     explosion.set_duration(0.1);
     explosion.add_burst(0.0, 8);
     explosion.set_emission_rate(0.0);
@@ -111,21 +127,15 @@ fn main() {
         fps: 30.0,
         blend: false,
         randomize_start_frame: false,  // explosion plays from frame 0 — it's a one-shot animation
+        fixed_frame: None,             // animate through frames, don't lock to one
     });
     app_state.add_particle_system_template(explosion);
 
-    // Active fireball at origin + 2y, with the 4x4 sprite sheet as an animated flame loop.
+    // Active fireball: locked to one random cell of the 4x4 atlas for the whole system.
     let mut fireball = ParticleSystem::from_resource(resources::vfx_fireball()).expect("load fireball");
     fireball.set_material(sheet_mat_id);
     fireball.set_position([0.0, 2.0, 0.0]);
-    fireball.set_flipbook(FlipbookConfig {
-        cols: 4,
-        rows: 4,
-        frame_count: 16,
-        fps: 24.0,
-        blend: false,
-        randomize_start_frame: true,   // desynchronize embers across the volume
-    });
+    fireball.set_flipbook(sheet_locked(rng.gen_range(0..16)));
     app_state.add_particle_system(fireball);
 
     // Active magic orb (ribbon — no flipbook)
