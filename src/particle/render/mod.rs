@@ -4,7 +4,7 @@ pub mod ribbon;
 use std::collections::HashMap;
 use glium::{Display, Surface, VertexBuffer, IndexBuffer};
 use glium::glutin::surface::WindowSurface;
-use glium::texture::DepthTexture2d;
+use glium::texture::{DepthTexture2d, SrgbTexture2d, RawImage2d};
 use uuid::Uuid;
 use crate::camera::Camera;
 use crate::material::Material;
@@ -14,6 +14,11 @@ use crate::particle::config::RenderStyle;
 pub struct ParticleRenderer {
     pub sprite_quad_vb: VertexBuffer<sprite::SpriteCorner>,
     pub sprite_quad_ib: IndexBuffer<u16>,
+    /// 1×1 white texture used when a particle material has no albedo bound,
+    /// so unauthored materials still render (final color = white × instance color).
+    pub fallback_albedo: SrgbTexture2d,
+    /// 1×1 depth texture used when the caller passes no scene depth (disables soft-particles).
+    pub fallback_depth: DepthTexture2d,
 }
 
 impl ParticleRenderer {
@@ -25,9 +30,12 @@ impl ParticleRenderer {
             sprite::SpriteCorner { corner: [-0.5,  0.5, 0.0], corner_uv: [0.0, 1.0] },
         ];
         let indices: Vec<u16> = vec![0, 1, 2, 0, 2, 3];
+        let white = RawImage2d::from_raw_rgba(vec![255u8, 255, 255, 255], (1, 1));
         ParticleRenderer {
             sprite_quad_vb: VertexBuffer::new(display, &corners).unwrap(),
             sprite_quad_ib: IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &indices).unwrap(),
+            fallback_albedo: SrgbTexture2d::new(display, white).unwrap(),
+            fallback_depth: DepthTexture2d::empty(display, 1, 1).unwrap(),
         }
     }
 }
@@ -73,7 +81,7 @@ pub fn render<S: Surface>(
                 sprite::render_one(display, target, depth_texture, camera, system, mat, renderer, screen_size);
             }
             RenderStyle::Ribbon { .. } => {
-                ribbon::render_one(display, target, camera, system, mat);
+                ribbon::render_one(display, target, camera, system, mat, renderer);
             }
         }
     }

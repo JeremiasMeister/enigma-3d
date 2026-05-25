@@ -30,6 +30,7 @@ pub fn render_one<S: Surface>(
     camera: &Camera,
     system: &ParticleSystem,
     material: &Material,
+    renderer: &super::ParticleRenderer,
 ) {
     let (max_pts, width_curve, blend_mode) = match &system.config.render {
         RenderStyle::Ribbon { max_trail_points, width_over_life, blend_mode } => {
@@ -78,9 +79,10 @@ pub fn render_one<S: Surface>(
     let vb = match VertexBuffer::dynamic(display, &verts) { Ok(v) => v, Err(_) => return };
     let ib = match IndexBuffer::new(display, glium::index::PrimitiveType::TrianglesList, &indices) { Ok(i) => i, Err(_) => return };
 
-    let albedo_ref = material.albedo.as_ref();
-    let albedo_tex = match albedo_ref { Some(t) => t, None => return };
-    let albedo_sampler = albedo_tex.texture.sampled()
+    let albedo_sampler = match material.albedo.as_ref() {
+        Some(t) => &t.texture,
+        None => &renderer.fallback_albedo,
+    }.sampled()
         .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
         .minify_filter(glium::uniforms::MinifySamplerFilter::Linear)
         .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp);

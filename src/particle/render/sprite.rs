@@ -93,18 +93,15 @@ pub fn render_one<S: Surface>(
         Err(_) => return,
     };
 
-    let albedo_ref = material.albedo.as_ref();
-    let albedo_tex = match albedo_ref {
-        Some(t) => t,
-        None => return,
-    };
-    let albedo_sampler = albedo_tex.texture.sampled()
+    let albedo_sampler = match material.albedo.as_ref() {
+        Some(t) => &t.texture,
+        None => &renderer.fallback_albedo,
+    }.sampled()
         .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
         .minify_filter(glium::uniforms::MinifySamplerFilter::Linear)
         .wrap_function(glium::uniforms::SamplerWrapFunction::Clamp);
 
-    let dummy_depth = DepthTexture2d::empty(display, 1, 1).unwrap();
-    let depth_sampler = depth_texture.unwrap_or(&dummy_depth).sampled()
+    let depth_sampler = depth_texture.unwrap_or(&renderer.fallback_depth).sampled()
         .magnify_filter(glium::uniforms::MagnifySamplerFilter::Nearest)
         .minify_filter(glium::uniforms::MinifySamplerFilter::Nearest);
 
