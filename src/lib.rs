@@ -48,6 +48,7 @@ pub mod logging;
 pub mod audio;
 pub mod shadow;
 pub mod terrain;
+pub mod particle;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
@@ -112,6 +113,41 @@ pub fn init_default(app_state: &mut AppState) {
     );
 }
 
+/// Build a column-major 4×4 transform that translates to `position` and orients local
+/// +Y along `up_hint`. Falls back to identity rotation when `up_hint` is near zero.
+fn sub_emitter_transform(position: [f32; 3], up_hint: [f32; 3]) -> [[f32; 4]; 4] {
+    let len = (up_hint[0]*up_hint[0] + up_hint[1]*up_hint[1] + up_hint[2]*up_hint[2]).sqrt();
+    if len < 1e-6 {
+        return [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [position[0], position[1], position[2], 1.0],
+        ];
+    }
+    let up = [up_hint[0]/len, up_hint[1]/len, up_hint[2]/len];
+    // Pick a helper axis that isn't (near-)parallel to up so the cross product is stable.
+    let helper = if up[1].abs() < 0.99 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+    let r_raw = [
+        up[1]*helper[2] - up[2]*helper[1],
+        up[2]*helper[0] - up[0]*helper[2],
+        up[0]*helper[1] - up[1]*helper[0],
+    ];
+    let rl = (r_raw[0]*r_raw[0] + r_raw[1]*r_raw[1] + r_raw[2]*r_raw[2]).sqrt();
+    let right = if rl < 1e-6 { [1.0, 0.0, 0.0] } else { [r_raw[0]/rl, r_raw[1]/rl, r_raw[2]/rl] };
+    let fwd = [
+        right[1]*up[2] - right[2]*up[1],
+        right[2]*up[0] - right[0]*up[2],
+        right[0]*up[1] - right[1]*up[0],
+    ];
+    [
+        [right[0], right[1], right[2], 0.0],
+        [up[0],    up[1],    up[2],    0.0],
+        [fwd[0],   fwd[1],   fwd[2],   0.0],
+        [position[0], position[1], position[2], 1.0],
+    ]
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct AppStateSerializer {
     pub camera: Option<CameraSerializer>,
@@ -157,6 +193,7 @@ pub struct AppState {
     pub held_keys: HashSet<event::VirtualKeyCode>,
     pub cursor_locked: bool,
     pub terrain: Option<terrain::Terrain>,
+    pub particle_systems: Vec<particle::ParticleSystem>,
 }
 
 pub struct EventLoop {
@@ -202,6 +239,7 @@ impl AppState {
             held_keys: HashSet::new(),
             cursor_locked: false,
             terrain: None,
+            particle_systems: Vec::new(),
         }
     }
 
@@ -688,6 +726,100 @@ impl AppState {
     pub fn get_terrain_mut(&mut self) -> Option<&mut terrain::Terrain> {
         self.terrain.as_mut()
     }
+
+    pub fn add_particle_system(&mut self, system: particle::ParticleSystem) {
+        self.particle_systems.push(system);
+    }
+
+    pub fn add_particle_system_template(&mut self, mut system: particle::ParticleSystem) {
+        system.stop();
+        self.particle_systems.push(system);
+    }
+
+    pub fn emit_particle_system(&mut self, template_name: &str, transform: [[f32; 4]; 4]) -> Option<Uuid> {
+        // Clone the template config + material id, then build a new live instance.
+        // Direct clone avoids a JSON serialize/parse round-trip on every sub-emitter spawn.
+        let template = self.particle_systems.iter().find(|s| s.name() == template_name)?;
+        let mut cfg = template.config.clone();
+        // Strip the template's seed so every spawn gets its own RNG state — otherwise
+        // a deterministic-seeded template makes every sub-emitter instance identical.
+        cfg.seed = None;
+        let mat = template.material_id;
+        let mut instance = particle::ParticleSystem::from_config(cfg).ok()?;
+        instance.transform = transform;
+        instance.material_id = mat;
+        instance.play();
+        let id = instance.get_unique_id();
+        self.particle_systems.push(instance);
+        Some(id)
+    }
+
+    pub fn get_particle_system_by_name(&self, name: &str) -> Option<&particle::ParticleSystem> {
+        self.particle_systems.iter().find(|s| s.name() == name)
+    }
+
+    pub fn get_particle_system_by_name_mut(&mut self, name: &str) -> Option<&mut particle::ParticleSystem> {
+        self.particle_systems.iter_mut().find(|s| s.name() == name)
+    }
+
+    pub fn get_particle_system(&self, id: Uuid) -> Option<&particle::ParticleSystem> {
+        self.particle_systems.iter().find(|s| s.get_unique_id() == id)
+    }
+
+    pub fn get_particle_system_mut(&mut self, id: Uuid) -> Option<&mut particle::ParticleSystem> {
+        self.particle_systems.iter_mut().find(|s| s.get_unique_id() == id)
+    }
+
+    pub fn remove_particle_system(&mut self, id: Uuid) {
+        self.particle_systems.retain(|s| s.get_unique_id() != id);
+    }
+
+    pub fn remove_particle_systems_by_name(&mut self, name: &str) {
+        self.particle_systems.retain(|s| s.name() != name);
+    }
+
+    pub fn tick_particles(&mut self, dt: f32) {
+        // Collect sub-emitter spawn requests from each system's tick result
+        let mut to_spawn: Vec<(String, [[f32; 4]; 4])> = Vec::new();
+
+        // Inner scope holds the terrain query closure (which immutably borrows
+        // `self.terrain`) so it drops before we mutably borrow self for emit/retain.
+        {
+            let height_fn = self.terrain.as_ref().map(|t| t.heightfield_query_fn());
+            let query_ref: Option<&dyn Fn(f32, f32) -> Option<f32>> = match &height_fn {
+                Some(f) => Some(f as &dyn Fn(f32, f32) -> Option<f32>),
+                None => None,
+            };
+
+            for sys in &mut self.particle_systems {
+                let result = sys.tick(dt, query_ref);
+                if let Some(name) = &sys.config.on_death {
+                    for ev in &result.death_events {
+                        // Orient the child so its local +Y aligns with the parent's velocity at
+                        // time of death; falls back to identity if velocity is ~zero.
+                        let xform = sub_emitter_transform(ev.position, ev.velocity);
+                        to_spawn.push((name.clone(), xform));
+                    }
+                }
+                if let Some(name) = &sys.config.on_collision {
+                    for ev in &result.collision_events {
+                        // Orient the child so its local +Y aligns with the surface normal —
+                        // cone/disk-shaped sub-emitters spray off the surface naturally.
+                        let xform = sub_emitter_transform(ev.position, ev.normal);
+                        to_spawn.push((name.clone(), xform));
+                    }
+                }
+            }
+        }
+
+        // Dispatch sub-emitter spawns
+        for (name, xform) in to_spawn {
+            let _ = self.emit_particle_system(&name, xform);
+        }
+
+        // Reap finished systems
+        self.particle_systems.retain(|s| !s.is_finished());
+    }
 }
 
 impl EventLoop {
@@ -795,6 +927,8 @@ impl EventLoop {
             buffer_textures.push(Texture2d::empty(&self.display, self.window.inner_size().width * temp_app_state.render_scale, self.window.inner_size().height * temp_app_state.render_scale).expect("Failed to create texture"));
         }
 
+        let mut particle_renderer: Option<crate::particle::render::ParticleRenderer> = None;
+
         let mut shadow_maps = ShadowMaps::new(&self.display, temp_app_state.shadow_resolution);
 
         let shadow_dir_program = glium::Program::from_source(
@@ -853,6 +987,7 @@ impl EventLoop {
             let texture = &mut texture;
             let depth_texture = &mut depth_texture;
             let buffer_textures = &mut buffer_textures;
+            let particle_renderer = &mut particle_renderer;
             let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(&self.display, &*texture, &*depth_texture).expect("Failed to create framebuffer");
 
             // passing skybox
@@ -1235,6 +1370,36 @@ impl EventLoop {
                         }
                     }
 
+                    // === Particle systems ===
+                    let dt = app_state.delta_time;
+                    app_state.tick_particles(dt);
+
+                    if let Some(cam) = camera.as_ref() {
+                        let renderer = particle_renderer.get_or_insert_with(|| {
+                            crate::particle::render::ParticleRenderer::new(&self.display)
+                        });
+                        let window_size = self.window.inner_size();
+                        let screen_size = [window_size.width as f32, window_size.height as f32];
+
+                        // Split disjoint borrows of materials (read) and particle_systems (mut)
+                        // by dereferencing the MutexGuard explicitly first.
+                        let app: &mut AppState = &mut *app_state;
+                        let materials_map: HashMap<Uuid, &Material> = app.materials
+                            .iter()
+                            .map(|m| (m.uuid, m))
+                            .collect();
+                        crate::particle::render::render(
+                            &self.display,
+                            render_target,
+                            Some(&*depth_texture),
+                            cam,
+                            &app.particle_systems,
+                            &materials_map,
+                            renderer,
+                            screen_size,
+                        );
+                    }
+
                     // execute post processing
                     // Each effect reads from a ping-pong buffer (not from `texture` directly),
                     // because `framebuffer` is backed by `texture` — sampling from a texture
@@ -1344,5 +1509,107 @@ mod tests {
         assert_eq!(s.get_shadow_resolution(), 2048);
         s.set_shadow_distance(75.0);
         assert_eq!(s.get_shadow_distance(), 75.0);
+    }
+}
+
+#[cfg(test)]
+mod particle_integration_tests {
+    use super::*;
+    use crate::particle::*;
+
+    fn make_template(name: &str) -> ParticleSystem {
+        let mut s = ParticleSystem::new(name);
+        s.set_max_particles(4);
+        s.set_initial_lifetime(0.5, 1.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0,1.0,0.0], speed: Range::new(1.0, 1.0) });
+        s.set_initial_size(0.1, 0.2);
+        s.set_initial_color(ColorRange::Single([1.0,1.0,1.0,1.0]));
+        s.set_render_style(RenderStyle::Sprite {
+            flipbook: None, blend_mode: BlendMode::Alpha,
+            soft_particles: false, soft_fade_distance: 0.0, velocity_stretch: 0.0,
+        });
+        s
+    }
+
+    #[test]
+    fn add_and_lookup_by_name() {
+        let mut app = AppState::new();
+        let s = make_template("smoke");
+        let id = s.get_unique_id();
+        app.add_particle_system(s);
+        assert!(app.get_particle_system_by_name("smoke").is_some());
+        assert!(app.get_particle_system(id).is_some());
+    }
+
+    #[test]
+    fn emit_from_template() {
+        let mut app = AppState::new();
+        let mut tpl = make_template("hit");
+        tpl.add_burst(0.0, 3);
+        app.add_particle_system_template(tpl);
+        let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[1.0,2.0,3.0,1.0]];
+        let new_id = app.emit_particle_system("hit", xform);
+        assert!(new_id.is_some());
+    }
+
+    #[test]
+    fn remove_by_name_clears() {
+        let mut app = AppState::new();
+        app.add_particle_system(make_template("x"));
+        app.remove_particle_systems_by_name("x");
+        assert!(app.get_particle_system_by_name("x").is_none());
+    }
+
+    #[test]
+    fn emit_strips_template_seed_for_per_instance_rng() {
+        // Template has a fixed seed; without stripping, every spawned instance would
+        // produce byte-identical particles. After the fix, two emits diverge.
+        let mut app = AppState::new();
+        let mut tpl = make_template("seeded");
+        tpl.set_emitter_shape(EmitterShape::Sphere { radius: 1.0 });
+        tpl.add_burst(0.0, 1);
+        tpl.set_seed(42);
+        app.add_particle_system_template(tpl);
+
+        let xform = [[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0],[0.0,0.0,1.0,0.0],[0.0,0.0,0.0,1.0]];
+        let id_a = app.emit_particle_system("seeded", xform).unwrap();
+        let id_b = app.emit_particle_system("seeded", xform).unwrap();
+        app.get_particle_system_mut(id_a).unwrap().tick(0.001, None);
+        app.get_particle_system_mut(id_b).unwrap().tick(0.001, None);
+        let pa = app.get_particle_system(id_a).unwrap().buffer.position[0];
+        let pb = app.get_particle_system(id_b).unwrap().buffer.position[0];
+        assert!(
+            pa != pb,
+            "expected sub-emitters from seeded template to diverge, got identical position {:?}",
+            pa
+        );
+    }
+
+    #[test]
+    fn on_death_spawns_child_via_tick_particles() {
+        // Parent burst-spawns one particle with a short lifetime and on_death="child".
+        // After the parent dies, tick_particles should have appended a child instance.
+        let mut app = AppState::new();
+
+        let mut parent = make_template("parent");
+        parent.set_initial_lifetime(0.1, 0.1);
+        parent.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        parent.add_burst(0.0, 1);
+        parent.config.on_death = Some("child".into());
+        app.add_particle_system(parent);
+
+        let mut child = make_template("child");
+        child.add_burst(0.0, 2);
+        app.add_particle_system_template(child);
+
+        // Tick once to spawn the parent particle, then again past its lifetime to kill it.
+        app.tick_particles(0.05);
+        app.tick_particles(0.2);
+
+        // Child template (stopped) is still present; we expect a live child instance too.
+        let live_children = app.particle_systems.iter()
+            .filter(|s| s.name() == "child" && !s.is_finished())
+            .count();
+        assert!(live_children >= 2, "expected stopped template + live child instance, got {}", live_children);
     }
 }

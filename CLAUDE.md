@@ -64,6 +64,7 @@ All injected functions have signature `fn(&mut AppState)`. They can read/write s
 | `resources.rs` | `include_bytes!`/`include_str!` embedded engine assets (skybox, icon, lens dirt) |
 | `example_resources.rs` | Same pattern for example-only assets; gated behind `features=examples` |
 | `logging/` | `EnigmaError`, `EnigmaWarning`, `EnigmaMessage` — colored terminal output |
+| `particle/` | CPU-simulated particle system (sprite + ribbon, JSON-authorable); update tick runs between transparent and post-processing passes |
 
 ### Serialization
 
@@ -94,3 +95,23 @@ Hard shadows for up to 4 source lights (directional + point), implemented in `sr
 - **Shadow depth vertex shader** (`shadow_depth_vert.glsl`) uses `in mat4 model_matrix` — a per-instance vertex attribute, NOT a uniform. Matches the main vertex shader's instancing pattern.
 - **Bias** in `enigma_fragment_shader.glsl` is slope-scale: `max(0.005 * (1.0 - n·l), 0.0002)`. A constant bias causes distance-dependent floating artifacts because it ignores surface slope.
 - `get_uniforms` in `material.rs` accepts `shadow_maps: &ShadowMaps` as last parameter; 15 shadow uniforms bound; unused slots fall back to `shadow_maps.dummy` (1×1 white texture).
+
+### Particle system
+
+CPU-simulated, Shuriken-style fixed pipeline. Systems are JSON-authorable (`ParticleSystem::from_file` / `from_resource`) and registered on `AppState` via `add_particle_system` / `add_particle_system_template`. Sub-emitters reference templates by name. Materials assigned via UUID, with `Material::particle_sprite(display)` and `Material::particle_ribbon(display)` as preset factories. See `docs/superpowers/specs/2026-05-24-particle-system-design.md` for the full design and `examples/particles.rs` for usage.
+
+Key files:
+- `src/particle/system.rs` — `ParticleSystem` with builder API + tick pipeline
+- `src/particle/config.rs` — `ParticleSystemConfig` (serde-derived JSON shape)
+- `src/particle/buffer.rs` — SoA particle buffer with `compact_dead`
+- `src/particle/render/` — sprite + ribbon GPU passes
+- `src/res/shader/particle_*.glsl` — embedded particle shaders
+
+Known v1 limitations (deferred to follow-up):
+- Hero per-particle lights are extracted via `ParticleSystem::extract_hero_lights()` but not yet injected into the engine's 4-light cap (would require a scratch-lights list in `AppState`).
+- Terrain heightfield collision uses a stub `Terrain::heightfield_query_fn` that returns `None`; ground-plane collision works fully.
+- Soft particles require the scene depth texture passed in to `ParticleRenderer::render`; the current `EventLoop::run` integration does pass it, so this works.
+- Click-to-spawn in the example uses a hardcoded position; a real ray-pick from cursor is a future enhancement.
+- No example textures: particle materials in `examples/particles.rs` have no albedo, so sprites/ribbons render as silent skips. Add a small white circle PNG to see particles visually.
+- No `AppStateSerializer` integration for particle systems — save/load only persists scene objects today.
+- Cycle detection on sub-emitter templates is not implemented (e.g., A.on_death → B.on_death → A would create infinite spawns); rely on author discipline for now.

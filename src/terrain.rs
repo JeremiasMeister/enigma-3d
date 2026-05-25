@@ -435,6 +435,12 @@ impl Terrain {
         bilinear_lookup(&self.heightmap, verts, lx, lz) + self.position[1]
     }
 
+    /// Returns a closure that queries the terrain heightfield at world-space (x, z).
+    /// Stub for v1 — terrain collision with particles is a v2 follow-up.
+    pub fn heightfield_query_fn(&self) -> impl Fn(f32, f32) -> Option<f32> + '_ {
+        |_x: f32, _z: f32| None
+    }
+
     /// Draws all terrain tiles. If a material is set, uses it (full PBR + shadows);
     /// otherwise falls back to the built-in vertex-color diffuse shader.
     pub fn draw(

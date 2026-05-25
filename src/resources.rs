@@ -99,3 +99,15 @@ pub fn terrain_frag_shader() -> &'static str {
     include_str!("res/shader/terrain_frag.glsl")
 }
 
+pub fn particle_sprite_vert() -> &'static str {
+    include_str!("res/shader/particle_sprite_vert.glsl")
+}
+pub fn particle_sprite_frag() -> &'static str {
+    include_str!("res/shader/particle_sprite_frag.glsl")
+}
+pub fn particle_ribbon_vert() -> &'static str {
+    include_str!("res/shader/particle_ribbon_vert.glsl")
+}
+pub fn particle_ribbon_frag() -> &'static str {
+    include_str!("res/shader/particle_ribbon_frag.glsl")
+}

@@ -1,0 +1,19 @@
+{
+  "name": "aura",
+  "max_particles": 128,
+  "looped": true,
+  "duration": 1.0,
+  "emission_rate": 40.0,
+  "bursts": [],
+  "emitter_shape": { "Sphere": { "radius": 0.6 } },
+  "initial_velocity": { "Outward": { "speed": { "min": 0.05, "max": 0.25 } } },
+  "initial_lifetime": { "min": 1.5, "max": 2.5 },
+  "initial_size":     { "min": 0.35, "max": 0.6 },
+  "initial_rotation": { "min": 0.0, "max": 6.283 },
+  "initial_color": { "Hdr": { "rgb": [0.6, 0.4, 1.0], "intensity": 6.0, "alpha": 0.8 } },
+  "color_over_life": { "keys": [[0.0, [0.8, 0.5, 1.0, 0.0]], [0.3, [0.6, 0.4, 1.0, 0.7]], [0.7, [0.5, 0.3, 1.0, 0.5]], [1.0, [0.3, 0.2, 0.7, 0.0]]] },
+  "size_over_life": { "keys": [[0.0, 0.6], [0.5, 1.0], [1.0, 1.2]] },
+  "drag": 1.5,
+  "attractor": { "center": [0.0, 0.0, 0.0], "strength": 0.4, "falloff": 0.5 },
+  "render": { "kind": "Sprite", "blend_mode": "Additive", "soft_particles": true, "soft_fade_distance": 0.4, "velocity_stretch": 0.0 }
+}

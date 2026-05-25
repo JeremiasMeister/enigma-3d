@@ -1,0 +1,24 @@
+{
+  "name": "magic_orb",
+  "max_particles": 64,
+  "looped": true,
+  "duration": 0.0,
+  "emission_rate": 30.0,
+  "bursts": [],
+  "emitter_shape": { "Sphere": { "radius": 0.05 } },
+  "initial_velocity": { "Outward": { "speed": { "min": 0.5, "max": 1.5 } } },
+  "initial_lifetime": { "min": 1.8, "max": 2.6 },
+  "initial_size":     { "min": 0.25, "max": 0.30 },
+  "initial_rotation": { "min": 0.0, "max": 0.0 },
+  "initial_color": { "Hdr": { "rgb": [0.3, 0.7, 1.0], "intensity": 8.0, "alpha": 1.0 } },
+  "drag": 0.6,
+  "curl_noise": { "scale": 1.0, "strength": 1.5, "evolution_speed": 0.3 },
+  "attractor": { "center": [0.0, 0.0, 0.0], "strength": 2.0, "falloff": 0.5 },
+  "color_over_life": { "keys": [[0.0, [0.3, 0.7, 1.0, 1.0]], [1.0, [0.1, 0.2, 0.5, 0.0]]] },
+  "render": {
+    "kind": "Ribbon",
+    "max_trail_points": 28,
+    "width_over_life": { "keys": [[0.0, 1.0], [1.0, 0.0]] },
+    "blend_mode": "Additive"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "hit_sparks",
+  "max_particles": 64,
+  "looped": false,
+  "duration": 0.5,
+  "bursts": [{ "time": 0.0, "count": 24 }],
+  "emission_rate": 0.0,
+  "emitter_shape": "Point",
+  "initial_velocity": { "Hemisphere": { "normal": [0.0, 1.0, 0.0], "speed": { "min": 4.0, "max": 9.0 } } },
+  "initial_lifetime": { "min": 0.3, "max": 0.7 },
+  "initial_size":     { "min": 0.04, "max": 0.08 },
+  "initial_rotation": { "min": 0.0, "max": 6.283 },
+  "initial_color": { "Hdr": { "rgb": [1.0, 0.85, 0.5], "intensity": 12.0, "alpha": 1.0 } },
+  "gravity": [0.0, -18.0, 0.0],
+  "drag": 0.4,
+  "color_over_life": { "keys": [[0.0, [1.0, 0.85, 0.5, 1.0]], [1.0, [0.6, 0.2, 0.05, 0.0]]] },
+  "size_over_life": { "keys": [[0.0, 1.0], [1.0, 0.3]] },
+  "collision": { "ground_plane_y": 0.0, "terrain": true, "bounce": 0.4, "friction": 0.3 },
+  "on_collision": "spark_dust",
+  "render": {
+    "kind": "Ribbon",
+    "max_trail_points": 8,
+    "width_over_life": { "keys": [[0.0, 1.0], [1.0, 0.0]] },
+    "blend_mode": "Additive"
+  }
+}
