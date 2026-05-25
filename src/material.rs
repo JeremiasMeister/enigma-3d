@@ -207,7 +207,21 @@ impl Material {
         emissive: Option<texture::Texture>,
         emissive_strength: Option<f32>,
     ) -> Self {
-        let geometry_shader = shader.geometry_shader.as_deref();
+        // Resolve the geometry-shader source:
+        //   - explicit `Some(src)` on the shader → use it
+        //   - `None` + `geometry_disabled` → no geometry stage (particle pipelines)
+        //   - `None` + not disabled → fall back to the engine's default (preserves
+        //     long-standing behavior for any caller building a Shader via
+        //     `from_strings(_, _, None)`).
+        let default_geom_owned;
+        let geometry_shader = match shader.geometry_shader.as_deref() {
+            Some(src) => Some(src),
+            None if shader.geometry_disabled => None,
+            None => {
+                default_geom_owned = resources::geometry_shader();
+                Some(default_geom_owned)
+            }
+        };
 
         let _program = glium::Program::from_source(&display, &shader.get_vertex_shader(), &shader.get_fragment_shader(), geometry_shader).expect("Failed to compile shader program");
         let _tex_white = {
@@ -362,43 +376,41 @@ impl Material {
     }
 
     pub fn lit_pbr(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut shader = shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None);
-        shader.set_geometry_shader(resources::geometry_shader().to_string());
-        let mut mat = Material::default(shader, &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_shader(), None), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn unlit(display: Display<WindowSurface>, transparency: bool) -> Self {
-        let mut shader = shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_unlit_shader(), None);
-        shader.set_geometry_shader(resources::geometry_shader().to_string());
-        let mut mat = Material::default(shader, &display);
+        let mut mat = Material::default(shader::Shader::from_strings(resources::vertex_shader(), resources::fragment_unlit_shader(), None), &display);
         mat.set_transparency(transparency);
         mat
     }
 
     pub fn particle_sprite(display: &Display<WindowSurface>) -> Self {
-        let mut mat = Material::default(
-            shader::Shader::from_strings(
-                resources::particle_sprite_vert(),
-                resources::particle_sprite_frag(),
-                None,
-            ),
-            display,
+        let mut shader = shader::Shader::from_strings(
+            resources::particle_sprite_vert(),
+            resources::particle_sprite_frag(),
+            None,
         );
+        // The particle vertex shader emits screen-space billboard quads — incompatible
+        // with the engine's default geometry shader. Opt out of the fallback explicitly.
+        shader.disable_geometry_shader();
+        let mut mat = Material::default(shader, display);
         mat.set_transparency(true);
         mat
     }
 
     pub fn particle_ribbon(display: &Display<WindowSurface>) -> Self {
-        let mut mat = Material::default(
-            shader::Shader::from_strings(
-                resources::particle_ribbon_vert(),
-                resources::particle_ribbon_frag(),
-                None,
-            ),
-            display,
+        let mut shader = shader::Shader::from_strings(
+            resources::particle_ribbon_vert(),
+            resources::particle_ribbon_frag(),
+            None,
         );
+        // Same as `particle_sprite`: the ribbon vertex pipeline produces CPU-built
+        // tri-strip geometry that the default geometry shader would mangle.
+        shader.disable_geometry_shader();
+        let mut mat = Material::default(shader, display);
         mat.set_transparency(true);
         mat
     }

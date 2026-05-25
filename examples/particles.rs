@@ -233,10 +233,12 @@ fn main() {
     app_state.add_particle_system_template(sparks);
 
     // Explosion template (5x5 atlas, one-shot burst, plays the atlas once).
+    // Non-looped so each click-spawned instance gets reaped after its particles die —
+    // otherwise we'd leak empty systems on every click.
     let mut explosion = ParticleSystem::new("explosion");
     explosion.set_position([5.0,0.0,-5.0]);
     explosion.set_max_particles(16);
-    explosion.set_looped(true);
+    explosion.set_looped(false);
     explosion.set_duration(0.1);
     explosion.add_burst(0.0, 8);
     explosion.set_emission_rate(0.0);

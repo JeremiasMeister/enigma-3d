@@ -12,7 +12,9 @@ pub struct EmissionState {
     pub pending_collision_events: Vec<CollisionEvent>,
     pub finished: bool,
     pub stopped: bool,
-    pub prewarmed: bool,
+    /// Tracks whether the prewarm subroutine has already run for this instance.
+    /// Set to `true` before the recursive sub-ticks so they don't re-enter prewarm.
+    pub prewarm_fired: bool,
 }
 
 impl Default for EmissionState {
@@ -23,7 +25,7 @@ impl Default for EmissionState {
             pending_collision_events: Vec::new(),
             finished: false,
             stopped: false,
-            prewarmed: false,
+            prewarm_fired: false,
         }
     }
 }
@@ -205,7 +207,14 @@ impl ParticleSystem {
     }
     pub fn set_looped(&mut self, looped: bool) { self.config.looped = looped; }
     pub fn set_duration(&mut self, seconds: f32) { self.config.duration = seconds; }
-    pub fn set_prewarm(&mut self, prewarm: bool) { self.config.prewarm = prewarm; }
+    pub fn set_prewarm(&mut self, prewarm: bool) {
+        self.config.prewarm = prewarm;
+        // Re-arm the prewarm subroutine only when the system hasn't run yet — mid-life
+        // prewarming would clobber the current particle cloud and double-advance elapsed.
+        if prewarm && self.state.elapsed == 0.0 {
+            self.state.prewarm_fired = false;
+        }
+    }
     pub fn set_emission_rate(&mut self, rate: f32) { self.config.emission_rate = rate; }
     pub fn add_burst(&mut self, time: f32, count: u32) { self.config.bursts.push(BurstSpec { time, count }); }
     pub fn clear_bursts(&mut self) { self.config.bursts.clear(); }
@@ -274,6 +283,12 @@ impl ParticleSystem {
             *soft_fade_distance = fade_distance;
         }
     }
+    /// Set the velocity-stretch intensity for sprite render mode. The shader computes
+    /// `stretch_factor = 1 + stretch * length(velocity)`, so the visual length of the
+    /// elongation depends on the velocity magnitudes in your system: a `stretch` of
+    /// 0.1 on particles moving at ~10 units/s doubles the sprite length, but on
+    /// particles moving at ~1 unit/s it adds only 10%. Tune in scene rather than
+    /// treating this as a unit-free percentage.
     pub fn set_velocity_stretch(&mut self, stretch: f32) {
         if let RenderStyle::Sprite { velocity_stretch, .. } = &mut self.config.render {
             *velocity_stretch = stretch;
@@ -339,8 +354,10 @@ impl ParticleSystem {
         // Prewarm: on the first tick of a looped, prewarm-enabled system, simulate
         // `duration` seconds in fixed sub-steps so the particle cloud starts at
         // steady state. Set the flag before recursing so the inner ticks no-op here.
-        if self.config.prewarm && !self.state.prewarmed && self.config.looped {
-            self.state.prewarmed = true;
+        // Non-prewarming systems short-circuit on `config.prewarm` and never touch
+        // this flag, so it cleanly tracks only the "has prewarm run?" state.
+        if self.config.prewarm && self.config.looped && !self.state.prewarm_fired {
+            self.state.prewarm_fired = true;
             let step = 1.0 / 30.0_f32;
             let mut warmed = 0.0_f32;
             while warmed < self.config.duration {
@@ -348,9 +365,6 @@ impl ParticleSystem {
                 warmed += step;
             }
         }
-        // Ensure non-prewarming paths still flip the flag so we don't re-check the
-        // condition every tick for the rest of the system's life.
-        self.state.prewarmed = true;
 
         // 1. Advance time
         let prev_elapsed = self.state.elapsed;
@@ -536,8 +550,19 @@ impl ParticleSystem {
             }
         }
 
-        // 10. Mark finished
-        if !self.config.looped && self.state.elapsed > self.config.duration && self.buffer.count() == 0 {
+        // 10. Mark finished. A system is reapable when it has no live particles and no
+        // way to spawn more:
+        //   - non-looped: simply past its duration window
+        //   - looped: no continuous emission rate AND every burst already fired
+        //     (`b.time > prev_elapsed && b.time <= elapsed` fires each burst at most
+        //     once total, so once elapsed exceeds `max(bursts.time)` no more will fire)
+        let exhausted = if self.config.looped {
+            self.config.emission_rate <= 0.0
+                && self.config.bursts.iter().all(|b| b.time <= self.state.elapsed)
+        } else {
+            self.state.elapsed > self.config.duration
+        };
+        if exhausted && self.buffer.count() == 0 {
             self.state.finished = true;
         }
 
@@ -754,6 +779,46 @@ mod tests {
         s.set_prewarm(true);
         s.tick(0.01, None);
         assert!(s.live_count() >= 5, "expected steady-state population after prewarm, got {}", s.live_count());
+    }
+
+    #[test]
+    fn looped_one_shot_burst_eventually_finishes() {
+        // A looped system with a single burst at t=0 and zero continuous emission
+        // is effectively one-shot: the burst fires once, particles die, and after
+        // that the instance should be reapable so callers don't leak it.
+        let mut s = ParticleSystem::new("burst_once");
+        s.set_max_particles(8);
+        s.set_initial_lifetime(0.5, 0.5);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0, 1.0, 1.0, 1.0]));
+        s.set_looped(true);
+        s.set_duration(0.1);
+        s.set_emission_rate(0.0);
+        s.add_burst(0.0, 4);
+        // Spawn and age the burst out.
+        s.tick(0.05, None);
+        assert_eq!(s.live_count(), 4);
+        s.tick(1.0, None);
+        assert_eq!(s.live_count(), 0);
+        assert!(s.is_finished(), "looped one-shot burst should be reapable after particles die");
+    }
+
+    #[test]
+    fn looped_with_emission_never_finishes() {
+        // Sanity check the inverse: a looped emitter with a continuous rate should
+        // never report finished, no matter how long it runs.
+        let mut s = ParticleSystem::new("looped");
+        s.set_max_particles(64);
+        s.set_initial_lifetime(0.5, 0.5);
+        s.set_emission_rate(5.0);
+        s.set_initial_velocity(InitialVelocity::Direction { direction: [0.0, 0.0, 0.0], speed: Range::new(0.0, 0.0) });
+        s.set_initial_size(0.1, 0.1);
+        s.set_initial_color(ColorRange::Single([1.0, 1.0, 1.0, 1.0]));
+        s.set_looped(true);
+        s.set_duration(1.0);
+        for _ in 0..120 { s.tick(1.0 / 60.0, None); }
+        assert!(!s.is_finished());
     }
 
     #[test]

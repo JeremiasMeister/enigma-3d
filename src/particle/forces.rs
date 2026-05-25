@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-pub fn gravity_acceleration(g: [f32; 3]) -> [f32; 3] { g }
-
 pub fn apply_drag(velocity: &mut [f32; 3], drag: f32, dt: f32) {
     let factor = (-drag * dt).exp();
     velocity[0] *= factor;
@@ -108,8 +106,16 @@ fn potential(p: [f32; 3]) -> [f32; 3] {
 impl CurlNoiseConfig {
     pub fn force(&self, pos: &[f32; 3], time: f32) -> [f32; 3] {
         let s = self.scale;
+        // Evolve the field isotropically by offsetting all three sample axes with
+        // distinct phase factors. Using the same offset on every axis would just
+        // translate the field along the diagonal; distinct factors break that
+        // degeneracy and give the visual impression of an unfolding 4D field.
         let off = self.evolution_speed * time;
-        let p = [pos[0] * s + off, pos[1] * s, pos[2] * s];
+        let p = [
+            pos[0] * s + off,
+            pos[1] * s + off * 1.31,
+            pos[2] * s + off * 0.73,
+        ];
         let eps = 0.1_f32;
         let p_x_plus  = potential([p[0]+eps, p[1], p[2]]);
         let p_x_minus = potential([p[0]-eps, p[1], p[2]]);
@@ -135,13 +141,6 @@ impl CurlNoiseConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn gravity_adds_acceleration() {
-        let g = [0.0, -9.81, 0.0];
-        let a = gravity_acceleration(g);
-        assert_eq!(a, [0.0, -9.81, 0.0]);
-    }
 
     #[test]
     fn drag_decays_exponentially() {

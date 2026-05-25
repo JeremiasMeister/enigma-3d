@@ -6,13 +6,20 @@ use crate::smart_format;
 pub struct ShaderSerializer {
     fragment_shader: String,
     vertex_shader: String,
-    geometry_shader: Option<String>
+    geometry_shader: Option<String>,
+    #[serde(default)]
+    geometry_disabled: bool,
 }
 
 pub struct Shader {
     pub fragment_shader: String,
     pub vertex_shader: String,
-    pub geometry_shader: Option<String>
+    pub geometry_shader: Option<String>,
+    /// When `geometry_shader` is `None`, `Material::new` falls back to the engine's default
+    /// geometry shader. Set this to `true` for shaders that must run with no geometry stage
+    /// at all (e.g. particle sprite/ribbon pipelines whose vertex outputs are incompatible
+    /// with the default geometry shader).
+    pub geometry_disabled: bool,
 }
 
 impl Shader {
@@ -21,6 +28,7 @@ impl Shader {
             fragment_shader: String::from(""),
             vertex_shader: String::from(""),
             geometry_shader: None,
+            geometry_disabled: false,
         }
     }
 
@@ -29,6 +37,7 @@ impl Shader {
             fragment_shader: serializer.fragment_shader,
             vertex_shader: serializer.vertex_shader,
             geometry_shader: serializer.geometry_shader,
+            geometry_disabled: serializer.geometry_disabled,
         }
     }
 
@@ -37,6 +46,7 @@ impl Shader {
             fragment_shader: self.fragment_shader.clone(),
             vertex_shader: self.vertex_shader.clone(),
             geometry_shader: self.geometry_shader.clone(),
+            geometry_disabled: self.geometry_disabled,
         }
     }
 
@@ -49,6 +59,12 @@ impl Shader {
 
     pub fn set_geometry_shader(&mut self, geometry_shader: String) {
         self.geometry_shader = Some(geometry_shader);
+        self.geometry_disabled = false;
+    }
+
+    pub fn disable_geometry_shader(&mut self) {
+        self.geometry_shader = None;
+        self.geometry_disabled = true;
     }
 
     pub fn get_fragment_shader(&self) -> String {
@@ -73,6 +89,7 @@ impl Shader {
             fragment_shader,
             vertex_shader,
             geometry_shader,
+            geometry_disabled: false,
         }
     }
 
@@ -84,6 +101,7 @@ impl Shader {
                 Some(geometry_shader) => Some(String::from(geometry_shader)),
                 None => None,
             },
+            geometry_disabled: false,
         }
     }
 
@@ -121,6 +139,7 @@ impl Shader {
             fragment_shader: String::from(fragment_shader),
             vertex_shader: String::from(vertex_shader),
             geometry_shader: None,
+            geometry_disabled: false,
         }
     }
 }
@@ -158,6 +177,7 @@ impl Clone for Shader {
                 Some(geometry_shader) => Some(geometry_shader.clone()),
                 None => None,
             },
+            geometry_disabled: self.geometry_disabled,
         }
     }
 }

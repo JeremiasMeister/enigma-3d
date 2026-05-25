@@ -135,6 +135,30 @@ impl ParticleSystemConfig {
         if let RenderStyle::Ribbon { ref width_over_life, .. } = self.render {
             crate::particle::curves::validate_keyframes(&width_over_life.keys).map_err(|e| format!("width_over_life: {e}"))?;
         }
+        if let Some(v) = &self.vortex {
+            let axis_len_sq = v.axis[0] * v.axis[0] + v.axis[1] * v.axis[1] + v.axis[2] * v.axis[2];
+            if axis_len_sq < 1e-12 {
+                return Err("vortex.axis must be non-zero".into());
+            }
+            if v.falloff < 0.0 {
+                return Err("vortex.falloff must be >= 0".into());
+            }
+        }
+        if let Some(c) = &self.curl_noise {
+            if c.scale <= 0.0 {
+                return Err("curl_noise.scale must be > 0".into());
+            }
+        }
+        if let Some(a) = &self.attractor {
+            if a.falloff < 0.0 {
+                return Err("attractor.falloff must be >= 0".into());
+            }
+        }
+        if let Some(l) = &self.light_emit {
+            if l.max_lights == 0 {
+                return Err("light_emit.max_lights must be > 0".into());
+            }
+        }
         Ok(())
     }
 }
@@ -205,6 +229,34 @@ mod tests {
     #[test]
     fn config_validate_accepts_good_config() {
         assert!(minimal_config().validate().is_ok());
+    }
+
+    #[test]
+    fn config_validate_rejects_zero_vortex_axis() {
+        let mut c = minimal_config();
+        c.vortex = Some(VortexConfig { center: [0.0; 3], axis: [0.0; 3], strength: 1.0, falloff: 0.5 });
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn config_validate_rejects_zero_curl_scale() {
+        let mut c = minimal_config();
+        c.curl_noise = Some(CurlNoiseConfig { scale: 0.0, strength: 1.0, evolution_speed: 0.5 });
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn config_validate_rejects_negative_attractor_falloff() {
+        let mut c = minimal_config();
+        c.attractor = Some(AttractorConfig { center: [0.0; 3], strength: 1.0, falloff: -1.0 });
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn config_validate_rejects_zero_max_lights() {
+        let mut c = minimal_config();
+        c.light_emit = Some(LightEmitConfig { max_lights: 0, color_multiplier: [1.0; 3], intensity: 1.0 });
+        assert!(c.validate().is_err());
     }
 
     fn minimal_config() -> ParticleSystemConfig {

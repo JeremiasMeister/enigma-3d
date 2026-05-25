@@ -33,9 +33,11 @@ pub fn render_one<S: Surface>(
     material: &Material,
     renderer: &mut super::ParticleRenderer,
 ) {
-    let (max_pts, width_curve, blend_mode) = match &system.config.render {
-        RenderStyle::Ribbon { max_trail_points, width_over_life, blend_mode } => {
-            (*max_trail_points, width_over_life.clone(), *blend_mode)
+    // `max_trail_points` is only consumed by the simulation (it caps trail history
+    // length) — the renderer parametrizes width purely by the current trail length.
+    let (width_curve, blend_mode) = match &system.config.render {
+        RenderStyle::Ribbon { width_over_life, blend_mode, .. } => {
+            (width_over_life.clone(), *blend_mode)
         }
         _ => return,
     };
@@ -52,6 +54,12 @@ pub fn render_one<S: Surface>(
         let color = system.buffer.color[i];
         let base_size = system.buffer.size[i];
 
+        // `width_over_life` parametrizes width along the trail (t=0 at the head, t=1
+        // at the oldest point), not along particle lifetime. Use the current trail
+        // length so a young trail with only 3 points still spans the full curve from
+        // 0 to 1 — otherwise the curve gets compressed near the start until the trail
+        // has filled to `max_trail_points`.
+        let denom = (trail.len() - 1).max(1) as f32;
         for s in 0..trail.len() - 1 {
             let p0 = trail[s];
             let p1 = trail[s + 1];
@@ -61,7 +69,6 @@ pub fn render_one<S: Surface>(
             let view_dir1 = normalize([cam_pos[0]-p1[0], cam_pos[1]-p1[1], cam_pos[2]-p1[2]]);
             let side1 = normalize(cross(tangent, view_dir1));
 
-            let denom = (max_pts.max(1) - 1).max(1) as f32;
             let t0 = s as f32 / denom;
             let t1 = (s as f32 + 1.0) / denom;
             let w0 = base_size * width_curve.eval(t0);
