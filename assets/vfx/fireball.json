@@ -1,0 +1,27 @@
+{
+  "name": "fireball",
+  "max_particles": 256,
+  "looped": true,
+  "duration": 1.0,
+  "emission_rate": 120.0,
+  "bursts": [],
+  "emitter_shape": { "Sphere": { "radius": 0.15 } },
+  "initial_velocity": { "Outward": { "speed": { "min": 0.5, "max": 1.5 } } },
+  "initial_lifetime": { "min": 0.6, "max": 1.0 },
+  "initial_size":     { "min": 0.3, "max": 0.55 },
+  "initial_rotation": { "min": 0.0, "max": 6.283 },
+  "initial_color": { "Hdr": { "rgb": [1.0, 0.55, 0.15], "intensity": 25.0, "alpha": 1.0 } },
+  "color_over_life": { "keys": [[0.0, [1.0, 0.6, 0.2, 1.0]], [0.5, [1.0, 0.3, 0.05, 0.8]], [1.0, [0.2, 0.1, 0.05, 0.0]]] },
+  "size_over_life": { "keys": [[0.0, 0.4], [0.6, 1.0], [1.0, 0.0]] },
+  "drag": 1.8,
+  "curl_noise": { "scale": 1.5, "strength": 2.0, "evolution_speed": 0.5 },
+  "light_emit": { "max_lights": 1, "color_multiplier": [1.0, 0.5, 0.15], "intensity": 4.0, "falloff": 6.0 },
+  "on_death": "fireball_smoke",
+  "render": {
+    "kind": "Sprite",
+    "blend_mode": "Additive",
+    "soft_particles": true,
+    "soft_fade_distance": 0.3,
+    "velocity_stretch": 0.0
+  }
+}
