@@ -75,18 +75,10 @@ impl PostProcessingEffect for GridOverlay {
         _buffer_textures: &Vec<Texture2d>,
     ) {
         if !self.enabled.load(Ordering::Relaxed) {
-            // Still copy the scene through so the ping-pong buffer chain stays
-            // intact for any later post-process effects.
-            let uniforms = uniform! { scene: source };
-            let params = glium::DrawParameters {
-                depth: glium::Depth { test: glium::DepthTest::Overwrite, write: false, ..Default::default() },
-                ..Default::default()
-            };
-            // Reuse the engine's screen-copy program via a minimal inline shader
-            // would be redundant — just blit by drawing with our program in a
-            // pass-through mode. Simplest: do nothing; the target framebuffer
-            // already holds the scene from the prior pass.
-            let _ = (vertex_buffer, index_buffer, target, uniforms, params);
+            // The engine copies the current scene texture into the ping-pong
+            // buffer before each effect, so the target framebuffer already
+            // holds the unmodified scene — skipping the draw is a clean pass-
+            // through and keeps the chain intact for subsequent effects.
             return;
         }
 
