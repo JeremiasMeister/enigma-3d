@@ -43,18 +43,16 @@ bool ray_hits_ground(vec2 ndc, out vec3 P, out float ray_t) {
 // Anti-aliased line coverage: returns 1 on the line, 0 outside the pixel
 // neighborhood, smooth in between. `coord` is the world coordinate to test
 // (modular distance to the nearest line of `step`). `pixel_w` is the per-pixel
-// world-space width along the relevant axis.
+// world-space width along the relevant axis. The smoothstep edge sets the
+// total perceptual line width — keep this ≈ 1 px so lines stay hairline-thin.
 float line_alpha(float coord, float step, float pixel_w) {
     float d = abs(mod(coord + step * 0.5, step) - step * 0.5);
-    float half_line = pixel_w * 0.5;     // 1-pixel-wide line
-    return 1.0 - smoothstep(half_line, half_line + pixel_w, d);
+    return 1.0 - smoothstep(0.0, pixel_w, d);
 }
 
 // Same shape, but for a single line at exactly `coord == 0`.
 float single_line_alpha(float coord, float pixel_w) {
-    float d = abs(coord);
-    float half_line = pixel_w * 0.5;
-    return 1.0 - smoothstep(half_line, half_line + pixel_w, d);
+    return 1.0 - smoothstep(0.0, pixel_w, abs(coord));
 }
 
 // "Over" composite of a layer onto an accumulator (both straight alpha).
@@ -116,15 +114,15 @@ void main() {
     }
 
     // Depth occlusion: project P to clip space, convert to window depth, and
-    // compare against the scene depth buffer. If the grid plane sits behind
-    // already-rendered geometry, hide the grid there.
+    // compare against the scene depth buffer. Occluded grid still draws — just
+    // at reduced opacity so it reads as "behind solid geometry" without losing
+    // the spatial reference entirely.
     vec4 P_clip = view_proj * vec4(P, 1.0);
     float grid_ndc_z = P_clip.z / P_clip.w;
     float grid_depth = grid_ndc_z * 0.5 + 0.5;
     float scene_depth = texture(depth_tex, TEXCOORD).r;
     if (grid_depth > scene_depth + 1e-5) {
-        color = scene_col;
-        return;
+        grid.a *= 0.2;
     }
 
     // Composite (straight-alpha over).
