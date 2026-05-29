@@ -291,6 +291,252 @@ impl RayCast {
     }
 }
 
+/// Returns (closest_point_on_segment, parameter_t_in_0_1) for the given point.
+fn closest_point_on_segment(
+    p: &Vector3<f32>,
+    a: &Vector3<f32>,
+    b: &Vector3<f32>,
+) -> (Vector3<f32>, f32) {
+    let ab = b - a;
+    let t = (p - a).dot(&ab) / ab.norm_squared().max(1e-12);
+    let t = t.clamp(0.0, 1.0);
+    (a + ab * t, t)
+}
+
+/// Returns the closest points and distance between two segments.
+fn closest_points_segment_segment(
+    a0: &Vector3<f32>, a1: &Vector3<f32>,
+    b0: &Vector3<f32>, b1: &Vector3<f32>,
+) -> (Vector3<f32>, Vector3<f32>) {
+    // Real-Time Collision Detection §5.1.9 — clamped solve for two segment parameters.
+    let d1 = a1 - a0;
+    let d2 = b1 - b0;
+    let r = a0 - b0;
+    let a = d1.norm_squared();
+    let e = d2.norm_squared();
+    let f = d2.dot(&r);
+    let (s, t);
+    if a <= 1e-12 && e <= 1e-12 {
+        return (*a0, *b0);
+    }
+    if a <= 1e-12 {
+        s = 0.0;
+        t = (f / e).clamp(0.0, 1.0);
+    } else {
+        let c = d1.dot(&r);
+        if e <= 1e-12 {
+            t = 0.0;
+            s = (-c / a).clamp(0.0, 1.0);
+        } else {
+            let b = d1.dot(&d2);
+            let denom = a * e - b * b;
+            let s0 = if denom.abs() > 1e-12 { ((b * f - c * e) / denom).clamp(0.0, 1.0) } else { 0.0 };
+            let t0 = (b * s0 + f) / e;
+            let (s1, t1) = if t0 < 0.0 {
+                (((-c) / a).clamp(0.0, 1.0), 0.0)
+            } else if t0 > 1.0 {
+                (((b - c) / a).clamp(0.0, 1.0), 1.0)
+            } else {
+                (s0, t0)
+            };
+            s = s1; t = t1;
+        }
+    }
+    (a0 + d1 * s, b0 + d2 * t)
+}
+
+fn obb_axes(rot: &UnitQuaternion<f32>) -> [Vector3<f32>; 3] {
+    let m = rot.to_rotation_matrix();
+    [m * Vector3::x(), m * Vector3::y(), m * Vector3::z()]
+}
+
+fn obb_project(center: &Vector3<f32>, axes: &[Vector3<f32>; 3], half: &Vector3<f32>, axis: &Vector3<f32>) -> (f32, f32) {
+    let c = center.dot(axis);
+    let r = half.x * axes[0].dot(axis).abs()
+          + half.y * axes[1].dot(axis).abs()
+          + half.z * axes[2].dot(axis).abs();
+    (c - r, c + r)
+}
+
+fn sat_obb_obb(c1: &Vector3<f32>, a1: &[Vector3<f32>;3], h1: &Vector3<f32>,
+               c2: &Vector3<f32>, a2: &[Vector3<f32>;3], h2: &Vector3<f32>) -> bool {
+    let mut axes: Vec<Vector3<f32>> = Vec::with_capacity(15);
+    axes.extend_from_slice(a1);
+    axes.extend_from_slice(a2);
+    for i in 0..3 { for j in 0..3 {
+        let cross = a1[i].cross(&a2[j]);
+        if cross.norm_squared() > 1e-10 { axes.push(cross.normalize()); }
+    }}
+    for axis in &axes {
+        let (min1, max1) = obb_project(c1, a1, h1, axis);
+        let (min2, max2) = obb_project(c2, a2, h2, axis);
+        if max1 < min2 || max2 < min1 { return false; }
+    }
+    true
+}
+
+/// Returns a `Hit` (with `object_id` left as `Uuid::nil()` for the caller to fill in,
+/// `toi = 0.0`, contact point and normal computed) when the two world-space shapes overlap.
+/// `None` if they do not overlap.
+///
+/// For pairs marked as out-of-scope in the spec (mesh-vs-mesh family,
+/// or static-vs-static), returns `None` with a warning log.
+pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
+    use Collider::*;
+    match (a, b) {
+        (Sphere { center: c1, radius: r1 }, Sphere { center: c2, radius: r2 }) => {
+            let d = c2 - c1;
+            let dist = d.norm();
+            let sum = r1 + r2;
+            if dist <= sum {
+                let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit {
+                    object_id: Uuid::nil(),
+                    point: c1 + normal * *r1,
+                    normal,
+                    toi: 0.0,
+                })
+            } else { None }
+        }
+        (Aabb(b1), Aabb(b2)) => {
+            if is_colliding(b1, b2) {
+                // crude contact: midpoint of overlap region
+                let min = Vector3::from(b1.min_point()).sup(&Vector3::from(b2.min_point()));
+                let max = Vector3::from(b1.max_point()).inf(&Vector3::from(b2.max_point()));
+                let point = (min + max) * 0.5;
+                Some(Hit { object_id: Uuid::nil(), point, normal: Vector3::new(0.0,1.0,0.0), toi: 0.0 })
+            } else { None }
+        }
+        (Aabb(bb), Sphere { center, radius }) | (Sphere { center, radius }, Aabb(bb)) => {
+            let min = Vector3::from(bb.min_point());
+            let max = Vector3::from(bb.max_point());
+            let closest = Vector3::new(
+                center.x.clamp(min.x, max.x),
+                center.y.clamp(min.y, max.y),
+                center.z.clamp(min.z, max.z),
+            );
+            let d = center - closest;
+            let dist = d.norm();
+            if dist <= *radius {
+                let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: closest, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Capsule { a, b, radius: cr }, Sphere { center, radius: sr })
+        | (Sphere { center, radius: sr }, Capsule { a, b, radius: cr }) => {
+            let (closest, _) = closest_point_on_segment(center, a, b);
+            let d = center - closest;
+            let dist = d.norm();
+            let sum = cr + sr;
+            if dist <= sum {
+                let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: closest + normal * *cr, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Capsule { a: a1, b: b1, radius: r1 }, Capsule { a: a2, b: b2, radius: r2 }) => {
+            let (p1, p2) = closest_points_segment_segment(a1, b1, a2, b2);
+            let d = p2 - p1;
+            let dist = d.norm();
+            let sum = r1 + r2;
+            if dist <= sum {
+                let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: p1 + normal * *r1, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Capsule { a, b, radius: cr }, Aabb(bb))
+        | (Aabb(bb), Capsule { a, b, radius: cr }) => {
+            let min = Vector3::from(bb.min_point());
+            let max = Vector3::from(bb.max_point());
+            // Sample the segment at a few parameters; find min distance to box.
+            // 9 samples is enough resolution for this approximation; analytic version is a later upgrade.
+            let mut best_dist = f32::INFINITY;
+            let mut best_point = *a;
+            let mut best_closest = *a;
+            for i in 0..=8 {
+                let t = i as f32 / 8.0;
+                let p = a + (b - a) * t;
+                let c = Vector3::new(p.x.clamp(min.x, max.x), p.y.clamp(min.y, max.y), p.z.clamp(min.z, max.z));
+                let d = (p - c).norm();
+                if d < best_dist { best_dist = d; best_point = p; best_closest = c; }
+            }
+            if best_dist <= *cr {
+                let d = best_point - best_closest;
+                let normal = if best_dist > 1e-6 { d / best_dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: best_closest, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Obb { center: c1, half_extents: h1, rotation: r1 },
+         Obb { center: c2, half_extents: h2, rotation: r2 }) => {
+            let a1 = obb_axes(r1);
+            let a2 = obb_axes(r2);
+            if sat_obb_obb(c1, &a1, h1, c2, &a2, h2) {
+                let mid = (c1 + c2) * 0.5;
+                let d = c2 - c1;
+                let normal = if d.norm() > 1e-6 { d.normalize() } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Obb { center, half_extents, rotation }, Sphere { center: sc, radius: sr })
+        | (Sphere { center: sc, radius: sr }, Obb { center, half_extents, rotation }) => {
+            let inv_rot = rotation.inverse();
+            let local = inv_rot * (sc - center);
+            let clamped = Vector3::new(
+                local.x.clamp(-half_extents.x, half_extents.x),
+                local.y.clamp(-half_extents.y, half_extents.y),
+                local.z.clamp(-half_extents.z, half_extents.z),
+            );
+            let closest_world = center + rotation * clamped;
+            let d = sc - closest_world;
+            let dist = d.norm();
+            if dist <= *sr {
+                let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: closest_world, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Obb { center: oc, half_extents: oh, rotation: orot }, Aabb(bb))
+        | (Aabb(bb), Obb { center: oc, half_extents: oh, rotation: orot }) => {
+            let bmin = Vector3::from(bb.min_point());
+            let bmax = Vector3::from(bb.max_point());
+            let bc = (bmin + bmax) * 0.5;
+            let bh = (bmax - bmin) * 0.5;
+            let aabb_axes = [Vector3::x(), Vector3::y(), Vector3::z()];
+            let obb_a = obb_axes(orot);
+            if sat_obb_obb(oc, &obb_a, oh, &bc, &aabb_axes, &bh) {
+                let mid = (oc + bc) * 0.5;
+                let d = bc - oc;
+                let normal = if d.norm() > 1e-6 { d.normalize() } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 })
+            } else { None }
+        }
+        (Obb { center, half_extents, rotation }, Capsule { a, b, radius })
+        | (Capsule { a, b, radius }, Obb { center, half_extents, rotation }) => {
+            let inv_rot = rotation.inverse();
+            let mut best_dist = f32::INFINITY;
+            let mut best_point = *a;
+            let mut best_closest = *a;
+            for i in 0..=8 {
+                let t = i as f32 / 8.0;
+                let p = a + (b - a) * t;
+                let local = inv_rot * (p - center);
+                let clamped = Vector3::new(
+                    local.x.clamp(-half_extents.x, half_extents.x),
+                    local.y.clamp(-half_extents.y, half_extents.y),
+                    local.z.clamp(-half_extents.z, half_extents.z),
+                );
+                let closest_world = center + rotation * clamped;
+                let d = (p - closest_world).norm();
+                if d < best_dist { best_dist = d; best_point = p; best_closest = closest_world; }
+            }
+            if best_dist <= *radius {
+                let d = best_point - best_closest;
+                let normal = if best_dist > 1e-6 { d / best_dist } else { Vector3::new(0.0,1.0,0.0) };
+                Some(Hit { object_id: Uuid::nil(), point: best_closest, normal, toi: 0.0 })
+            } else { None }
+        }
+        _ => None,  // other arms added in later tasks (Plane, Mesh, Heightfield)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,5 +609,125 @@ mod tests {
             assert!((normal - Vector3::new(0.0, 1.0, 0.0)).norm() < 1e-5);
             assert!((offset - 3.0).abs() < 1e-5);
         } else { panic!() }
+    }
+
+    #[test]
+    fn sphere_sphere_overlap() {
+        let s1 = Collider::Sphere { center: Vector3::new(0.0,0.0,0.0), radius: 1.0 };
+        let s2_hit = Collider::Sphere { center: Vector3::new(1.5,0.0,0.0), radius: 1.0 };
+        let s2_miss = Collider::Sphere { center: Vector3::new(3.0,0.0,0.0), radius: 1.0 };
+        assert!(overlap_pair(&s1, &s2_hit).is_some());
+        assert!(overlap_pair(&s1, &s2_miss).is_none());
+    }
+
+    #[test]
+    fn aabb_aabb_overlap_via_pair() {
+        let a = Collider::Aabb(BoundingBox::new([0.0,0.0,0.0], [1.0,1.0,1.0]));
+        let b_hit = Collider::Aabb(BoundingBox::new([0.5,0.5,0.5], [2.0,2.0,2.0]));
+        let b_miss = Collider::Aabb(BoundingBox::new([2.0,2.0,2.0], [3.0,3.0,3.0]));
+        assert!(overlap_pair(&a, &b_hit).is_some());
+        assert!(overlap_pair(&a, &b_miss).is_none());
+    }
+
+    #[test]
+    fn sphere_aabb_overlap() {
+        let aabb = Collider::Aabb(BoundingBox::new([-1.0,-1.0,-1.0], [1.0,1.0,1.0]));
+        let s_hit = Collider::Sphere { center: Vector3::new(1.4,0.0,0.0), radius: 0.5 };
+        let s_miss = Collider::Sphere { center: Vector3::new(3.0,0.0,0.0), radius: 0.5 };
+        assert!(overlap_pair(&aabb, &s_hit).is_some());
+        assert!(overlap_pair(&s_hit, &aabb).is_some(), "symmetry");
+        assert!(overlap_pair(&aabb, &s_miss).is_none());
+    }
+
+    #[test]
+    fn capsule_sphere_overlap() {
+        let cap = Collider::Capsule {
+            a: Vector3::new(0.0,0.0,0.0),
+            b: Vector3::new(0.0,2.0,0.0),
+            radius: 0.5,
+        };
+        let s_hit = Collider::Sphere { center: Vector3::new(0.8,1.0,0.0), radius: 0.5 };
+        let s_miss = Collider::Sphere { center: Vector3::new(3.0,1.0,0.0), radius: 0.5 };
+        assert!(overlap_pair(&cap, &s_hit).is_some());
+        assert!(overlap_pair(&s_hit, &cap).is_some(), "symmetry");
+        assert!(overlap_pair(&cap, &s_miss).is_none());
+    }
+
+    #[test]
+    fn capsule_capsule_overlap() {
+        let c1 = Collider::Capsule { a: Vector3::new(0.0,0.0,0.0), b: Vector3::new(0.0,2.0,0.0), radius: 0.5 };
+        let c2_hit = Collider::Capsule { a: Vector3::new(0.8,0.5,0.0), b: Vector3::new(0.8,2.5,0.0), radius: 0.5 };
+        let c2_miss = Collider::Capsule { a: Vector3::new(5.0,0.0,0.0), b: Vector3::new(5.0,2.0,0.0), radius: 0.5 };
+        assert!(overlap_pair(&c1, &c2_hit).is_some());
+        assert!(overlap_pair(&c1, &c2_miss).is_none());
+    }
+
+    #[test]
+    fn capsule_aabb_overlap() {
+        let cap = Collider::Capsule { a: Vector3::new(0.0,0.0,0.0), b: Vector3::new(0.0,2.0,0.0), radius: 0.5 };
+        let bb_hit = Collider::Aabb(BoundingBox::new([0.3, 0.5, -0.5], [2.0, 1.5, 0.5]));
+        let bb_miss = Collider::Aabb(BoundingBox::new([5.0, 0.0, 0.0], [6.0, 1.0, 1.0]));
+        assert!(overlap_pair(&cap, &bb_hit).is_some());
+        assert!(overlap_pair(&cap, &bb_miss).is_none());
+    }
+
+    #[test]
+    fn obb_obb_overlap() {
+        let o1 = Collider::Obb {
+            center: Vector3::new(0.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let o2_hit = Collider::Obb {
+            center: Vector3::new(1.5,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.5),
+        };
+        let o2_miss = Collider::Obb {
+            center: Vector3::new(5.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        assert!(overlap_pair(&o1, &o2_hit).is_some());
+        assert!(overlap_pair(&o1, &o2_miss).is_none());
+    }
+
+    #[test]
+    fn obb_sphere_overlap() {
+        let o = Collider::Obb {
+            center: Vector3::new(0.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::from_axis_angle(&Vector3::y_axis(), std::f32::consts::FRAC_PI_4),
+        };
+        let s_hit = Collider::Sphere { center: Vector3::new(1.4,0.0,0.0), radius: 0.5 };
+        let s_miss = Collider::Sphere { center: Vector3::new(5.0,0.0,0.0), radius: 0.5 };
+        assert!(overlap_pair(&o, &s_hit).is_some());
+        assert!(overlap_pair(&o, &s_miss).is_none());
+    }
+
+    #[test]
+    fn obb_aabb_overlap() {
+        let o = Collider::Obb {
+            center: Vector3::new(0.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.3),
+        };
+        let bb_hit = Collider::Aabb(BoundingBox::new([0.5,-0.5,-0.5], [2.0,0.5,0.5]));
+        let bb_miss = Collider::Aabb(BoundingBox::new([5.0,5.0,5.0], [6.0,6.0,6.0]));
+        assert!(overlap_pair(&o, &bb_hit).is_some());
+        assert!(overlap_pair(&o, &bb_miss).is_none());
+    }
+
+    #[test]
+    fn obb_capsule_overlap() {
+        let o = Collider::Obb {
+            center: Vector3::new(0.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let cap_hit = Collider::Capsule { a: Vector3::new(0.5,2.0,0.0), b: Vector3::new(0.5,0.0,0.0), radius: 0.4 };
+        let cap_miss = Collider::Capsule { a: Vector3::new(5.0,0.0,0.0), b: Vector3::new(5.0,2.0,0.0), radius: 0.4 };
+        assert!(overlap_pair(&o, &cap_hit).is_some());
+        assert!(overlap_pair(&o, &cap_miss).is_none());
     }
 }
