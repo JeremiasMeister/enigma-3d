@@ -263,66 +263,190 @@ impl RayCast {
 
     pub fn cast(&mut self, app_state: &mut AppState) {
         for object in app_state.objects.iter_mut() {
-            if object.get_collision() == &false{
-                continue
+            if object.get_collision() == &false {
+                continue;
             }
-            let aabb = object.get_bounding_box();
-            match self.intersects_bounding_box(&aabb) {
-                Some(intersection_point) => {
-                    self.intersection_objects.insert(object.get_unique_id(), intersection_point);
-                },
-                None => {}
+            // Prefer the explicit collider when present; otherwise fall back to the
+            // auto-derived mesh AABB (transformed into world space by `get_bounding_box`).
+            let world_collider = match object.get_collider() {
+                Some(c) => c.to_world_space(&object.transform),
+                None => Collider::Aabb(object.get_bounding_box()),
+            };
+            if let Some((_, point)) = ray_vs_collider(
+                &self.origin, &self.direction, self.length, &world_collider,
+            ) {
+                self.intersection_objects.insert(object.get_unique_id(), point);
+            }
+        }
+        // Terrain ray-cast: walk along the ray sampling heights. Reported under the nil UUID,
+        // mirroring the convention used by other terrain hits in this module.
+        if let Some(terrain) = app_state.get_terrain() {
+            if let Some(point) = ray_vs_terrain(&self.origin, &self.direction, self.length, terrain) {
+                self.intersection_objects.insert(Uuid::nil(), point);
             }
         }
     }
+}
 
-    fn intersects_bounding_box(&self, bounding_box: &BoundingBox) -> Option<Vector3<f32>> {
-        let inv_direction = Vector3::new(1.0 / self.direction.x, 1.0 / self.direction.y, 1.0 / self.direction.z);
-        let sign = [
-            (inv_direction.x < 0.0) as usize,
-            (inv_direction.y < 0.0) as usize,
-            (inv_direction.z < 0.0) as usize,
-        ];
-
-        let bbox = [bounding_box.min_point(), bounding_box.max_point()];
-        let mut tmin = (bbox[sign[0]].x - self.origin.x) * inv_direction.x;
-        let mut tmax = (bbox[1 - sign[0]].x - self.origin.x) * inv_direction.x;
-        let tymin = (bbox[sign[1]].y - self.origin.y) * inv_direction.y;
-        let tymax = (bbox[1 - sign[1]].y - self.origin.y) * inv_direction.y;
-
-        if (tmin > tymax) || (tymin > tmax) {
-            return None;
+/// Tests a ray against a world-space collider. Returns `(t along ray, hit point)` if hit.
+/// `Heightfield` is intentionally not handled here — terrain ray-cast needs the actual
+/// terrain data, so it is dispatched separately in `RayCast::cast`.
+fn ray_vs_collider(
+    origin: &Vector3<f32>,
+    dir: &Vector3<f32>,
+    length: f32,
+    shape: &Collider,
+) -> Option<(f32, Vector3<f32>)> {
+    use Collider::*;
+    match shape {
+        Aabb(bb) => ray_vs_aabb(origin, dir, length, bb),
+        Sphere { center, radius } => {
+            let oc = origin - center;
+            let b = oc.dot(dir);
+            let c = oc.norm_squared() - radius * radius;
+            let disc = b * b - c;
+            if disc < 0.0 { return None; }
+            let sqrt_disc = disc.sqrt();
+            // Use the nearer root if it is in front of the origin; otherwise try the far root
+            // (origin is inside the sphere).
+            let t_near = -b - sqrt_disc;
+            let t_far = -b + sqrt_disc;
+            let t = if t_near > 0.0 { t_near } else { t_far };
+            if t > 0.0 && t < length { Some((t, origin + dir * t)) } else { None }
         }
-
-        if tymin > tmin {
-            tmin = tymin;
+        Plane { normal, offset } => {
+            let denom = normal.dot(dir);
+            if denom.abs() < 1e-6 { return None; }
+            let t = (*offset - normal.dot(origin)) / denom;
+            if t > 0.0 && t < length { Some((t, origin + dir * t)) } else { None }
         }
-
-        if tymax < tmax {
-            tmax = tymax;
+        Capsule { a, b, radius } => {
+            // v1 approximation: enclose capsule in its tight AABB and ray-test that.
+            // Less accurate around the rounded caps than a true capsule-ray test, but
+            // adequate for the common case of click-picking character-scale capsules.
+            let amin = a.inf(b) - Vector3::new(*radius, *radius, *radius);
+            let amax = a.sup(b) + Vector3::new(*radius, *radius, *radius);
+            let bb = BoundingBox::new(
+                [amin.x, amin.y, amin.z],
+                [amax.x, amax.y, amax.z],
+            );
+            ray_vs_aabb(origin, dir, length, &bb)
         }
-
-        let tzmin = (bbox[sign[2]].z - self.origin.z) * inv_direction.z;
-        let tzmax = (bbox[1 - sign[2]].z - self.origin.z) * inv_direction.z;
-
-        if (tmin > tzmax) || (tzmin > tmax) {
-            return None;
+        Obb { center, half_extents, rotation } => {
+            // Transform the ray into the OBB's local space, then test against the
+            // centered axis-aligned box.
+            let inv = rotation.inverse();
+            let lo = inv * (origin - center);
+            let ld = inv * dir;
+            let local_bb = BoundingBox::new(
+                [-half_extents.x, -half_extents.y, -half_extents.z],
+                [half_extents.x, half_extents.y, half_extents.z],
+            );
+            let (t, _) = ray_vs_aabb(&lo, &ld, length, &local_bb)?;
+            // The hit point is `origin + dir * t` in world space — easier to compute
+            // directly than to transform the local hit back.
+            Some((t, origin + dir * t))
         }
-
-        if tzmin > tmin {
-            tmin = tzmin;
+        Mesh(m) => {
+            let mut best: Option<(f32, Vector3<f32>)> = None;
+            for tri in &m.triangles {
+                if let Some(t) = ray_triangle(origin, dir, &tri[0], &tri[1], &tri[2]) {
+                    if t < length && best.map_or(true, |(bt, _)| t < bt) {
+                        best = Some((t, origin + dir * t));
+                    }
+                }
+            }
+            best
         }
+        Heightfield => None,
+    }
+}
 
-        if tzmax < tmax {
-            tmax = tzmax;
-        }
+/// Slab-method ray-vs-AABB. Returns `(t_entry, entry_point)` if the ray enters the box
+/// within `length`. Lifted verbatim from the original `RayCast::intersects_bounding_box`.
+fn ray_vs_aabb(
+    origin: &Vector3<f32>,
+    dir: &Vector3<f32>,
+    length: f32,
+    bounding_box: &BoundingBox,
+) -> Option<(f32, Vector3<f32>)> {
+    let inv_direction = Vector3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z);
+    let sign = [
+        (inv_direction.x < 0.0) as usize,
+        (inv_direction.y < 0.0) as usize,
+        (inv_direction.z < 0.0) as usize,
+    ];
 
-        if (tmin < self.length) && (tmax > 0.0) {
-            return Some(self.origin + tmin * self.direction);
-        }
+    let bbox = [bounding_box.min_point(), bounding_box.max_point()];
+    let mut tmin = (bbox[sign[0]].x - origin.x) * inv_direction.x;
+    let mut tmax = (bbox[1 - sign[0]].x - origin.x) * inv_direction.x;
+    let tymin = (bbox[sign[1]].y - origin.y) * inv_direction.y;
+    let tymax = (bbox[1 - sign[1]].y - origin.y) * inv_direction.y;
 
+    if (tmin > tymax) || (tymin > tmax) {
+        return None;
+    }
+    if tymin > tmin { tmin = tymin; }
+    if tymax < tmax { tmax = tymax; }
+
+    let tzmin = (bbox[sign[2]].z - origin.z) * inv_direction.z;
+    let tzmax = (bbox[1 - sign[2]].z - origin.z) * inv_direction.z;
+
+    if (tmin > tzmax) || (tzmin > tmax) {
+        return None;
+    }
+    if tzmin > tmin { tmin = tzmin; }
+    if tzmax < tmax { tmax = tzmax; }
+
+    if (tmin < length) && (tmax > 0.0) {
+        Some((tmin, origin + dir * tmin))
+    } else {
         None
     }
+}
+
+/// Walks the ray sampling terrain heights at fixed `steps` intervals; when the ray
+/// transitions from above-surface to below-surface (or vice versa) between two samples,
+/// linearly interpolate to find the crossing point.
+fn ray_vs_terrain(
+    origin: &Vector3<f32>,
+    dir: &Vector3<f32>,
+    length: f32,
+    terrain: &crate::terrain::Terrain,
+) -> Option<Vector3<f32>> {
+    let steps = 64;
+    let step_size = length / steps as f32;
+    let mut prev_above: Option<bool> = None;
+    let mut prev_p = *origin;
+    let mut prev_h: Option<f32> = None;
+    for i in 0..=steps {
+        let t = i as f32 * step_size;
+        let p = origin + dir * t;
+        if let Some(h) = terrain.height_at(p.x, p.z) {
+            let above = p.y > h;
+            if let (Some(pa), Some(ph)) = (prev_above, prev_h) {
+                if pa != above {
+                    // The two signed-distances bracket zero. Interpolate between
+                    // prev_p and p where (y - h) crosses zero.
+                    let d_prev = prev_p.y - ph;
+                    let d_curr = p.y - h;
+                    let denom = d_prev - d_curr;
+                    let alpha = if denom.abs() > 1e-6 { d_prev / denom } else { 0.5 };
+                    return Some(prev_p + (p - prev_p) * alpha);
+                }
+            }
+            prev_above = Some(above);
+            prev_p = p;
+            prev_h = Some(h);
+        } else {
+            // Outside terrain bounds — break the contiguous sampling window. Resetting
+            // `prev_above` prevents stitching across a gap.
+            prev_above = None;
+            prev_h = None;
+            prev_p = p;
+        }
+    }
+    None
 }
 
 /// Returns (closest_point_on_segment, parameter_t_in_0_1) for the given point.
@@ -743,7 +867,6 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
 
 /// Möller-Trumbore ray-triangle intersection. Returns `Some(t)` where the hit point is
 /// `origin + dir * t`, or `None` if the ray misses or hits behind the origin.
-#[allow(dead_code)]
 fn ray_triangle(
     origin: &Vector3<f32>,
     dir: &Vector3<f32>,
@@ -1625,5 +1748,39 @@ mod tests {
         } else {
             panic!("expected Mesh");
         }
+    }
+
+    #[test]
+    fn ray_cast_uses_explicit_sphere_collider() {
+        use crate::AppState;
+        use crate::object::Object;
+
+        let mut state = AppState::new();
+        let mut o = Object::new(Some("ball".into()));
+        o.transform.set_position([5.0, 0.0, 0.0]);
+        o.set_collider(Collider::Sphere {
+            center: Vector3::zeros(),
+            radius: 1.0,
+        });
+        let oid = o.get_unique_id();
+        state.add_object(o);
+
+        let mut ray = RayCast::new(
+            Vector3::zeros(),
+            Vector3::new(1.0, 0.0, 0.0),
+            100.0,
+        );
+        ray.cast(&mut state);
+        assert!(ray.get_intersection_uuids().contains(&oid));
+
+        // Sphere centered at world (5,0,0) with radius 1.0 → ray hits surface at x=4.0.
+        // If RayCast were still using the auto AABB, the hit point would be on the
+        // bounding-box face (different x), not on the sphere surface.
+        let hit_point = ray.get_intersection_map().get(&oid).unwrap();
+        assert!(
+            (hit_point.x - 4.0).abs() < 0.05,
+            "expected sphere surface hit at x=4.0, got x={}",
+            hit_point.x,
+        );
     }
 }
