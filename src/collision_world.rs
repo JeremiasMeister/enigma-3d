@@ -66,6 +66,27 @@ impl MeshCollider {
     pub fn from_triangles(triangles: Vec<[Vector3<f32>; 3]>) -> Self {
         Self { triangles }
     }
+
+    /// Builds a mesh collider from all triangles in the object's visual shapes.
+    /// Triangles are stored in object-local space — the object's transform is
+    /// applied at query time via `Collider::to_world_space`.
+    pub fn from_object_mesh(object: &crate::object::Object) -> Self {
+        let mut tris = Vec::new();
+        for shape in object.shapes_ref() {
+            let verts = &shape.vertices;
+            for tri_indices in shape.indices.chunks_exact(3) {
+                let v0 = verts[tri_indices[0] as usize].position;
+                let v1 = verts[tri_indices[1] as usize].position;
+                let v2 = verts[tri_indices[2] as usize].position;
+                tris.push([
+                    Vector3::new(v0[0], v0[1], v0[2]),
+                    Vector3::new(v1[0], v1[1], v1[2]),
+                    Vector3::new(v2[0], v2[1], v2[2]),
+                ]);
+            }
+        }
+        Self { triangles: tris }
+    }
 }
 
 /// All collider shapes supported by collision_world.
@@ -136,7 +157,20 @@ impl Collider {
                 half_extents: half_extents.component_mul(&scale.abs()),
                 rotation: rot * rotation,
             },
-            Collider::Plane { .. } | Collider::Mesh(_) | Collider::Heightfield => self.clone(),
+            Collider::Mesh(m) => {
+                // Mesh triangles are stored in object-local space (see
+                // `MeshCollider::from_object_mesh`). Apply the owner's transform so query
+                // arms can treat the mesh as world-space, consistent with all other
+                // colliders.
+                Collider::Mesh(MeshCollider {
+                    triangles: m.triangles.iter().map(|tri| [
+                        pos + rot * tri[0].component_mul(&scale),
+                        pos + rot * tri[1].component_mul(&scale),
+                        pos + rot * tri[2].component_mul(&scale),
+                    ]).collect(),
+                })
+            }
+            Collider::Plane { .. } | Collider::Heightfield => self.clone(),
         }
     }
 }
@@ -628,6 +662,62 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
                 })
             } else { None }
         }
+        (Mesh(m), Sphere { center, radius }) | (Sphere { center, radius }, Mesh(m)) => {
+            for tri in &m.triangles {
+                if let Some((point, normal)) =
+                    sphere_overlap_triangle(center, *radius, &tri[0], &tri[1], &tri[2])
+                {
+                    return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                }
+            }
+            None
+        }
+        (Mesh(m), Capsule { a, b, radius }) | (Capsule { a, b, radius }, Mesh(m)) => {
+            // 9-sample sphere-vs-triangle along the capsule's segment — matches the
+            // sample-count used by capsule-vs-AABB/OBB for consistency.
+            for i in 0..=8 {
+                let t = i as f32 / 8.0;
+                let p = a + (b - a) * t;
+                for tri in &m.triangles {
+                    if let Some((point, normal)) =
+                        sphere_overlap_triangle(&p, *radius, &tri[0], &tri[1], &tri[2])
+                    {
+                        return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                    }
+                }
+            }
+            None
+        }
+        (Mesh(m), Aabb(bb)) | (Aabb(bb), Mesh(m)) => {
+            // v1 approximation: treat the AABB as its bounding sphere. Cheaper than
+            // analytic AABB-tri SAT and good enough for the typical use case
+            // (medium-scale boxes vs. terrain-like meshes).
+            let min = Vector3::from(bb.min_point());
+            let max = Vector3::from(bb.max_point());
+            let center = (min + max) * 0.5;
+            let radius = (max - min).norm() * 0.5;
+            for tri in &m.triangles {
+                if let Some((point, normal)) =
+                    sphere_overlap_triangle(&center, radius, &tri[0], &tri[1], &tri[2])
+                {
+                    return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                }
+            }
+            None
+        }
+        (Mesh(m), Obb { center, half_extents, .. })
+        | (Obb { center, half_extents, .. }, Mesh(m)) => {
+            // Same bounding-sphere approximation as the AABB arm.
+            let radius = half_extents.norm();
+            for tri in &m.triangles {
+                if let Some((point, normal)) =
+                    sphere_overlap_triangle(center, radius, &tri[0], &tri[1], &tri[2])
+                {
+                    return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                }
+            }
+            None
+        }
         (Plane { .. }, Plane { .. })
         | (Plane { .. }, Mesh(_)) | (Mesh(_), Plane { .. })
         | (Plane { .. }, Heightfield) | (Heightfield, Plane { .. })
@@ -648,7 +738,6 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
         | (Heightfield, Capsule { .. }) | (Capsule { .. }, Heightfield)
         | (Heightfield, Aabb(_)) | (Aabb(_), Heightfield)
         | (Heightfield, Obb { .. }) | (Obb { .. }, Heightfield) => None,
-        _ => None,  // Mesh arms added in later tasks
     }
 }
 
@@ -1438,5 +1527,103 @@ mod tests {
         // Sphere of radius 0.5 starting at origin, moving +X, hits wall (left face at x=4.0) at travel=3.5
         // expected TOI ≈ 3.5 / 10.0 = 0.35
         assert!((h.toi - 0.35).abs() < 0.1, "toi was {}", h.toi);
+    }
+
+    /// Helper: build a `Vertex` filled with sensible defaults. `Vertex` doesn't impl
+    /// `Default`, so tests need to spell every field. Centralised here to avoid noise.
+    fn test_vertex(x: f32, y: f32, z: f32) -> crate::geometry::Vertex {
+        crate::geometry::Vertex {
+            position: [x, y, z],
+            texcoord: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0],
+            normal: [0.0, 1.0, 0.0],
+            bone_indices: [0, 0, 0, 0],
+            bone_weights: [0.0, 0.0, 0.0, 0.0],
+        }
+    }
+
+    #[test]
+    fn mesh_collider_from_object_mesh_collects_triangles() {
+        use crate::object::{Object, Shape};
+        let mut obj = Object::new(Some("box".into()));
+        let mut shape = Shape::new();
+        shape.vertices = vec![
+            test_vertex(0.0, 0.0, 0.0),
+            test_vertex(1.0, 0.0, 0.0),
+            test_vertex(0.0, 1.0, 0.0),
+        ];
+        shape.indices = vec![0, 1, 2];
+        obj.add_shape(shape);
+
+        let mesh = MeshCollider::from_object_mesh(&obj);
+        assert_eq!(mesh.triangles.len(), 1);
+        assert!((mesh.triangles[0][0] - Vector3::new(0.0, 0.0, 0.0)).norm() < 1e-5);
+        assert!((mesh.triangles[0][1] - Vector3::new(1.0, 0.0, 0.0)).norm() < 1e-5);
+        assert!((mesh.triangles[0][2] - Vector3::new(0.0, 1.0, 0.0)).norm() < 1e-5);
+    }
+
+    #[test]
+    fn sphere_mesh_overlap() {
+        let tri = [
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(2.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 2.0),
+        ];
+        let mesh = Collider::Mesh(MeshCollider::from_triangles(vec![tri]));
+        let s_hit = Collider::Sphere { center: Vector3::new(0.5, 0.3, 0.5), radius: 0.5 };
+        let s_miss = Collider::Sphere { center: Vector3::new(5.0, 5.0, 5.0), radius: 0.5 };
+        assert!(overlap_pair(&mesh, &s_hit).is_some());
+        assert!(overlap_pair(&mesh, &s_miss).is_none());
+        // Symmetric ordering must also hit.
+        assert!(overlap_pair(&s_hit, &mesh).is_some());
+    }
+
+    #[test]
+    fn capsule_mesh_overlap() {
+        let tri = [
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(2.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 2.0),
+        ];
+        let mesh = Collider::Mesh(MeshCollider::from_triangles(vec![tri]));
+        let cap_hit = Collider::Capsule {
+            a: Vector3::new(0.5, 0.3, 0.5),
+            b: Vector3::new(0.5, 2.3, 0.5),
+            radius: 0.4,
+        };
+        assert!(overlap_pair(&mesh, &cap_hit).is_some());
+    }
+
+    #[test]
+    fn aabb_mesh_overlap_approximates_via_bounding_sphere() {
+        let tri = [
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(2.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 2.0),
+        ];
+        let mesh = Collider::Mesh(MeshCollider::from_triangles(vec![tri]));
+        let bb = Collider::Aabb(BoundingBox::new([0.3, -0.3, 0.3], [0.7, 0.3, 0.7]));
+        assert!(overlap_pair(&mesh, &bb).is_some());
+    }
+
+    #[test]
+    fn collider_to_world_space_transforms_mesh() {
+        use crate::object::Transform;
+        let local = Collider::Mesh(MeshCollider::from_triangles(vec![[
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(1.0, 0.0, 0.0),
+            Vector3::new(0.0, 1.0, 0.0),
+        ]]));
+        let mut t = Transform::new();
+        t.set_position([10.0, 0.0, 0.0]);
+        let world = local.to_world_space(&t);
+        if let Collider::Mesh(m) = world {
+            assert_eq!(m.triangles.len(), 1);
+            assert!((m.triangles[0][0] - Vector3::new(10.0, 0.0, 0.0)).norm() < 1e-5);
+            assert!((m.triangles[0][1] - Vector3::new(11.0, 0.0, 0.0)).norm() < 1e-5);
+            assert!((m.triangles[0][2] - Vector3::new(10.0, 1.0, 0.0)).norm() < 1e-5);
+        } else {
+            panic!("expected Mesh");
+        }
     }
 }

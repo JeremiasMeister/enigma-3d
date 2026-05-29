@@ -649,6 +649,12 @@ impl Object {
         &self.shapes
     }
 
+    /// Slice-typed accessor for visual shapes. Equivalent to `get_shapes()` but
+    /// returns `&[Shape]`, which is the idiomatic borrow form for read-only iteration.
+    pub fn shapes_ref(&self) -> &[Shape] {
+        &self.shapes
+    }
+
     pub fn get_shapes_mut(&mut self) -> &mut Vec<Shape> {
         &mut self.shapes
     }
