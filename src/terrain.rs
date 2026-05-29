@@ -1,9 +1,10 @@
 use glium::glutin::surface::WindowSurface;
 use glium::Display;
 use glium::Surface;
+use nalgebra::Vector3;
 use crate::resources;
 use crate::camera::Camera;
-use crate::geometry::{BoneTransforms, InstanceAttribute};
+use crate::geometry::{BoneTransforms, BoundingBox, InstanceAttribute};
 use crate::light::Light;
 use crate::material::Material;
 use crate::shadow::ShadowMaps;
@@ -437,10 +438,31 @@ impl Terrain {
         bilinear_lookup(&self.heightmap, verts, lx, lz) + self.position[1]
     }
 
+    /// Returns `Some(world_y)` at the given world-space XZ position if it is within the
+    /// terrain bounds, or `None` if outside. Unlike `get_height` (which clamps), this
+    /// reports `None` for out-of-bounds queries so callers can distinguish "off the terrain"
+    /// from "on the edge."
+    pub fn height_at(&self, x: f32, z: f32) -> Option<f32> {
+        height_at_world(&self.heightmap, &self.config, self.position, x, z)
+    }
+
+    /// Returns the world-space upward normal at the given XZ position, or `None` if outside
+    /// the terrain bounds. Computed via two finite-difference samples of the heightmap.
+    pub fn normal_at(&self, x: f32, z: f32) -> Option<Vector3<f32>> {
+        normal_at_world(&self.heightmap, &self.config, self.position, x, z)
+    }
+
+    /// Returns the terrain triangles (world-space) whose XZ projection overlaps the given AABB.
+    /// Used by mesh-style collision queries (sphere/capsule vs terrain).
+    pub fn triangles_in_aabb(&self, aabb: &BoundingBox) -> Vec<[Vector3<f32>; 3]> {
+        triangles_in_aabb_world(&self.heightmap, &self.config, self.position, aabb)
+    }
+
     /// Returns a closure that queries the terrain heightfield at world-space (x, z).
-    /// Stub for v1 — terrain collision with particles is a v2 follow-up.
+    /// Returns `Some(world_y)` inside the bounds, `None` outside. Used by the particle
+    /// system and other callers wanting a bounds-aware query.
     pub fn heightfield_query_fn(&self) -> impl Fn(f32, f32) -> Option<f32> + '_ {
-        |_x: f32, _z: f32| None
+        move |x: f32, z: f32| self.height_at(x, z)
     }
 
     /// Draws all terrain tiles. If a material is set, uses it (full PBR + shadows);
@@ -530,6 +552,102 @@ impl Terrain {
             }
         }
     }
+}
+
+/// Returns `Some(world_y)` at the given world-space XZ position if it is within the terrain
+/// bounds described by `config` (centered at `position`), or `None` if outside.
+///
+/// Free-function form so it can be unit-tested without constructing a real `Terrain`
+/// (which requires a glium `Display`).
+pub(crate) fn height_at_world(
+    heightmap: &[f32],
+    config: &TerrainConfig,
+    position: [f32; 3],
+    x: f32,
+    z: f32,
+) -> Option<f32> {
+    let half_w = config.width * 0.5;
+    let half_d = config.depth * 0.5;
+    let lx = x - position[0];
+    let lz = z - position[2];
+    if lx < -half_w || lx > half_w || lz < -half_d || lz > half_d {
+        return None;
+    }
+    let verts = (config.resolution + 1) as usize;
+    let cell_x = config.width / config.resolution as f32;
+    let cell_z = config.depth / config.resolution as f32;
+    let gx = (lx + half_w) / cell_x;
+    let gz = (lz + half_d) / cell_z;
+    Some(bilinear_lookup(heightmap, verts, gx, gz) + position[1])
+}
+
+/// World-space upward normal at the given XZ position. `None` if outside bounds.
+/// Two finite-difference samples plus the central sample, then a cross product.
+pub(crate) fn normal_at_world(
+    heightmap: &[f32],
+    config: &TerrainConfig,
+    position: [f32; 3],
+    x: f32,
+    z: f32,
+) -> Option<Vector3<f32>> {
+    let h_here = height_at_world(heightmap, config, position, x, z)?;
+    let eps = 0.1_f32;
+    let h_dx = height_at_world(heightmap, config, position, x + eps, z)?;
+    let h_dz = height_at_world(heightmap, config, position, x, z + eps)?;
+    let tx = Vector3::new(eps, h_dx - h_here, 0.0);
+    let tz = Vector3::new(0.0, h_dz - h_here, eps);
+    Some(tz.cross(&tx).normalize())
+}
+
+/// Terrain triangles (world-space) whose XZ projection overlaps the given AABB.
+/// Two triangles per cell, only cells within the AABB's XZ footprint are emitted.
+///
+/// Free-function form so it can be unit-tested without constructing a real `Terrain`.
+pub(crate) fn triangles_in_aabb_world(
+    heightmap: &[f32],
+    config: &TerrainConfig,
+    position: [f32; 3],
+    aabb: &BoundingBox,
+) -> Vec<[Vector3<f32>; 3]> {
+    let verts = (config.resolution + 1) as usize;
+    let cell_x = config.width / config.resolution as f32;
+    let cell_z = config.depth / config.resolution as f32;
+    let half_w = config.width * 0.5;
+    let half_d = config.depth * 0.5;
+
+    let bmin = aabb.min_point();
+    let bmax = aabb.max_point();
+    let lx_min = ((bmin.x - position[0] + half_w) / cell_x).floor() as isize;
+    let lx_max = ((bmax.x - position[0] + half_w) / cell_x).ceil()  as isize;
+    let lz_min = ((bmin.z - position[2] + half_d) / cell_z).floor() as isize;
+    let lz_max = ((bmax.z - position[2] + half_d) / cell_z).ceil()  as isize;
+
+    let mut out = Vec::new();
+    let res = config.resolution as isize;
+    for iz in lz_min.max(0)..lz_max.min(res) {
+        for ix in lx_min.max(0)..lx_max.min(res) {
+            let i00 = iz as usize * verts + ix as usize;
+            let i10 = i00 + 1;
+            let i01 = i00 + verts;
+            let i11 = i01 + 1;
+            let make_v = |i: usize, x_off: f32, z_off: f32| -> Vector3<f32> {
+                let wx = position[0] - half_w + x_off;
+                let wz = position[2] - half_d + z_off;
+                Vector3::new(wx, heightmap[i] + position[1], wz)
+            };
+            let x0 = ix as f32 * cell_x;
+            let x1 = (ix as f32 + 1.0) * cell_x;
+            let z0 = iz as f32 * cell_z;
+            let z1 = (iz as f32 + 1.0) * cell_z;
+            let p00 = make_v(i00, x0, z0);
+            let p10 = make_v(i10, x1, z0);
+            let p01 = make_v(i01, x0, z1);
+            let p11 = make_v(i11, x1, z1);
+            out.push([p00, p10, p11]);
+            out.push([p00, p11, p01]);
+        }
+    }
+    out
 }
 
 /// Bilinear lookup into a row-major (Z-then-X) heightmap. `lx`/`lz` are
@@ -682,5 +800,94 @@ mod tests {
         // x=1000 is far outside — bilinear_lookup must clamp and return 0.0
         let result = bilinear_lookup(&hm, verts, 1000.0, (cfg.depth * 0.5) / (cfg.depth / cfg.resolution as f32));
         assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn height_at_returns_some_inside_bounds() {
+        // Flat terrain at y=0, 10×10 world units centered on origin.
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        let h = height_at_world(&hm, &cfg, pos, 0.0, 0.0);
+        assert!(h.is_some());
+        assert!(h.unwrap().abs() < 1e-4);
+    }
+
+    #[test]
+    fn height_at_returns_none_outside_bounds() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        // Terrain is 10×10 centered on origin: bounds are [-5, 5] in both axes.
+        assert!(height_at_world(&hm, &cfg, pos, 9999.0, 0.0).is_none());
+        assert!(height_at_world(&hm, &cfg, pos, 0.0, 9999.0).is_none());
+        assert!(height_at_world(&hm, &cfg, pos, -9999.0, 0.0).is_none());
+        assert!(height_at_world(&hm, &cfg, pos, 0.0, -9999.0).is_none());
+        // Just barely outside the +X edge
+        assert!(height_at_world(&hm, &cfg, pos, 5.001, 0.0).is_none());
+        // At the edge: should still be inside.
+        assert!(height_at_world(&hm, &cfg, pos, 5.0, 0.0).is_some());
+    }
+
+    #[test]
+    fn height_at_respects_position_offset() {
+        let (hm, cfg) = flat_heightmap(8);
+        // Move terrain to (100, 0, 100). Now world-space (100, _, 100) is the center.
+        let pos = [100.0_f32, 0.0, 100.0];
+        // Origin is no longer inside the terrain.
+        assert!(height_at_world(&hm, &cfg, pos, 0.0, 0.0).is_none());
+        // The shifted center is inside.
+        assert!(height_at_world(&hm, &cfg, pos, 100.0, 100.0).is_some());
+    }
+
+    #[test]
+    fn normal_at_flat_terrain_points_up() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        let n = normal_at_world(&hm, &cfg, pos, 0.0, 0.0).expect("normal in bounds");
+        assert!((n.y - 1.0).abs() < 0.01, "expected +Y normal, got {n:?}");
+    }
+
+    #[test]
+    fn normal_at_returns_none_outside_bounds() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        assert!(normal_at_world(&hm, &cfg, pos, 9999.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn triangles_in_aabb_returns_triangles() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        // A small AABB around the origin; should overlap several cells.
+        let bb = BoundingBox::new([-1.0, -100.0, -1.0], [1.0, 100.0, 1.0]);
+        let tris = triangles_in_aabb_world(&hm, &cfg, pos, &bb);
+        assert!(!tris.is_empty(), "expected at least one triangle");
+        // Each cell produces 2 triangles, so the count is always even.
+        assert_eq!(tris.len() % 2, 0);
+    }
+
+    #[test]
+    fn triangles_in_aabb_outside_bounds_is_empty() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 0.0, 0.0];
+        // AABB far away from terrain.
+        let bb = BoundingBox::new([1000.0, -100.0, 1000.0], [1010.0, 100.0, 1010.0]);
+        let tris = triangles_in_aabb_world(&hm, &cfg, pos, &bb);
+        assert!(tris.is_empty());
+    }
+
+    #[test]
+    fn triangles_in_aabb_flat_triangles_at_position_y() {
+        let (hm, cfg) = flat_heightmap(8);
+        let pos = [0.0_f32, 7.5, 0.0]; // raise the terrain
+        let bb = BoundingBox::new([-0.5, -100.0, -0.5], [0.5, 100.0, 0.5]);
+        let tris = triangles_in_aabb_world(&hm, &cfg, pos, &bb);
+        assert!(!tris.is_empty());
+        // Flat custom_noise(_, _) = 0 means heightmap is all zeros; with position.y=7.5,
+        // every triangle vertex Y should be 7.5.
+        for tri in &tris {
+            for v in tri.iter() {
+                assert!((v.y - 7.5).abs() < 1e-4, "expected y=7.5, got {}", v.y);
+            }
+        }
     }
 }

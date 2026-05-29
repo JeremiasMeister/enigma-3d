@@ -640,7 +640,204 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
             ).log();
             None
         }
-        _ => None,  // Mesh / Heightfield arms added in later tasks
+        // Heightfield-vs-dynamic shapes need access to the actual `Terrain` (heightmap, config,
+        // position). `overlap_pair` only takes `Collider`s, so it can't resolve `Heightfield`.
+        // Terrain handling lives in `ShapeOverlap::query` via `overlap_shape_terrain`, which has
+        // an `AppState` and can call `Terrain::triangles_in_aabb`.
+        (Heightfield, Sphere { .. }) | (Sphere { .. }, Heightfield)
+        | (Heightfield, Capsule { .. }) | (Capsule { .. }, Heightfield)
+        | (Heightfield, Aabb(_)) | (Aabb(_), Heightfield)
+        | (Heightfield, Obb { .. }) | (Obb { .. }, Heightfield) => None,
+        _ => None,  // Mesh arms added in later tasks
+    }
+}
+
+/// Möller-Trumbore ray-triangle intersection. Returns `Some(t)` where the hit point is
+/// `origin + dir * t`, or `None` if the ray misses or hits behind the origin.
+#[allow(dead_code)]
+fn ray_triangle(
+    origin: &Vector3<f32>,
+    dir: &Vector3<f32>,
+    v0: &Vector3<f32>,
+    v1: &Vector3<f32>,
+    v2: &Vector3<f32>,
+) -> Option<f32> {
+    let e1 = v1 - v0;
+    let e2 = v2 - v0;
+    let p = dir.cross(&e2);
+    let det = e1.dot(&p);
+    if det.abs() < 1e-8 { return None; }
+    let inv = 1.0 / det;
+    let s = origin - v0;
+    let u = s.dot(&p) * inv;
+    if u < 0.0 || u > 1.0 { return None; }
+    let q = s.cross(&e1);
+    let v = dir.dot(&q) * inv;
+    if v < 0.0 || u + v > 1.0 { return None; }
+    let t = e2.dot(&q) * inv;
+    if t > 1e-6 { Some(t) } else { None }
+}
+
+/// Sphere-vs-triangle overlap via closest-point-on-triangle test (Real-Time Collision
+/// Detection §5.1.5). Returns the contact point and outward normal when the sphere
+/// overlaps the triangle.
+fn sphere_overlap_triangle(
+    center: &Vector3<f32>,
+    radius: f32,
+    v0: &Vector3<f32>,
+    v1: &Vector3<f32>,
+    v2: &Vector3<f32>,
+) -> Option<(Vector3<f32>, Vector3<f32>)> {
+    let ab = v1 - v0;
+    let ac = v2 - v0;
+    let ap = center - v0;
+    let d1 = ab.dot(&ap);
+    let d2 = ac.dot(&ap);
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return finalize_sphere_tri(center, *v0, radius);
+    }
+    let bp = center - v1;
+    let d3 = ab.dot(&bp);
+    let d4 = ac.dot(&bp);
+    if d3 >= 0.0 && d4 <= d3 { return finalize_sphere_tri(center, *v1, radius); }
+    let vc = d1 * d4 - d3 * d2;
+    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
+        let v = d1 / (d1 - d3);
+        return finalize_sphere_tri(center, v0 + ab * v, radius);
+    }
+    let cp = center - v2;
+    let d5 = ab.dot(&cp);
+    let d6 = ac.dot(&cp);
+    if d6 >= 0.0 && d5 <= d6 { return finalize_sphere_tri(center, *v2, radius); }
+    let vb = d5 * d2 - d1 * d6;
+    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
+        let w = d2 / (d2 - d6);
+        return finalize_sphere_tri(center, v0 + ac * w, radius);
+    }
+    let va = d3 * d6 - d5 * d4;
+    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
+        let w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return finalize_sphere_tri(center, v1 + (v2 - v1) * w, radius);
+    }
+    let denom = 1.0 / (va + vb + vc);
+    let v = vb * denom;
+    let w = vc * denom;
+    finalize_sphere_tri(center, v0 + ab * v + ac * w, radius)
+}
+
+fn finalize_sphere_tri(
+    center: &Vector3<f32>,
+    closest: Vector3<f32>,
+    radius: f32,
+) -> Option<(Vector3<f32>, Vector3<f32>)> {
+    let d = center - closest;
+    let dist = d.norm();
+    if dist <= radius {
+        let normal = if dist > 1e-6 { d / dist } else { Vector3::new(0.0, 1.0, 0.0) };
+        Some((closest, normal))
+    } else {
+        None
+    }
+}
+
+/// World-space AABB of a collider. Returns `None` for unbounded shapes (Plane, Heightfield).
+fn shape_aabb(shape: &Collider) -> Option<BoundingBox> {
+    use Collider::*;
+    let pad = |c: &Vector3<f32>, r: f32| BoundingBox::new(
+        [c.x - r, c.y - r, c.z - r],
+        [c.x + r, c.y + r, c.z + r],
+    );
+    match shape {
+        Aabb(bb) => Some(*bb),
+        Sphere { center, radius } => Some(pad(center, *radius)),
+        Capsule { a, b, radius } => {
+            let min = a.inf(b) - Vector3::new(*radius, *radius, *radius);
+            let max = a.sup(b) + Vector3::new(*radius, *radius, *radius);
+            Some(BoundingBox::new([min.x, min.y, min.z], [max.x, max.y, max.z]))
+        }
+        Obb { center, half_extents, rotation } => {
+            // Conservative: project the OBB's rotated axes onto world axes.
+            let a = obb_axes(rotation);
+            let r = Vector3::new(
+                half_extents.x * a[0].x.abs() + half_extents.y * a[1].x.abs() + half_extents.z * a[2].x.abs(),
+                half_extents.x * a[0].y.abs() + half_extents.y * a[1].y.abs() + half_extents.z * a[2].y.abs(),
+                half_extents.x * a[0].z.abs() + half_extents.y * a[1].z.abs() + half_extents.z * a[2].z.abs(),
+            );
+            Some(BoundingBox::new(
+                [center.x - r.x, center.y - r.y, center.z - r.z],
+                [center.x + r.x, center.y + r.y, center.z + r.z],
+            ))
+        }
+        Mesh(m) => {
+            let mut min = Vector3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+            let mut max = Vector3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+            for tri in &m.triangles {
+                for v in tri.iter() {
+                    min = min.inf(v);
+                    max = max.sup(v);
+                }
+            }
+            if min.x.is_finite() {
+                Some(BoundingBox::new([min.x, min.y, min.z], [max.x, max.y, max.z]))
+            } else {
+                None
+            }
+        }
+        Plane { .. } | Heightfield => None,
+    }
+}
+
+/// Overlap a shape against a terrain. The shape's world-space AABB is used to fetch
+/// candidate triangles from the terrain, then each triangle is tested against the shape.
+/// Returns the first overlap found.
+fn overlap_shape_terrain(shape: &Collider, terrain: &crate::terrain::Terrain) -> Option<Hit> {
+    use Collider::*;
+    let aabb = shape_aabb(shape)?;
+    let tris = terrain.triangles_in_aabb(&aabb);
+    match shape {
+        Sphere { center, radius } => {
+            for tri in &tris {
+                if let Some((point, normal)) =
+                    sphere_overlap_triangle(center, *radius, &tri[0], &tri[1], &tri[2])
+                {
+                    return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                }
+            }
+            None
+        }
+        Capsule { a, b, radius } => {
+            // Sample the capsule segment at 9 points, sphere-vs-triangle each.
+            for i in 0..=8 {
+                let t = i as f32 / 8.0;
+                let p = a + (b - a) * t;
+                for tri in &tris {
+                    if let Some((point, normal)) =
+                        sphere_overlap_triangle(&p, *radius, &tri[0], &tri[1], &tri[2])
+                    {
+                        return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                    }
+                }
+            }
+            None
+        }
+        Aabb(_) | Obb { .. } => {
+            // v1: treat AABB/OBB as a bounding sphere for terrain queries. Less accurate
+            // than full box-vs-triangle, but consistent with the "simple code" v1 scope.
+            let min = aabb.min_point();
+            let max = aabb.max_point();
+            let center = (min + max) * 0.5;
+            let radius = (max - min).norm() * 0.5;
+            for tri in &tris {
+                if let Some((point, normal)) =
+                    sphere_overlap_triangle(&center, radius, &tri[0], &tri[1], &tri[2])
+                {
+                    return Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 });
+                }
+            }
+            None
+        }
+        // Plane / Mesh / Heightfield: static-vs-static, not meaningful as a query shape against terrain.
+        _ => None,
     }
 }
 
@@ -668,7 +865,13 @@ impl ShapeOverlap {
                 hits.push(hit);
             }
         }
-        // Terrain integration deferred to Task 7.
+        // Terrain — handled separately because `overlap_pair` can't resolve `Heightfield` to
+        // a concrete `Terrain` (it only sees `Collider`s).
+        if let Some(terrain) = app_state.get_terrain() {
+            if let Some(hit) = overlap_shape_terrain(&self.shape, terrain) {
+                hits.push(hit);
+            }
+        }
         hits
     }
 }
@@ -1100,6 +1303,117 @@ mod tests {
         });
         let hits = overlap.query(&mut state);
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn ray_triangle_hits_when_pointing_at_triangle() {
+        // Triangle in the y=0 plane, ray pointing straight down from (0.25, 1, 0.25).
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(1.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 1.0);
+        let origin = Vector3::new(0.25, 1.0, 0.25);
+        let dir = Vector3::new(0.0, -1.0, 0.0);
+        let t = ray_triangle(&origin, &dir, &v0, &v1, &v2).expect("should hit");
+        assert!((t - 1.0).abs() < 1e-4, "expected t=1.0, got {t}");
+    }
+
+    #[test]
+    fn ray_triangle_misses_when_pointing_away() {
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(1.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 1.0);
+        // Ray points up — away from the triangle.
+        let origin = Vector3::new(0.25, 1.0, 0.25);
+        let dir = Vector3::new(0.0, 1.0, 0.0);
+        assert!(ray_triangle(&origin, &dir, &v0, &v1, &v2).is_none());
+    }
+
+    #[test]
+    fn ray_triangle_misses_outside_triangle() {
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(1.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 1.0);
+        // Origin is above (5, _, 5) — well outside the triangle's XZ extent.
+        let origin = Vector3::new(5.0, 1.0, 5.0);
+        let dir = Vector3::new(0.0, -1.0, 0.0);
+        assert!(ray_triangle(&origin, &dir, &v0, &v1, &v2).is_none());
+    }
+
+    #[test]
+    fn sphere_overlap_triangle_hits_when_close() {
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(2.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 2.0);
+        // Sphere center just above the triangle's interior, radius reaches down to it.
+        let center = Vector3::new(0.5, 0.3, 0.5);
+        let radius = 0.5;
+        let result = sphere_overlap_triangle(&center, radius, &v0, &v1, &v2);
+        assert!(result.is_some(), "expected overlap");
+        let (point, normal) = result.unwrap();
+        // The closest point is directly below the sphere center on the triangle plane.
+        assert!((point.y).abs() < 1e-4);
+        // Normal should roughly point up.
+        assert!(normal.y > 0.5);
+    }
+
+    #[test]
+    fn sphere_overlap_triangle_misses_when_far() {
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(1.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 1.0);
+        let center = Vector3::new(0.25, 10.0, 0.25);
+        let radius = 0.5;
+        assert!(sphere_overlap_triangle(&center, radius, &v0, &v1, &v2).is_none());
+    }
+
+    #[test]
+    fn sphere_overlap_triangle_hits_vertex_region() {
+        // Closest point on the triangle is vertex v0; sphere overlaps it.
+        let v0 = Vector3::new(0.0, 0.0, 0.0);
+        let v1 = Vector3::new(10.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 0.0, 10.0);
+        let center = Vector3::new(-0.3, 0.0, -0.3);
+        let radius = 0.6;
+        let result = sphere_overlap_triangle(&center, radius, &v0, &v1, &v2);
+        assert!(result.is_some());
+        let (point, _) = result.unwrap();
+        assert!((point - v0).norm() < 1e-4, "closest point should be v0, got {point:?}");
+    }
+
+    #[test]
+    fn shape_aabb_sphere_pads_radius() {
+        let s = Collider::Sphere { center: Vector3::new(1.0, 2.0, 3.0), radius: 0.5 };
+        let bb = shape_aabb(&s).expect("sphere has aabb");
+        let min = bb.min_point();
+        let max = bb.max_point();
+        assert!((min - Vector3::new(0.5, 1.5, 2.5)).norm() < 1e-5);
+        assert!((max - Vector3::new(1.5, 2.5, 3.5)).norm() < 1e-5);
+    }
+
+    #[test]
+    fn shape_aabb_capsule_bounds_segment_plus_radius() {
+        let c = Collider::Capsule {
+            a: Vector3::new(0.0, 0.0, 0.0),
+            b: Vector3::new(0.0, 2.0, 0.0),
+            radius: 0.5,
+        };
+        let bb = shape_aabb(&c).expect("capsule has aabb");
+        let min = bb.min_point();
+        let max = bb.max_point();
+        assert!((min - Vector3::new(-0.5, -0.5, -0.5)).norm() < 1e-5);
+        assert!((max - Vector3::new(0.5, 2.5, 0.5)).norm() < 1e-5);
+    }
+
+    #[test]
+    fn shape_aabb_plane_returns_none() {
+        let p = Collider::Plane { normal: Vector3::new(0.0, 1.0, 0.0), offset: 0.0 };
+        assert!(shape_aabb(&p).is_none());
+    }
+
+    #[test]
+    fn shape_aabb_heightfield_returns_none() {
+        let h = Collider::Heightfield;
+        assert!(shape_aabb(&h).is_none());
     }
 
     #[test]
