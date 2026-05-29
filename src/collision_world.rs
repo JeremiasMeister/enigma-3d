@@ -644,6 +644,35 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
     }
 }
 
+/// Find all objects whose collider (in world space) overlaps the given shape (in world space).
+/// Iterates `app_state.objects`. No motion — pure overlap test.
+pub struct ShapeOverlap {
+    shape: Collider,
+}
+
+impl ShapeOverlap {
+    pub fn new(shape: Collider) -> Self {
+        Self { shape }
+    }
+
+    pub fn query(&self, app_state: &mut AppState) -> Vec<Hit> {
+        let mut hits = Vec::new();
+        for obj in app_state.objects.iter_mut() {
+            if !*obj.get_collision() { continue; }
+            let world_collider = match obj.get_collider() {
+                Some(c) => c.to_world_space(&obj.transform),
+                None => Collider::Aabb(obj.get_bounding_box()),
+            };
+            if let Some(mut hit) = overlap_pair(&self.shape, &world_collider) {
+                hit.object_id = obj.get_unique_id();
+                hits.push(hit);
+            }
+        }
+        // Terrain integration deferred to Task 7.
+        hits
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -956,5 +985,44 @@ mod tests {
             rotation: UnitQuaternion::identity(),
         };
         assert!(overlap_pair(&plane, &o).is_none(), "OBB below plane should not overlap");
+    }
+
+    #[test]
+    fn shape_overlap_finds_objects_in_radius() {
+        use crate::AppState;
+        use crate::object::Object;
+
+        let mut state = AppState::new();
+        let mut o = Object::new(Some("a".into()));
+        o.transform.set_position([0.0, 0.0, 0.0]);
+        o.set_collider(Collider::Sphere { center: Vector3::zeros(), radius: 1.0 });
+        let oid = o.get_unique_id();
+        state.add_object(o);
+
+        let overlap = ShapeOverlap::new(Collider::Sphere {
+            center: Vector3::new(0.5, 0.0, 0.0),
+            radius: 1.0,
+        });
+        let hits = overlap.query(&mut state);
+        assert!(hits.iter().any(|h| h.object_id == oid));
+    }
+
+    #[test]
+    fn shape_overlap_misses_when_far() {
+        use crate::AppState;
+        use crate::object::Object;
+
+        let mut state = AppState::new();
+        let mut o = Object::new(Some("a".into()));
+        o.transform.set_position([0.0, 0.0, 0.0]);
+        o.set_collider(Collider::Sphere { center: Vector3::zeros(), radius: 1.0 });
+        state.add_object(o);
+
+        let overlap = ShapeOverlap::new(Collider::Sphere {
+            center: Vector3::new(100.0, 0.0, 0.0),
+            radius: 1.0,
+        });
+        let hits = overlap.query(&mut state);
+        assert!(hits.is_empty());
     }
 }
