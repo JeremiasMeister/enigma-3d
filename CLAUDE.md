@@ -59,7 +59,7 @@ All injected functions have signature `fn(&mut AppState)`. They can read/write s
 | `geometry.rs` | Vertex/index buffer types, `InstanceAttribute` for GPU instancing, `BoneTransforms` uniform buffer |
 | `postprocessing/` | Trait `PostProcessingEffect`; implementations: bloom, edge, grayscale, lens_dirt, vignette, depth_fog |
 | `animation.rs` | Skeletal animation clips and playback state on `Object` |
-| `collision_world.rs` | Screen-to-world ray casting and object selection |
+| `collision_world.rs` | Pull-query collision: `Collider`, `Hit`, `RayCast`, `ShapeCast`, `ShapeOverlap` (see Collision system section) |
 | `audio.rs` | `AudioEngine` (rodio-backed) + `AudioClip`; supports one-shot and looping playback |
 | `resources.rs` | `include_bytes!`/`include_str!` embedded engine assets (skybox, icon, lens dirt) |
 | `example_resources.rs` | Same pattern for example-only assets; gated behind `features=examples` |
@@ -115,3 +115,15 @@ Known v1 limitations (deferred to follow-up):
 - No example textures: particle materials in `examples/particles.rs` have no albedo, so sprites/ribbons render as silent skips. Add a small white circle PNG to see particles visually.
 - No `AppStateSerializer` integration for particle systems — save/load only persists scene objects today.
 - Cycle detection on sub-emitter templates is not implemented (e.g., A.on_death → B.on_death → A would create infinite spawns); rely on author discipline for now.
+
+### Collision system
+
+Pull-query collision in `src/collision_world.rs`. Public types: `Collider` (7 variants: `Sphere`, `Aabb`, `Obb`, `Capsule`, `Plane`, `MeshCollider`, `Heightfield`), `Hit { point, normal, penetration, object_id }`, and the three query entry points `RayCast`, `ShapeCast`, `ShapeOverlap`. Each object carries `Object.collider: Option<Collider>`; when `None`, queries fall back to the mesh AABB so existing scenes keep working.
+
+- **Object-space colliders.** `Collider::to_world_space(&Transform)` applies position/rotation/scale once at query time; authors define colliders in local space.
+- **Static-vs-static convention.** Meshes, planes, and heightfields are queried *against* but never used as the moving shape in `ShapeCast`/`ShapeOverlap` — those arms log a warning and return `None`. Use spheres/AABBs/OBBs/capsules as the moving shape.
+- **Iterative sweep.** `ShapeCast` substeps the motion (default 16 steps) and returns the first overlap, since v1 has no analytic swept TOI per primitive pair.
+- **Terrain integration.** `Terrain::height_at`, `normal_at`, and `triangles_in_aabb` back the `Heightfield` arm and ray-vs-terrain in `RayCast`.
+- **Character controller.** `default_events::{CharacterState, character_move_forward/back/left/right, character_jump, character_update}` — kinematic capsule with slide-on-hit, gravity, and ground-snap. See `examples/character_controller.rs`.
+
+Known v1 non-goals (deferred): no broadphase (linear scan), no mesh-vs-mesh / mesh-vs-heightfield / heightfield-vs-heightfield (return `None` + warn), no analytic capsule ray, no rigid-body dynamics, no collision layers/masks, no compound colliders, no push events (pull queries only).
