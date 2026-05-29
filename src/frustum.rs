@@ -52,6 +52,30 @@ impl Frustum {
         }
         Frustum { planes }
     }
+
+    /// Tests whether an AABB is at least partially inside the frustum.
+    /// Returns `false` only when the box is fully outside one of the six planes
+    /// (conservative — may return `true` for boxes outside the corner region of
+    /// two planes, which is acceptable for culling).
+    pub fn contains_aabb(&self, aabb: &BoundingBox) -> bool {
+        let min = aabb.min_point();
+        let max = aabb.max_point();
+        let center = (min + max) * 0.5;
+        let half = (max - min) * 0.5;
+
+        for plane in &self.planes {
+            // Projected radius of the AABB onto the plane normal.
+            let r = half.x * plane.normal.x.abs()
+                + half.y * plane.normal.y.abs()
+                + half.z * plane.normal.z.abs();
+            // Signed distance from center to plane (positive = inside half-space).
+            // If center+r is still negative, the entire box is on the outside.
+            if plane.normal.dot(&center) + plane.offset + r < 0.0 {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 #[cfg(test)]
@@ -74,5 +98,40 @@ mod tests {
             let n = plane.normal.norm();
             assert!((n - 1.0).abs() < 1e-3, "plane {} normal not unit ({})", i, n);
         }
+    }
+
+    #[test]
+    fn aabb_inside_frustum_returns_true() {
+        let vp = test_perspective();
+        let frustum = Frustum::from_view_projection(&vp);
+        // AABB centered well inside the frustum (in front of camera, between near=1 and far=100).
+        let aabb = BoundingBox::new([-1.0, -1.0, -50.0], [1.0, 1.0, -45.0]);
+        assert!(frustum.contains_aabb(&aabb));
+    }
+
+    #[test]
+    fn aabb_behind_camera_returns_false() {
+        let vp = test_perspective();
+        let frustum = Frustum::from_view_projection(&vp);
+        // AABB behind the camera (positive Z in view space, before near plane).
+        let aabb = BoundingBox::new([-1.0, -1.0, 5.0], [1.0, 1.0, 10.0]);
+        assert!(!frustum.contains_aabb(&aabb));
+    }
+
+    #[test]
+    fn aabb_beyond_far_plane_returns_false() {
+        let vp = test_perspective();
+        let frustum = Frustum::from_view_projection(&vp);
+        let aabb = BoundingBox::new([-1.0, -1.0, -200.0], [1.0, 1.0, -150.0]);
+        assert!(!frustum.contains_aabb(&aabb));
+    }
+
+    #[test]
+    fn aabb_straddling_near_plane_returns_true() {
+        let vp = test_perspective();
+        let frustum = Frustum::from_view_projection(&vp);
+        // AABB partially before and partially after near plane — should be visible.
+        let aabb = BoundingBox::new([-0.5, -0.5, -2.0], [0.5, 0.5, 0.5]);
+        assert!(frustum.contains_aabb(&aabb));
     }
 }
