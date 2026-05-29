@@ -1222,6 +1222,9 @@ impl EventLoop {
                         object.update(deltatime);
                     }
 
+                    // Frustum culling — populates Object.visible and AppState.cull_stats.
+                    cull_objects(&mut app_state);
+
                     let render_target = &mut framebuffer;
                     render_target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
                     let model_matrices: std::collections::HashMap<Uuid, [[f32; 4]; 4]> = app_state.objects.iter_mut().map(|x| (x.get_unique_id(), x.transform.get_matrix())).collect();
@@ -1276,6 +1279,7 @@ impl EventLoop {
 
                                 for (instance_id, object_instance) in object_instances.iter() {
                                     if let Some(object) = app_state.get_object_by_uuid(instance_id) {
+                                        if !object.visible { continue; }
                                         if object.get_materials().is_empty() { continue; }
                                         let has_skeleton = object.get_skeleton().is_some();
                                         let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
@@ -1354,6 +1358,7 @@ impl EventLoop {
 
                                 for (instance_id, object_instance) in object_instances.iter() {
                                     if let Some(object) = app_state.get_object_by_uuid(instance_id) {
+                                        if !object.visible { continue; }
                                         if object.get_materials().is_empty() { continue; }
                                         let has_skeleton = object.get_skeleton().is_some();
                                         let bone_transform = bone_uniform_buffers.get(&object.get_unique_id())
@@ -1399,6 +1404,7 @@ impl EventLoop {
                         let object_option = app_state.get_object_by_uuid(&instance_id);
                         match object_option {
                             Some(object) => {
+                                if !object.visible { continue; }
                                 let closest_lights = object.get_closest_lights(&light);
                                 let has_skeleton = object.get_skeleton().is_some();
                                 let bone_transform = bone_uniform_buffers.get(&object.get_unique_id()).expect("Missing Bone Transform Uniforms for Object");
@@ -1489,6 +1495,7 @@ impl EventLoop {
                         let object_option = app_state.get_object_by_uuid(&instance_id);
                         match object_option {
                             Some(object) => {
+                                if !object.visible { continue; }
                                 let closest_lights = object.get_closest_lights(&light);
                                 let has_skeleton = object.get_skeleton().is_some();
                                 let bone_transform = bone_uniform_buffers.get(&object.get_unique_id()).expect("Missing Bone Transform Uniforms for Object");
