@@ -673,6 +673,82 @@ impl ShapeOverlap {
     }
 }
 
+/// Shifts the positions of a world-space shape by `delta`. Used by `ShapeCast` to step the
+/// query shape through space without rebuilding from a transform.
+///
+/// Plane / Mesh / Heightfield can't be the swept shape (they're static-by-convention) —
+/// passing one of those returns a clone, treat that as caller error.
+fn translate_world(shape: &Collider, delta: Vector3<f32>) -> Collider {
+    use Collider::*;
+    match shape {
+        Aabb(bb) => {
+            let min = Vector3::from(bb.min_point()) + delta;
+            let max = Vector3::from(bb.max_point()) + delta;
+            Aabb(BoundingBox::new([min.x, min.y, min.z], [max.x, max.y, max.z]))
+        }
+        Sphere { center, radius } => Sphere { center: center + delta, radius: *radius },
+        Capsule { a, b, radius } => Capsule { a: a + delta, b: b + delta, radius: *radius },
+        Obb { center, half_extents, rotation } => Obb {
+            center: center + delta,
+            half_extents: *half_extents,
+            rotation: *rotation,
+        },
+        // Static-by-convention shapes — can't be swept. Return a clone; caller error if reached.
+        other => other.clone(),
+    }
+}
+
+/// Sweep a shape from its starting world-space position along `direction * distance`,
+/// returning the first hit found. Implemented as an iterative step-and-overlap on top
+/// of `ShapeOverlap`. TOI is rounded to the nearest step (1/`steps` of total distance).
+pub struct ShapeCast {
+    shape: Collider,
+    direction: Vector3<f32>,
+    distance: f32,
+    steps: usize,
+}
+
+impl ShapeCast {
+    /// Construct a new sweep. `direction` is normalized internally; if it's near-zero,
+    /// `cast` will immediately return `None`.
+    pub fn new(shape: Collider, direction: Vector3<f32>, distance: f32) -> Self {
+        let dir = if direction.norm() > 1e-6 {
+            direction.normalize()
+        } else {
+            Vector3::zeros()
+        };
+        Self { shape, direction: dir, distance, steps: 16 }
+    }
+
+    /// Override the default step count (16). Clamped to at least 1.
+    pub fn with_steps(mut self, n: usize) -> Self {
+        self.steps = n.max(1);
+        self
+    }
+
+    /// Run the sweep. Returns the first hit found, with `toi` set to the fraction of
+    /// `distance` at which the hit occurred (rounded to the step grid). Returns `None`
+    /// if direction is zero, distance is non-positive, or no overlap is found through
+    /// the full sweep.
+    pub fn cast(&self, app_state: &mut AppState) -> Option<Hit> {
+        if self.direction.norm() < 1e-6 || self.distance <= 0.0 {
+            return None;
+        }
+        let step_size = self.distance / self.steps as f32;
+        for i in 1..=self.steps {
+            let t = i as f32 / self.steps as f32;
+            let swept = translate_world(&self.shape, self.direction * (i as f32 * step_size));
+            let overlap = ShapeOverlap::new(swept);
+            let hits = overlap.query(app_state);
+            if let Some(mut h) = hits.into_iter().next() {
+                h.toi = t;
+                return Some(h);
+            }
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1024,5 +1100,29 @@ mod tests {
         });
         let hits = overlap.query(&mut state);
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn shape_cast_finds_first_hit_along_sweep() {
+        use crate::AppState;
+        use crate::object::Object;
+        let mut state = AppState::new();
+        let mut o = Object::new(Some("wall".into()));
+        o.transform.set_position([5.0, 0.0, 0.0]);
+        o.set_collider(Collider::Aabb(BoundingBox::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0])));
+        state.objects.push(o);
+
+        let cast = ShapeCast::new(
+            Collider::Sphere { center: Vector3::new(0.0, 0.0, 0.0), radius: 0.5 },
+            Vector3::new(1.0, 0.0, 0.0),
+            10.0,
+        );
+        let hit = cast.cast(&mut state);
+        assert!(hit.is_some());
+        let h = hit.unwrap();
+        assert!(h.toi > 0.0 && h.toi < 1.0);
+        // Sphere of radius 0.5 starting at origin, moving +X, hits wall (left face at x=4.0) at travel=3.5
+        // expected TOI ≈ 3.5 / 10.0 = 0.35
+        assert!((h.toi - 0.35).abs() < 0.1, "toi was {}", h.toi);
     }
 }
