@@ -196,6 +196,13 @@ pub struct TerrainSnapshot {
     pub material: Option<material::MaterialSerializer>,
 }
 
+/// Stats from the most recent frustum-cull pass.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct CullStats {
+    pub total: usize,
+    pub visible: usize,
+}
+
 pub struct AppState {
     pub fps: u64,
     pub camera: Option<camera::Camera>,
@@ -230,6 +237,8 @@ pub struct AppState {
     pub cursor_locked: bool,
     pub terrain: Option<terrain::Terrain>,
     pub particle_systems: Vec<particle::ParticleSystem>,
+    pub cull_stats: CullStats,
+    pub frustum_culling_enabled: bool,
 }
 
 pub struct EventLoop {
@@ -276,6 +285,8 @@ impl AppState {
             cursor_locked: false,
             terrain: None,
             particle_systems: Vec::new(),
+            cull_stats: CullStats::default(),
+            frustum_culling_enabled: true,
         }
     }
 
