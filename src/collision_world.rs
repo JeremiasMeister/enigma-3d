@@ -580,8 +580,11 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
         | (Capsule { a, b, radius }, Plane { normal, offset }) => {
             let da = normal.dot(a) - *offset;
             let db = normal.dot(b) - *offset;
-            let min_d = da.min(db);
-            if min_d <= *radius {
+            let dmin = da.min(db);
+            let dmax = da.max(db);
+            // Overlap iff the signed-distance interval intersects [-radius, +radius].
+            if dmin <= *radius && dmax >= -*radius {
+                // Pick the endpoint closest to the plane (smallest |d|) for the contact reference.
                 let closer = if da.abs() < db.abs() { a } else { b };
                 let d = normal.dot(closer) - *offset;
                 Some(Hit {
@@ -909,5 +912,49 @@ mod tests {
         };
         assert!(overlap_pair(&plane, &o_hit).is_some());
         assert!(overlap_pair(&plane, &o_miss).is_none());
+    }
+
+    #[test]
+    fn capsule_plane_misses_when_fully_below() {
+        // Both endpoints clearly below the ground plane — should be a miss.
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let cap = Collider::Capsule {
+            a: Vector3::new(0.0, -3.0, 0.0),
+            b: Vector3::new(0.0, -2.0, 0.0),
+            radius: 0.5,
+        };
+        assert!(overlap_pair(&plane, &cap).is_none(),
+            "capsule fully below plane should not overlap");
+        assert!(overlap_pair(&cap, &plane).is_none(), "symmetric");
+    }
+
+    #[test]
+    fn capsule_plane_hits_when_crossing() {
+        // Capsule straddles the plane — clear hit.
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let cap = Collider::Capsule {
+            a: Vector3::new(0.0, -1.0, 0.0),
+            b: Vector3::new(0.0, 1.0, 0.0),
+            radius: 0.5,
+        };
+        assert!(overlap_pair(&plane, &cap).is_some());
+    }
+
+    #[test]
+    fn aabb_plane_misses_when_fully_below() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let bb = Collider::Aabb(BoundingBox::new([-1.0,-3.0,-1.0], [1.0,-2.0,1.0]));
+        assert!(overlap_pair(&plane, &bb).is_none(), "AABB below plane should not overlap");
+    }
+
+    #[test]
+    fn obb_plane_misses_when_fully_below() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let o = Collider::Obb {
+            center: Vector3::new(0.0, -3.0, 0.0),
+            half_extents: Vector3::new(1.0, 0.5, 1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        assert!(overlap_pair(&plane, &o).is_none(), "OBB below plane should not overlap");
     }
 }
