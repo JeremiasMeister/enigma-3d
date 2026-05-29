@@ -49,6 +49,7 @@ pub mod audio;
 pub mod shadow;
 pub mod terrain;
 pub mod particle;
+pub mod frustum;
 
 pub fn init_default(app_state: &mut AppState) {
     app_state.set_renderscale(1);
