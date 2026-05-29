@@ -54,7 +54,7 @@ pub struct BoundingBoxSerializer {
     pub depth: f32,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct BoundingBox {
     pub center: Vector3<f32>,
     //relative to the objects position

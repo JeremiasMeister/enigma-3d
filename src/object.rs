@@ -53,6 +53,7 @@ pub struct Object {
     skeleton: Option<animation::Skeleton>,
     current_animation: Option<AnimationState>,
     components: HashMap<TypeId, Box<dyn Any>>,
+    collider: Option<crate::collision_world::Collider>,
     pub visible: bool,
 }
 
@@ -85,6 +86,7 @@ impl Clone for Object {
         new_object.skeleton = self.skeleton.clone();
         new_object.current_animation = self.current_animation.clone();
         new_object.components = HashMap::new();
+        new_object.collider = self.collider.clone();
         new_object.visible = self.visible;
         new_object
     }
@@ -186,6 +188,7 @@ impl Object {
             skeleton: None,
             current_animation: None,
             components: HashMap::new(),
+            collider: None,
             visible: true,
         };
         object.calculate_bounding_box();
@@ -252,6 +255,27 @@ impl Object {
 
     pub fn get_collision(&self) -> &bool {
         &self.collision
+    }
+
+    /// Returns the explicit collider attached to this object, if any.
+    ///
+    /// When `None`, queries fall back to the auto-derived bounding box.
+    /// When `Some`, the collider geometry is stored in local (object) space and
+    /// will be transformed into world space at query time.
+    pub fn get_collider(&self) -> Option<&crate::collision_world::Collider> {
+        self.collider.as_ref()
+    }
+
+    /// Attaches an explicit collider to this object, replacing any previous one.
+    ///
+    /// The collider geometry is expected to be in local (object) space.
+    pub fn set_collider(&mut self, collider: crate::collision_world::Collider) {
+        self.collider = Some(collider);
+    }
+
+    /// Removes the explicit collider, reverting to auto-bounding-box behavior.
+    pub fn clear_collider(&mut self) {
+        self.collider = None;
     }
 
     /// Stores `component`, replacing any existing component of the same type.
@@ -625,6 +649,12 @@ impl Object {
     }
 
     pub fn get_shapes(&self) -> &Vec<Shape> {
+        &self.shapes
+    }
+
+    /// Slice-typed accessor for visual shapes. Equivalent to `get_shapes()` but
+    /// returns `&[Shape]`, which is the idiomatic borrow form for read-only iteration.
+    pub fn shapes_ref(&self) -> &[Shape] {
         &self.shapes
     }
 
@@ -1185,6 +1215,22 @@ mod tests {
         assert!((state.time - 1.25).abs() < 1e-6, "time = {}", state.time);
         assert!((state.speed - 0.0).abs() < 1e-6, "speed = {}", state.speed);
         assert_eq!(state.looping, true);
+    }
+
+    #[test]
+    fn object_stores_explicit_collider() {
+        use crate::collision_world::Collider;
+        use nalgebra::Vector3;
+
+        let mut obj = Object::new(Some("test".into()));
+        assert!(obj.get_collider().is_none());
+        obj.set_collider(Collider::Sphere {
+            center: Vector3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+        });
+        assert!(obj.get_collider().is_some());
+        obj.clear_collider();
+        assert!(obj.get_collider().is_none());
     }
 
     #[test]
