@@ -358,8 +358,13 @@ fn obb_project(center: &Vector3<f32>, axes: &[Vector3<f32>; 3], half: &Vector3<f
     (c - r, c + r)
 }
 
+/// Returns Some((axis, penetration_depth)) if the OBBs overlap, where axis is the
+/// minimum-penetration separating axis (pointing from box 1 toward box 2 by convention),
+/// and penetration_depth is the overlap along that axis.
+/// Returns None if the OBBs are separated.
 fn sat_obb_obb(c1: &Vector3<f32>, a1: &[Vector3<f32>;3], h1: &Vector3<f32>,
-               c2: &Vector3<f32>, a2: &[Vector3<f32>;3], h2: &Vector3<f32>) -> bool {
+               c2: &Vector3<f32>, a2: &[Vector3<f32>;3], h2: &Vector3<f32>)
+               -> Option<(Vector3<f32>, f32)> {
     let mut axes: Vec<Vector3<f32>> = Vec::with_capacity(15);
     axes.extend_from_slice(a1);
     axes.extend_from_slice(a2);
@@ -367,12 +372,22 @@ fn sat_obb_obb(c1: &Vector3<f32>, a1: &[Vector3<f32>;3], h1: &Vector3<f32>,
         let cross = a1[i].cross(&a2[j]);
         if cross.norm_squared() > 1e-10 { axes.push(cross.normalize()); }
     }}
+    let mut best_axis = Vector3::new(0.0, 1.0, 0.0);
+    let mut best_penetration = f32::INFINITY;
     for axis in &axes {
         let (min1, max1) = obb_project(c1, a1, h1, axis);
         let (min2, max2) = obb_project(c2, a2, h2, axis);
-        if max1 < min2 || max2 < min1 { return false; }
+        if max1 < min2 || max2 < min1 { return None; }
+        // Overlap along this axis:
+        let overlap = (max1 - min2).min(max2 - min1);
+        if overlap < best_penetration {
+            best_penetration = overlap;
+            // Convention: axis points from box 1 toward box 2
+            let center_dir = c2 - c1;
+            best_axis = if center_dir.dot(axis) < 0.0 { -axis } else { *axis };
+        }
     }
-    true
+    Some((best_axis, best_penetration))
 }
 
 /// Returns a `Hit` (with `object_id` left as `Uuid::nil()` for the caller to fill in,
@@ -400,11 +415,30 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
         }
         (Aabb(b1), Aabb(b2)) => {
             if is_colliding(b1, b2) {
-                // crude contact: midpoint of overlap region
-                let min = Vector3::from(b1.min_point()).sup(&Vector3::from(b2.min_point()));
-                let max = Vector3::from(b1.max_point()).inf(&Vector3::from(b2.max_point()));
-                let point = (min + max) * 0.5;
-                Some(Hit { object_id: Uuid::nil(), point, normal: Vector3::new(0.0,1.0,0.0), toi: 0.0 })
+                let min1 = b1.min_point();
+                let max1 = b1.max_point();
+                let min2 = b2.min_point();
+                let max2 = b2.max_point();
+                // Overlap region:
+                let omin = Vector3::new(min1.x.max(min2.x), min1.y.max(min2.y), min1.z.max(min2.z));
+                let omax = Vector3::new(max1.x.min(max2.x), max1.y.min(max2.y), max1.z.min(max2.z));
+                let extent = omax - omin;
+                // Pick the axis of *minimum* overlap → that's the axis of minimum penetration.
+                let normal = if extent.x <= extent.y && extent.x <= extent.z {
+                    let c1x = (min1.x + max1.x) * 0.5;
+                    let c2x = (min2.x + max2.x) * 0.5;
+                    Vector3::new(if c2x >= c1x { 1.0 } else { -1.0 }, 0.0, 0.0)
+                } else if extent.y <= extent.z {
+                    let c1y = (min1.y + max1.y) * 0.5;
+                    let c2y = (min2.y + max2.y) * 0.5;
+                    Vector3::new(0.0, if c2y >= c1y { 1.0 } else { -1.0 }, 0.0)
+                } else {
+                    let c1z = (min1.z + max1.z) * 0.5;
+                    let c2z = (min2.z + max2.z) * 0.5;
+                    Vector3::new(0.0, 0.0, if c2z >= c1z { 1.0 } else { -1.0 })
+                };
+                let point = (omin + omax) * 0.5;
+                Some(Hit { object_id: Uuid::nil(), point, normal, toi: 0.0 })
             } else { None }
         }
         (Aabb(bb), Sphere { center, radius }) | (Sphere { center, radius }, Aabb(bb)) => {
@@ -448,7 +482,8 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
             let min = Vector3::from(bb.min_point());
             let max = Vector3::from(bb.max_point());
             // Sample the segment at a few parameters; find min distance to box.
-            // 9 samples is enough resolution for this approximation; analytic version is a later upgrade.
+            // v1 approximation: 9 samples is adequate for character-scale capsules against world-scale boxes.
+            // Tunnel risk on thin obstacles (<25cm) — bump sample count or switch to analytic for those cases.
             let mut best_dist = f32::INFINITY;
             let mut best_point = *a;
             let mut best_closest = *a;
@@ -469,12 +504,10 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
          Obb { center: c2, half_extents: h2, rotation: r2 }) => {
             let a1 = obb_axes(r1);
             let a2 = obb_axes(r2);
-            if sat_obb_obb(c1, &a1, h1, c2, &a2, h2) {
+            sat_obb_obb(c1, &a1, h1, c2, &a2, h2).map(|(normal, _depth)| {
                 let mid = (c1 + c2) * 0.5;
-                let d = c2 - c1;
-                let normal = if d.norm() > 1e-6 { d.normalize() } else { Vector3::new(0.0,1.0,0.0) };
-                Some(Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 })
-            } else { None }
+                Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 }
+            })
         }
         (Obb { center, half_extents, rotation }, Sphere { center: sc, radius: sr })
         | (Sphere { center: sc, radius: sr }, Obb { center, half_extents, rotation }) => {
@@ -501,12 +534,10 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
             let bh = (bmax - bmin) * 0.5;
             let aabb_axes = [Vector3::x(), Vector3::y(), Vector3::z()];
             let obb_a = obb_axes(orot);
-            if sat_obb_obb(oc, &obb_a, oh, &bc, &aabb_axes, &bh) {
+            sat_obb_obb(oc, &obb_a, oh, &bc, &aabb_axes, &bh).map(|(normal, _depth)| {
                 let mid = (oc + bc) * 0.5;
-                let d = bc - oc;
-                let normal = if d.norm() > 1e-6 { d.normalize() } else { Vector3::new(0.0,1.0,0.0) };
-                Some(Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 })
-            } else { None }
+                Hit { object_id: Uuid::nil(), point: mid, normal, toi: 0.0 }
+            })
         }
         (Obb { center, half_extents, rotation }, Capsule { a, b, radius })
         | (Capsule { a, b, radius }, Obb { center, half_extents, rotation }) => {
@@ -716,6 +747,38 @@ mod tests {
         let bb_miss = Collider::Aabb(BoundingBox::new([5.0,5.0,5.0], [6.0,6.0,6.0]));
         assert!(overlap_pair(&o, &bb_hit).is_some());
         assert!(overlap_pair(&o, &bb_miss).is_none());
+    }
+
+    #[test]
+    fn aabb_aabb_overlap_normal_is_min_penetration_axis() {
+        // Two boxes overlapping by 0.1 along X (small) and 0.5 along Y/Z (large).
+        // The min-penetration axis is X → normal should be along ±X.
+        let a = Collider::Aabb(BoundingBox::new([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
+        let b = Collider::Aabb(BoundingBox::new([0.9, 0.5, 0.5], [1.9, 1.5, 1.5]));
+        let hit = overlap_pair(&a, &b).expect("should overlap");
+        assert!(hit.normal.x.abs() > 0.99, "expected X-aligned normal, got {:?}", hit.normal);
+        assert!(hit.normal.y.abs() < 0.01);
+        assert!(hit.normal.z.abs() < 0.01);
+        // b is to the +X of a, so normal pointing from a→b should be +X.
+        assert!(hit.normal.x > 0.0);
+    }
+
+    #[test]
+    fn obb_obb_overlap_normal_is_min_penetration_axis() {
+        // Two identity-rotated OBBs (= AABBs) overlapping slightly along X.
+        let o1 = Collider::Obb {
+            center: Vector3::new(0.0, 0.0, 0.0),
+            half_extents: Vector3::new(1.0, 1.0, 1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let o2 = Collider::Obb {
+            center: Vector3::new(1.9, 0.0, 0.0),       // overlap 0.1 along X
+            half_extents: Vector3::new(1.0, 1.0, 1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let hit = overlap_pair(&o1, &o2).expect("should overlap");
+        assert!(hit.normal.x.abs() > 0.99, "expected X-aligned normal, got {:?}", hit.normal);
+        assert!(hit.normal.x > 0.0, "o2 is +X of o1, normal should point +X");
     }
 
     #[test]
