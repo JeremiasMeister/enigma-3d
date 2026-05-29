@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use crate::AppState;
-use nalgebra::{Matrix4, Point3, Vector3, Vector4};
+use nalgebra::{Matrix4, Point3, UnitQuaternion, Vector3, Vector4};
 use uuid::Uuid;
 use crate::camera::Camera;
 use crate::geometry::BoundingBox;
@@ -39,6 +39,46 @@ pub fn is_colliding(aabb1: &BoundingBox, aabb2: &BoundingBox) -> bool {
     }
 
     true
+}
+
+/// A single contact result from any collision query.
+#[derive(Clone, Debug)]
+pub struct Hit {
+    /// UUID of the hit object, or `Uuid::nil()` if the hit is against terrain.
+    pub object_id: Uuid,
+    /// World-space contact point.
+    pub point: Vector3<f32>,
+    /// World-space contact normal, pointing away from the hit surface.
+    pub normal: Vector3<f32>,
+    /// Time of impact along a sweep, in [0.0, 1.0]. For overlap queries, 0.0.
+    pub toi: f32,
+}
+
+/// A triangle-soup collider, stored in local (object) space.
+/// Static-only: meshes are queried *against* but do not move and collide with other meshes.
+#[derive(Clone, Debug)]
+pub struct MeshCollider {
+    pub triangles: Vec<[Vector3<f32>; 3]>,
+}
+
+impl MeshCollider {
+    pub fn from_triangles(triangles: Vec<[Vector3<f32>; 3]>) -> Self {
+        Self { triangles }
+    }
+}
+
+/// All collider shapes supported by collision_world.
+/// When stored on an `Object`, positions are in local (object-relative) space.
+/// When passed to a query function directly, positions are in world space.
+#[derive(Clone, Debug)]
+pub enum Collider {
+    Aabb(BoundingBox),
+    Sphere   { center: Vector3<f32>, radius: f32 },
+    Capsule  { a: Vector3<f32>, b: Vector3<f32>, radius: f32 },
+    Obb      { center: Vector3<f32>, half_extents: Vector3<f32>, rotation: UnitQuaternion<f32> },
+    Plane    { normal: Vector3<f32>, offset: f32 },
+    Mesh(MeshCollider),
+    Heightfield,
 }
 
 impl Debug for MouseState {
@@ -188,5 +228,34 @@ impl RayCast {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nalgebra::{Vector3, UnitQuaternion};
+
+    #[test]
+    fn collider_variants_construct() {
+        let _a = Collider::Aabb(BoundingBox::new([0.0,0.0,0.0],[1.0,1.0,1.0]));
+        let _s = Collider::Sphere { center: Vector3::new(0.0,0.0,0.0), radius: 1.0 };
+        let _c = Collider::Capsule {
+            a: Vector3::new(0.0,0.0,0.0),
+            b: Vector3::new(0.0,1.0,0.0),
+            radius: 0.5,
+        };
+        let _o = Collider::Obb {
+            center: Vector3::new(0.0,0.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let _p = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let _m = Collider::Mesh(MeshCollider::from_triangles(vec![[
+            Vector3::new(0.0,0.0,0.0),
+            Vector3::new(1.0,0.0,0.0),
+            Vector3::new(0.0,1.0,0.0),
+        ]]));
+        let _h = Collider::Heightfield;
     }
 }
