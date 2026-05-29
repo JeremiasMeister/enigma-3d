@@ -118,7 +118,7 @@ Known v1 limitations (deferred to follow-up):
 
 ### Collision system
 
-Pull-query collision in `src/collision_world.rs`. Public types: `Collider` (7 variants: `Sphere`, `Aabb`, `Obb`, `Capsule`, `Plane`, `MeshCollider`, `Heightfield`), `Hit { point, normal, penetration, object_id }`, and the three query entry points `RayCast`, `ShapeCast`, `ShapeOverlap`. Each object carries `Object.collider: Option<Collider>`; when `None`, queries fall back to the mesh AABB so existing scenes keep working.
+Pull-query collision in `src/collision_world.rs`. Public types: `Collider` (7 variants: `Sphere`, `Aabb`, `Obb`, `Capsule`, `Plane`, `Mesh`, `Heightfield`), `Hit { object_id, point, normal, toi }`, and the three query entry points `RayCast`, `ShapeCast`, `ShapeOverlap`. Each object carries `Object.collider: Option<Collider>`; when `None`, queries fall back to the mesh AABB so existing scenes keep working.
 
 - **Object-space colliders.** `Collider::to_world_space(&Transform)` applies position/rotation/scale once at query time; authors define colliders in local space.
 - **Static-vs-static convention.** Meshes, planes, and heightfields are queried *against* but never used as the moving shape in `ShapeCast`/`ShapeOverlap` — those arms log a warning and return `None`. Use spheres/AABBs/OBBs/capsules as the moving shape.
