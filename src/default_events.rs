@@ -250,20 +250,23 @@ fn translate_capsule(capsule: &Collider, pos: Vector3<f32>) -> Collider {
     }
 }
 
-/// Overwrite horizontal (XZ) velocity to point in `world_dir` at `move_speed`.
-/// If `world_dir` is near-zero, XZ velocity is zeroed.
+/// Accumulate horizontal (XZ) velocity by adding a `move_speed`-scaled `world_dir`.
+/// Each frame, `character_update` zeroes XZ velocity in its writeback so input
+/// functions start from a clean slate; this lets diagonal input (e.g. W+A) sum
+/// into a diagonal velocity instead of whichever input fired last winning.
+/// The combined magnitude is clamped to `move_speed` in `character_update`.
 fn add_horizontal_velocity(app_state: &mut AppState, world_dir: Vector3<f32>) {
     if let Some(cs) = app_state.get_state_data_value_mut::<CharacterState>(CHARACTER_STATE_KEY) {
         let dir = Vector3::new(world_dir.x, 0.0, world_dir.z);
         let n = dir.norm();
         if n > 1e-6 {
             let v = dir / n * cs.move_speed;
-            cs.velocity.x = v.x;
-            cs.velocity.z = v.z;
-        } else {
-            cs.velocity.x = 0.0;
-            cs.velocity.z = 0.0;
+            // Accumulate so diagonal input (forward + left) sums into a diagonal velocity,
+            // not whichever input fired last.
+            cs.velocity.x += v.x;
+            cs.velocity.z += v.z;
         }
+        // No `else` branch — XZ zeroing happens at the end of `character_update`.
     }
 }
 
@@ -328,15 +331,26 @@ pub fn character_update(app_state: &mut AppState) {
     // 1. Snapshot the bits of state we need so AppState is free to be borrowed
     //    mutably by ShapeCast::cast below. `grounded` is recomputed every frame by
     //    the downward sweep below, so we don't need the previous value here.
-    let (mut velocity, capsule, object_id, gravity) = {
+    let (mut velocity, capsule, object_id, gravity, move_speed) = {
         let Some(cs) = app_state.get_state_data_value::<CharacterState>(CHARACTER_STATE_KEY) else {
             return;
         };
-        (cs.velocity, cs.capsule.clone(), cs.object_id, cs.gravity)
+        (cs.velocity, cs.capsule.clone(), cs.object_id, cs.gravity, cs.move_speed)
     };
 
     // Integrate gravity.
     velocity.y += gravity * dt;
+
+    // Clamp horizontal speed (input functions accumulate, so W+A would otherwise give
+    // √2 * move_speed). Preserves direction, caps magnitude.
+    let horizontal = Vector3::new(velocity.x, 0.0, velocity.z);
+    let h_norm = horizontal.norm();
+    if h_norm > move_speed {
+        let scale = move_speed / h_norm;
+        velocity.x *= scale;
+        velocity.z *= scale;
+    }
+
     let mut remaining = velocity * dt;
 
     // 2. Read current object position (immutable borrow on objects only).
@@ -387,7 +401,10 @@ pub fn character_update(app_state: &mut AppState) {
         obj.transform.set_position([pos.x, pos.y, pos.z]);
     }
     if let Some(cs) = app_state.get_state_data_value_mut::<CharacterState>(CHARACTER_STATE_KEY) {
-        cs.velocity = velocity;
+        // Preserve vertical velocity (gravity, jump) but reset horizontal to zero so next
+        // frame's input functions accumulate from a clean slate. Without this, releasing
+        // a movement key would leave the character gliding forever.
+        cs.velocity = Vector3::new(0.0, velocity.y, 0.0);
         cs.grounded = grounded;
     }
 }
