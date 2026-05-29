@@ -65,6 +65,7 @@ All injected functions have signature `fn(&mut AppState)`. They can read/write s
 | `example_resources.rs` | Same pattern for example-only assets; gated behind `features=examples` |
 | `logging/` | `EnigmaError`, `EnigmaWarning`, `EnigmaMessage` — colored terminal output |
 | `particle/` | CPU-simulated particle system (sprite + ribbon, JSON-authorable); update tick runs between transparent and post-processing passes |
+| `frustum.rs` | View frustum extraction + AABB containment test for cull pass |
 
 ### Serialization
 
@@ -115,3 +116,9 @@ Known v1 limitations (deferred to follow-up):
 - No example textures: particle materials in `examples/particles.rs` have no albedo, so sprites/ribbons render as silent skips. Add a small white circle PNG to see particles visually.
 - No `AppStateSerializer` integration for particle systems — save/load only persists scene objects today.
 - Cycle detection on sub-emitter templates is not implemented (e.g., A.on_death → B.on_death → A would create infinite spawns); rely on author discipline for now.
+
+### Frustum culling
+
+Per-object AABB culling in `src/frustum.rs`. `Frustum::from_view_projection(&Matrix4)` extracts 6 planes (Gribb/Hartmann); `Frustum::contains_aabb(&BoundingBox)` returns false only when the AABB is fully outside any plane. `cull_objects(&mut AppState)` runs each frame inside `EventLoop::run`, sets `Object.visible`, and populates `AppState.cull_stats { total, visible }`. Opaque, transparent, and shadow render passes skip objects with `visible = false`. Toggle via `AppState.frustum_culling_enabled` (default `true`).
+
+v1 limits: per-object only (no per-submesh, no hierarchical/BVH), shadow passes cull against the *camera* frustum (not per-light), particles/terrain/skybox never culled.

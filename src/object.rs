@@ -53,6 +53,7 @@ pub struct Object {
     skeleton: Option<animation::Skeleton>,
     current_animation: Option<AnimationState>,
     components: HashMap<TypeId, Box<dyn Any>>,
+    pub visible: bool,
 }
 
 impl Clone for Object {
@@ -84,6 +85,7 @@ impl Clone for Object {
         new_object.skeleton = self.skeleton.clone();
         new_object.current_animation = self.current_animation.clone();
         new_object.components = HashMap::new();
+        new_object.visible = self.visible;
         new_object
     }
 }
@@ -184,6 +186,7 @@ impl Object {
             skeleton: None,
             current_animation: None,
             components: HashMap::new(),
+            visible: true,
         };
         object.calculate_bounding_box();
         object
@@ -1182,5 +1185,20 @@ mod tests {
         assert!((state.time - 1.25).abs() < 1e-6, "time = {}", state.time);
         assert!((state.speed - 0.0).abs() < 1e-6, "speed = {}", state.speed);
         assert_eq!(state.looping, true);
+    }
+
+    #[test]
+    fn object_default_visible_is_true() {
+        let obj = Object::new(Some("test".into()));
+        assert!(obj.visible);
+    }
+
+    #[test]
+    fn object_visible_can_be_toggled() {
+        let mut obj = Object::new(Some("test".into()));
+        obj.visible = false;
+        assert!(!obj.visible);
+        obj.visible = true;
+        assert!(obj.visible);
     }
 }

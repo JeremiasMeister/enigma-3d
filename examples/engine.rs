@@ -110,6 +110,15 @@ fn enigma_ui_function(ctx: &egui::Context, app_state: &mut AppState) {
                 }
             });
         });
+    egui::Window::new("Frustum culling")
+        .default_width(200.0)
+        .show(ctx, |ui| {
+            ui.label(format!(
+                "Visible: {} / {}",
+                app_state.cull_stats.visible, app_state.cull_stats.total
+            ));
+        });
+
     egui::Window::new("Transform Edit")
         .default_width(200.0)
         .default_height(200.0)
