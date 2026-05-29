@@ -4,6 +4,7 @@ use nalgebra::{Matrix4, Point3, UnitQuaternion, Vector3, Vector4};
 use uuid::Uuid;
 use crate::camera::Camera;
 use crate::geometry::BoundingBox;
+use crate::object::Transform;
 
 
 pub struct MouseState {
@@ -79,6 +80,65 @@ pub enum Collider {
     Plane    { normal: Vector3<f32>, offset: f32 },
     Mesh(MeshCollider),
     Heightfield,
+}
+
+impl Collider {
+    /// Transforms a local-space collider into world space using the object's transform.
+    /// For Plane, Mesh, and Heightfield, the result equals the input (those are world-space
+    /// by convention, regardless of which object owns them).
+    pub fn to_world_space(&self, transform: &Transform) -> Collider {
+        let pos: Vector3<f32> = transform.get_position();
+        let scale: Vector3<f32> = transform.get_scale();
+        // Transform.rotation is Euler angles in radians (Vector3<f32>); see object.rs Transform.
+        let rot_euler: Vector3<f32> = transform.rotation;
+        let rot = UnitQuaternion::from_euler_angles(rot_euler.x, rot_euler.y, rot_euler.z);
+        let uniform_scale = (scale.x + scale.y + scale.z) / 3.0;
+
+        match self {
+            Collider::Aabb(bb) => {
+                // Transform bbox corners and rebuild AABB. Loses precision on rotation —
+                // for rotated objects, prefer Obb.
+                let min = bb.min_point();
+                let max = bb.max_point();
+                let corners = [
+                    Vector3::new(min.x, min.y, min.z),
+                    Vector3::new(max.x, min.y, min.z),
+                    Vector3::new(min.x, max.y, min.z),
+                    Vector3::new(max.x, max.y, min.z),
+                    Vector3::new(min.x, min.y, max.z),
+                    Vector3::new(max.x, min.y, max.z),
+                    Vector3::new(min.x, max.y, max.z),
+                    Vector3::new(max.x, max.y, max.z),
+                ];
+                let mut wmin = Vector3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+                let mut wmax = Vector3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+                for c in corners.iter() {
+                    let w = pos + rot * c.component_mul(&scale);
+                    wmin = wmin.inf(&w);
+                    wmax = wmax.sup(&w);
+                }
+                Collider::Aabb(BoundingBox::new(
+                    [wmin.x, wmin.y, wmin.z],
+                    [wmax.x, wmax.y, wmax.z],
+                ))
+            }
+            Collider::Sphere { center, radius } => Collider::Sphere {
+                center: pos + rot * center.component_mul(&scale),
+                radius: radius * uniform_scale.abs(),
+            },
+            Collider::Capsule { a, b, radius } => Collider::Capsule {
+                a: pos + rot * a.component_mul(&scale),
+                b: pos + rot * b.component_mul(&scale),
+                radius: radius * uniform_scale.abs(),
+            },
+            Collider::Obb { center, half_extents, rotation } => Collider::Obb {
+                center: pos + rot * center.component_mul(&scale),
+                half_extents: half_extents.component_mul(&scale.abs()),
+                rotation: rot * rotation,
+            },
+            Collider::Plane { .. } | Collider::Mesh(_) | Collider::Heightfield => self.clone(),
+        }
+    }
 }
 
 impl Debug for MouseState {
@@ -257,5 +317,51 @@ mod tests {
             Vector3::new(0.0,1.0,0.0),
         ]]));
         let _h = Collider::Heightfield;
+    }
+
+    #[test]
+    fn collider_to_world_space_translates_sphere() {
+        use crate::object::Transform;
+        let local = Collider::Sphere { center: Vector3::new(0.0, 0.0, 0.0), radius: 1.0 };
+        let mut t = Transform::new();
+        t.set_position([5.0, 0.0, 0.0]);
+        let world = local.to_world_space(&t);
+        match world {
+            Collider::Sphere { center, radius } => {
+                assert!((center - Vector3::new(5.0, 0.0, 0.0)).norm() < 1e-5);
+                assert!((radius - 1.0).abs() < 1e-5);
+            }
+            _ => panic!("expected Sphere"),
+        }
+    }
+
+    #[test]
+    fn collider_to_world_space_translates_capsule() {
+        use crate::object::Transform;
+        let local = Collider::Capsule {
+            a: Vector3::new(0.0, 0.0, 0.0),
+            b: Vector3::new(0.0, 2.0, 0.0),
+            radius: 0.5,
+        };
+        let mut t = Transform::new();
+        t.set_position([10.0, 0.0, 0.0]);
+        let world = local.to_world_space(&t);
+        if let Collider::Capsule { a, b, .. } = world {
+            assert!((a - Vector3::new(10.0, 0.0, 0.0)).norm() < 1e-5);
+            assert!((b - Vector3::new(10.0, 2.0, 0.0)).norm() < 1e-5);
+        } else { panic!() }
+    }
+
+    #[test]
+    fn collider_to_world_space_plane_unchanged() {
+        use crate::object::Transform;
+        let local = Collider::Plane { normal: Vector3::new(0.0, 1.0, 0.0), offset: 3.0 };
+        let mut t = Transform::new();
+        t.set_position([100.0, 100.0, 100.0]);
+        let world = local.to_world_space(&t);
+        if let Collider::Plane { normal, offset } = world {
+            assert!((normal - Vector3::new(0.0, 1.0, 0.0)).norm() < 1e-5);
+            assert!((offset - 3.0).abs() < 1e-5);
+        } else { panic!() }
     }
 }
