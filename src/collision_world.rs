@@ -564,7 +564,80 @@ pub fn overlap_pair(a: &Collider, b: &Collider) -> Option<Hit> {
                 Some(Hit { object_id: Uuid::nil(), point: best_closest, normal, toi: 0.0 })
             } else { None }
         }
-        _ => None,  // other arms added in later tasks (Plane, Mesh, Heightfield)
+        (Plane { normal, offset }, Sphere { center, radius })
+        | (Sphere { center, radius }, Plane { normal, offset }) => {
+            let d = normal.dot(center) - *offset;
+            if d.abs() <= *radius {
+                Some(Hit {
+                    object_id: Uuid::nil(),
+                    point: center - normal * d,
+                    normal: *normal,
+                    toi: 0.0,
+                })
+            } else { None }
+        }
+        (Plane { normal, offset }, Capsule { a, b, radius })
+        | (Capsule { a, b, radius }, Plane { normal, offset }) => {
+            let da = normal.dot(a) - *offset;
+            let db = normal.dot(b) - *offset;
+            let min_d = da.min(db);
+            if min_d <= *radius {
+                let closer = if da.abs() < db.abs() { a } else { b };
+                let d = normal.dot(closer) - *offset;
+                Some(Hit {
+                    object_id: Uuid::nil(),
+                    point: closer - normal * d,
+                    normal: *normal,
+                    toi: 0.0,
+                })
+            } else { None }
+        }
+        (Plane { normal, offset }, Aabb(bb))
+        | (Aabb(bb), Plane { normal, offset }) => {
+            let min = Vector3::from(bb.min_point());
+            let max = Vector3::from(bb.max_point());
+            let center = (min + max) * 0.5;
+            let half = (max - min) * 0.5;
+            let r = half.x * normal.x.abs() + half.y * normal.y.abs() + half.z * normal.z.abs();
+            let d = normal.dot(&center) - *offset;
+            if d.abs() <= r {
+                Some(Hit {
+                    object_id: Uuid::nil(),
+                    point: center - normal * d,
+                    normal: *normal,
+                    toi: 0.0,
+                })
+            } else { None }
+        }
+        (Plane { normal, offset }, Obb { center, half_extents, rotation })
+        | (Obb { center, half_extents, rotation }, Plane { normal, offset }) => {
+            let a = obb_axes(rotation);
+            let r = half_extents.x * a[0].dot(normal).abs()
+                  + half_extents.y * a[1].dot(normal).abs()
+                  + half_extents.z * a[2].dot(normal).abs();
+            let d = normal.dot(center) - *offset;
+            if d.abs() <= r {
+                Some(Hit {
+                    object_id: Uuid::nil(),
+                    point: center - normal * d,
+                    normal: *normal,
+                    toi: 0.0,
+                })
+            } else { None }
+        }
+        (Plane { .. }, Plane { .. })
+        | (Plane { .. }, Mesh(_)) | (Mesh(_), Plane { .. })
+        | (Plane { .. }, Heightfield) | (Heightfield, Plane { .. })
+        | (Mesh(_), Mesh(_))
+        | (Mesh(_), Heightfield) | (Heightfield, Mesh(_))
+        | (Heightfield, Heightfield) => {
+            crate::logging::EnigmaWarning::new(
+                Some("collision_world::overlap_pair called with static-vs-static pair (unsupported in v1)"),
+                true,
+            ).log();
+            None
+        }
+        _ => None,  // Mesh / Heightfield arms added in later tasks
     }
 }
 
@@ -792,5 +865,49 @@ mod tests {
         let cap_miss = Collider::Capsule { a: Vector3::new(5.0,0.0,0.0), b: Vector3::new(5.0,2.0,0.0), radius: 0.4 };
         assert!(overlap_pair(&o, &cap_hit).is_some());
         assert!(overlap_pair(&o, &cap_miss).is_none());
+    }
+
+    #[test]
+    fn sphere_plane_overlap() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let s_hit = Collider::Sphere { center: Vector3::new(0.0,0.3,0.0), radius: 0.5 };
+        let s_miss = Collider::Sphere { center: Vector3::new(0.0,2.0,0.0), radius: 0.5 };
+        assert!(overlap_pair(&plane, &s_hit).is_some());
+        assert!(overlap_pair(&plane, &s_miss).is_none());
+    }
+
+    #[test]
+    fn capsule_plane_overlap() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let cap_hit = Collider::Capsule { a: Vector3::new(0.0,0.3,0.0), b: Vector3::new(0.0,2.0,0.0), radius: 0.5 };
+        let cap_miss = Collider::Capsule { a: Vector3::new(0.0,2.0,0.0), b: Vector3::new(0.0,3.0,0.0), radius: 0.4 };
+        assert!(overlap_pair(&plane, &cap_hit).is_some());
+        assert!(overlap_pair(&plane, &cap_miss).is_none());
+    }
+
+    #[test]
+    fn aabb_plane_overlap() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let bb_hit = Collider::Aabb(BoundingBox::new([-1.0,-0.5,-1.0], [1.0,0.5,1.0]));
+        let bb_miss = Collider::Aabb(BoundingBox::new([-1.0,1.0,-1.0], [1.0,2.0,1.0]));
+        assert!(overlap_pair(&plane, &bb_hit).is_some());
+        assert!(overlap_pair(&plane, &bb_miss).is_none());
+    }
+
+    #[test]
+    fn obb_plane_overlap() {
+        let plane = Collider::Plane { normal: Vector3::new(0.0,1.0,0.0), offset: 0.0 };
+        let o_hit = Collider::Obb {
+            center: Vector3::new(0.0,0.5,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        let o_miss = Collider::Obb {
+            center: Vector3::new(0.0,3.0,0.0),
+            half_extents: Vector3::new(1.0,1.0,1.0),
+            rotation: UnitQuaternion::identity(),
+        };
+        assert!(overlap_pair(&plane, &o_hit).is_some());
+        assert!(overlap_pair(&plane, &o_miss).is_none());
     }
 }
