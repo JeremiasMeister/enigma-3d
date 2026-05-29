@@ -54,6 +54,7 @@ pub struct Object {
     current_animation: Option<AnimationState>,
     components: HashMap<TypeId, Box<dyn Any>>,
     collider: Option<crate::collision_world::Collider>,
+    pub visible: bool,
 }
 
 impl Clone for Object {
@@ -86,6 +87,7 @@ impl Clone for Object {
         new_object.current_animation = self.current_animation.clone();
         new_object.components = HashMap::new();
         new_object.collider = self.collider.clone();
+        new_object.visible = self.visible;
         new_object
     }
 }
@@ -187,6 +189,7 @@ impl Object {
             current_animation: None,
             components: HashMap::new(),
             collider: None,
+            visible: true,
         };
         object.calculate_bounding_box();
         object
@@ -1228,5 +1231,20 @@ mod tests {
         assert!(obj.get_collider().is_some());
         obj.clear_collider();
         assert!(obj.get_collider().is_none());
+    }
+
+    #[test]
+    fn object_default_visible_is_true() {
+        let obj = Object::new(Some("test".into()));
+        assert!(obj.visible);
+    }
+
+    #[test]
+    fn object_visible_can_be_toggled() {
+        let mut obj = Object::new(Some("test".into()));
+        obj.visible = false;
+        assert!(!obj.visible);
+        obj.visible = true;
+        assert!(obj.visible);
     }
 }

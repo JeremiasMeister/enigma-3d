@@ -65,6 +65,7 @@ All injected functions have signature `fn(&mut AppState)`. They can read/write s
 | `example_resources.rs` | Same pattern for example-only assets; gated behind `features=examples` |
 | `logging/` | `EnigmaError`, `EnigmaWarning`, `EnigmaMessage` — colored terminal output |
 | `particle/` | CPU-simulated particle system (sprite + ribbon, JSON-authorable); update tick runs between transparent and post-processing passes |
+| `frustum.rs` | View frustum extraction + AABB containment test for cull pass |
 
 ### Serialization
 
@@ -127,3 +128,9 @@ Pull-query collision in `src/collision_world.rs`. Public types: `Collider` (7 va
 - **Character controller.** `default_events::{CharacterState, character_move_forward/back/left/right, character_jump, character_update}` — kinematic capsule with slide-on-hit, gravity, and ground-snap. See `examples/character_controller.rs`.
 
 Known v1 non-goals (deferred): no broadphase (linear scan), no mesh-vs-mesh / mesh-vs-heightfield / heightfield-vs-heightfield (return `None` + warn), no analytic capsule ray, no rigid-body dynamics, no collision layers/masks, no compound colliders, no push events (pull queries only).
+
+### Frustum culling
+
+Per-object AABB culling in `src/frustum.rs`. `Frustum::from_view_projection(&Matrix4)` extracts 6 planes (Gribb/Hartmann); `Frustum::contains_aabb(&BoundingBox)` returns false only when the AABB is fully outside any plane. `cull_objects(&mut AppState)` runs each frame inside `EventLoop::run`, sets `Object.visible`, and populates `AppState.cull_stats { total, visible }`. Opaque, transparent, and shadow render passes skip objects with `visible = false`. Toggle via `AppState.frustum_culling_enabled` (default `true`).
+
+v1 limits: per-object only (no per-submesh, no hierarchical/BVH), shadow passes cull against the *camera* frustum (not per-light), particles/terrain/skybox never culled.
