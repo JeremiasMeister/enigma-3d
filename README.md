@@ -26,6 +26,8 @@ Please be aware that I'm not a professional graphics programmer, so the code is 
 - Optimisation: Cloned Objects are batched into one Draw Call via GPU Instancing
 - Skeletal Animation
 - PointLight & Directional Light Shadowcasting for up to 4 Lights per Object
+- Particle System
+- A simple editor written in enigma-3d itself, found here: https://github.com/JeremiasMeister/enigma-engine
 
 ### How to Install and Run:
 Installing the Library in its latest release is quite straight forward, you should be able to just run `cargo add enigma-3d`. from there, you have access to the library for your codebase.
@@ -44,6 +46,11 @@ You can find a no-cut tutorial series on enigma-3d on my YouTube channel: https:
 ![image](https://github.com/JeremiasMeister/enigma/assets/85162425/1d465331-c442-4c95-a472-ecfb9e58950c)
 **Some more postprocessing in form of a black and white shader and a red outline instead of a black one**
 ![image](https://github.com/JeremiasMeister/enigma/assets/19373094/9003a00e-f52c-4692-b7b7-e387b780d456)
+
+**Particle System Example**
+https://github.com/user-attachments/assets/4a5d25a5-ea13-4807-bb15-5456fc3e6677
+
+
 
 ### Example Game:
 A first little game, developed with enigma, can be found here: https://github.com/JeremiasMeister/enigma-flappy-bird
