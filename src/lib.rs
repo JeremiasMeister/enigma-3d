@@ -1150,6 +1150,7 @@ impl EventLoop {
                         }
                     }
                     WindowEvent::ModifiersChanged(modifiers) => {
+                        let _ = self.gui_renderer.as_mut().expect("Failed to retrieve gui renderer").on_event(&event);
                         self.modifiers.ctrl = modifiers.ctrl();
                         self.modifiers.shift = modifiers.shift();
                         self.modifiers.alt = modifiers.alt();
